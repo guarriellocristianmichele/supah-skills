@@ -9,7 +9,7 @@
     {
       "name": "supah-skills",
       "source": "./",
-      "description": "All three skills: ai-slop-audit, ai-slop-prose and orchestrate.",
+      "description": "All four skills: ai-slop-audit, ai-slop-prose, orchestrate and supah-help.",
       "category": "productivity",
       "keywords": [
         "skills",
@@ -21,7 +21,7 @@
     {
       "name": "ai-slop-audit",
       "source": "./skills/ai-slop-audit",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "description": "Evidence-backed audit and cleanup of needless complexity across a codebase, with GitHub issue publishing.",
       "category": "development",
       "keywords": [
@@ -34,7 +34,7 @@
     {
       "name": "ai-slop-prose",
       "source": "./skills/ai-slop-prose",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "description": "Strip AI writing tells from English or Italian prose with a deterministic scanner, then rewrite in the author's voice.",
       "category": "productivity",
       "keywords": [
@@ -47,13 +47,25 @@
     {
       "name": "orchestrate",
       "source": "./skills/orchestrate",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "description": "Run large jobs inline or on parallel subagents sized to free RAM, with checkpoints and resume.",
       "category": "productivity",
       "keywords": [
         "orchestration",
         "subagents",
         "parallel"
+      ]
+    },
+    {
+      "name": "supah-help",
+      "source": "./skills/supah-help",
+      "version": "0.5.0",
+      "description": "Ask which supah skill or flow fits your situation, and why.",
+      "category": "productivity",
+      "keywords": [
+        "router",
+        "help",
+        "workflow"
       ]
     }
   ]

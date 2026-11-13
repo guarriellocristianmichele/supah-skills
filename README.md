@@ -126,7 +126,7 @@ Everything works standalone: `/ai-slop-audit publish` files GitHub issues throug
 
 ### 4. That's it.
 
-Try `/ai-slop-audit audit` on a codebase, or ask your agent to write something. `ai-slop-prose` steps in on its own.
+Not sure where to start? Run `/supah-help` and describe your situation. Or try `/ai-slop-audit audit` on a codebase, or ask your agent to write something: `ai-slop-prose` steps in on its own.
 
 ## Why these skills exist
 
@@ -200,6 +200,7 @@ User-invoked skills run only when you type them. Model-invoked skills can be typ
 
 ### User-invoked
 
+- [supah-help](./skills/supah-help/README.md): tell it what you are trying to do; it recommends the flow, the commands in order and the reason for each step, including how to pair with mattpocock/skills.
 - [ai-slop-audit](./skills/ai-slop-audit/README.md): evidence-backed audit and cleanup of needless complexity across a codebase. Modes: `audit [path]`, `plan`, `publish [batches]`, `fix <ID>`, `verify`. Keeps its state in `.slop-audit/` across sessions, and never reports a partial scan as complete.
 
 ### Model-invoked
@@ -248,6 +249,7 @@ Servono Python 3.8 o superiore (solo libreria standard) e git.
 - `ai-slop-audit` (la avvii tu) fa un audit di un'intera codebase con prove riproducibili e livello di confidenza per ogni problema. Modalità `audit`, `plan`, `publish`, `fix <ID>`, `verify`. Corregge solo ciò che indichi per ID, a piccoli lotti protetti dai test.
 - `ai-slop-prose` (si attiva da sola) usa uno scanner deterministico per i segnali di scrittura AI in inglese e italiano, trattini e punteggiatura compresi, con correzioni sicure, controllo che nessun dato vada perso e riscrittura nella voce dell'autore.
 - `orchestrate` (si attiva da sola) esegue lavori grandi inline o su agenti paralleli dimensionati sulla RAM libera, ferma i più recenti quando la memoria scarseggia salvando il lavoro in `STOPPED_AGENTS_WORK.md` e riprende alla sessione successiva.
+- `supah-help` (la avvii tu, `/supah-help`) ti dice quale skill o percorso usare nella tua situazione, i comandi in ordine e il perché di ogni passo.
 
 ### Licenza
 

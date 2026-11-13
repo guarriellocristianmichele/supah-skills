@@ -1,6 +1,6 @@
 {
   "name": "supah-skills",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Evidence-backed cleanup of AI slop in code and prose, plus a RAM-aware orchestrator for parallel agents.",
   "author": {
     "name": "Cristian Michele Guarriello",
@@ -19,6 +19,7 @@
   "skills": [
     "./skills/ai-slop-audit",
     "./skills/ai-slop-prose",
-    "./skills/orchestrate"
+    "./skills/orchestrate",
+    "./skills/supah-help"
   ]
 }

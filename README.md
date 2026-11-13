@@ -197,11 +197,11 @@ Agents are fast at adding. These skills are about taking away, carefully, with p
 
 User-invoked skills run only when you type them. Model-invoked skills can be typed too, and the agent also reaches for them when the task fits.
 
-**User-invoked**
+### User-invoked
 
 - [ai-slop-audit](./skills/ai-slop-audit/README.md): evidence-backed audit and cleanup of needless complexity across a codebase. Modes: `audit [path]`, `plan`, `publish [batches]`, `fix <ID>`, `verify`. Keeps its state in `.slop-audit/` across sessions, and never reports a partial scan as complete.
 
-**Model-invoked**
+### Model-invoked
 
 - [ai-slop-prose](./skills/ai-slop-prose/README.md): strips AI writing tells from English or Italian prose with a deterministic scanner, safe punctuation fixes and a fact-preservation check, then rewrites each hit in the author's voice. Works while drafting or as a sweep over existing files.
 - [orchestrate](./skills/orchestrate/README.md): runs a job of independent units inline or on parallel subagents sized to free RAM, with per-unit checkpoints, memory-pressure shedding into `STOPPED_AGENTS_WORK.md`, and resume across sessions. Used by the other two for large jobs.

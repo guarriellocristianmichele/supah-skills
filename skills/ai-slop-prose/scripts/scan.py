@@ -55,7 +55,7 @@ M = re.MULTILINE
 # (rule id, category, tier, lang, pattern, flags). lang: en | it | any
 RULES = [
     # residue: chat leftovers, placeholders, leaked tokens
-    ("chat-residue", "residue", "S", "en", r"\b(I hope (this|that|it) helps|Certainly!|Of course!|Great question|Absolutely!|Would you like me to|Let me know if you|Feel free to (ask|reach out)|Happy to help|I'd be happy to|I hope you found)", I),
+    ("chat-residue", "residue", "S", "en", r"\b(I hope (this|that|it) helps|Certainly!|Of course!|Great question|Absolutely!|Would you like me to|Let me know (?:if|whether)\b|Feel free to (ask|reach out)|Happy to help|I'd be happy to|I hope you found)", I),
     ("ai-disclaimer", "residue", "S", "en", r"\b(as of my (last|latest) (knowledge|training)|my knowledge cutoff|as an AI( language model)?\b|I (don't|do not|cannot|can't) browse)", I),
     ("chat-residue", "residue", "S", "it", r"(\bCerto!|\bCertamente!|\bEcco (a te|qui|una versione|il testo|la versione)\b|\bSpero (che )?(questo|ti) (sia|possa essere) (utile|d'aiuto)|\bSe vuoi,? posso\b|\bVuoi che (ti|io)\b|\bFammi sapere se\b|\bSarei felice di\b|\bSono qui per aiutarti\b|\bHai (pienamente |perfettamente |assolutamente )?ragione\b|\bOttima domanda\b)", I),
     # mined 2026-11 from WildChat-1M and Claude Italian answers against 1,145 human documents (0 human hits each)

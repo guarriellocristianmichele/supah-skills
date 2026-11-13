@@ -8,7 +8,7 @@ Every fix states the point plainly, in the author's voice. A fix that swaps one 
 
 Leftovers of a chat, never meant for the reader.
 
-- S `chat-residue`: "I hope this helps", "Great question", "Let me know if you…", "Certo! Ecco…", "Se vuoi, posso…", "Hai perfettamente ragione".
+- S `chat-residue`: "I hope this helps", "Great question", "Let me know if…", "Certo! Ecco…", "Se vuoi, posso…", "Hai perfettamente ragione".
 - S `ai-disclaimer`: "as of my last knowledge update", "As an AI language model", "Come modello linguistico".
 - S `placeholder`: `[Your Name]`, `[Inserisci data]`, `2025-xx-xx`, `INSERT_URL`.
 - S `citation-leak`: `contentReference[oaicite:1]`, `utm_source=chatgpt.com`, `turn0search3`.

@@ -41,8 +41,8 @@
    "tier": "S",
    "human_rate": 0.0,
    "human_upper95": 0.0027,
-   "ai_rate": 0.0575,
-   "lr": 163.61,
+   "ai_rate": 0.0587,
+   "lr": 166.91,
    "admitted": "S"
   },
   "copula-avoidance/en": {

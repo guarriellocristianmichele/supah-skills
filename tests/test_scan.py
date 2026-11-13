@@ -66,6 +66,16 @@ class ScanDetects(unittest.TestCase):
         for rule in ("chat-residue", "ecco-opener", "bold-heading", "signposted-ending"):
             self.assertIn(rule, found, rule)
 
+    def test_english_sign_off_without_you(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "en.md")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("The cache keeps the last ten results.\n\nLet me know if anything needs changing.\n"
+                        "Just let me know whether the limit should be higher.\n")
+            out = json.loads(run("--json", "--lang", "en", path).stdout)[0]
+        matches = [h["match"] for h in out["hits"] if h["rule"] == "chat-residue"]
+        self.assertEqual(len(matches), 2, matches)
+
     def test_italian_punctuation(self):
         r, _ = scan_json("punct-it.md")
         for rule in ("accent-error", "double-space", "space-before-punct", "space-after-comma",

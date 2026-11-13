@@ -1,6 +1,6 @@
 ---
 name: ai-slop-prose
-description: "Strip AI writing tells from English or Italian prose (negative parallelism, dashes, delve-family vocabulary, punchy fragments, false suspense, signposted endings, chat residue, wrong punctuation and 60+ more), found by a deterministic scanner and rewritten in the author's voice. Use when drafting or editing text for humans (posts, docs, READMEs, announcements, emails, copy), or when asked to de-slop, humanize or fix punctuation."
+description: "Strip AI writing tells from English or Italian prose (negative parallelism, dashes, delve-family vocabulary, punchy fragments, false suspense, signposted endings, chat residue, wrong punctuation and 40+ more), found by a deterministic scanner and rewritten in the author's voice. Use when drafting or editing text people read (posts, docs, READMEs, announcements, emails, copy), or when asked to de-slop, humanize or fix punctuation. Documents agents consume (SKILL.md, AGENTS.md, CLAUDE.md) are out of scope."
 argument-hint: "[sweep] [file…]"
 allowed-tools: Bash(python *scan.py*)
 ---
@@ -18,6 +18,8 @@ Read `${CLAUDE_SKILL_DIR}/TELLS.md` in full before drafting or sweeping. The sca
 ## Draft
 
 When you write prose for humans, write to the fixes in TELLS.md from the first sentence. Save the draft to its destination, or to the scratchpad when it has none, and run the sweep on it before showing it.
+
+Inside a session run by another writing skill that builds an article block by block and preserves the user's edits (the mattpocock `writing-shape`, `writing-beats` and `writing-fragments` work this way), that skill owns the rhythm: draft each block to the fixes, run the sweep once when the user calls the article done, and leave the raw-material file and every block the user wrote untouched.
 
 ## Sweep
 

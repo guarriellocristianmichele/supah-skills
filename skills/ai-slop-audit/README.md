@@ -11,7 +11,7 @@ A Claude Code skill that finds and removes needless complexity across a whole co
 - [A typical run](#a-typical-run)
 - [The ledger](#the-ledger)
 - [Findings](#findings)
-- [GitHub and the mattpocock skills](#github-and-the-mattpocock-skills)
+- [Standalone or with the mattpocock skills](#standalone-or-with-the-mattpocock-skills)
 - [Guardrails](#guardrails)
 - [For agents](#for-agents)
 - [Limits](#limits)
@@ -106,18 +106,20 @@ Fix: one-line sketch.
 
 The twelve categories, each with the evidence it requires, are in [`AUDIT.md`](AUDIT.md): dead-code, unused-export / unused-file, unused-dependency, textual duplication, semantic duplication, reinvented, premature-abstraction, wrapper, defensive-check, tautological-test, redundant-test, incoherent-organization.
 
-## GitHub and the mattpocock skills
+## Standalone or with the mattpocock skills
 
-`publish` turns batches into issues shaped for the [mattpocock engineering skills](https://github.com/mattpocock/skills):
+The skill works on its own. When the repo has been set up for the [mattpocock engineering skills](https://github.com/mattpocock/skills) (the file `docs/agents/issue-tracker.md` exists), it reads their configuration and hands them the work they own. It never copies their formats or writes their files (`docs/agents/`, `.scratch/`, `.out-of-scope/`).
 
-- It reads the tracker and label setup from `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`. Run `/setup-matt-pocock-skills` once per repo if they are missing.
-- It creates one map issue per audit (`AI slop audit @<sha>`) and one sub-issue per batch, with the plan's dependencies as native blocking edges.
-- Each issue carries an Agent Brief: current and desired behaviour by symbol name, acceptance criteria (checks no worse than baseline, no new dependency, test removals justified, trust-boundary guards untouched), what is out of scope, and the evidence as permalinks pinned to the scanned commit.
-- Batches whose findings are all high confidence and covered by a check get `ready-for-agent`, so `/implement #<n>` can build them; the rest get `needs-triage`, for `/triage`.
-- A hidden marker in each body prevents duplicates when `publish` runs again, and a rerun also syncs the ledger with closed issues.
-- `fix` ends with the line `Closes #<n>` for the PR body, and `verify` hands the result to `/code-review` with the issues as the spec.
+| | Standalone | With the mattpocock skills |
+|---|---|---|
+| Where `publish` writes | GitHub issues through `gh` when `origin` is on GitHub; otherwise `.slop-audit/issues/<batch>.md` | the tracker configured in `docs/agents/issue-tracker.md`, through its documented operations |
+| Labels | none | the tracker's `ready-for-agent` (all findings high, a protecting check exists) or `needs-triage`, so `/triage` and `/implement #<n>` pick them up |
+| Design work (a fix that needs a new interface, not a deletion) | status `handoff:design`, listed for you | status `handoff:improve-codebase-architecture` |
+| A batch already built by `/implement` | | synced to `fixed` by `fix` and `publish`, never rebuilt |
+| Review in `verify` | `verify`'s own checks | plus the `code-review` skill, with the issues as the spec |
+| Vocabulary and decisions | `GLOSSARY.md` and `docs/adr/` when present | the same |
 
-`publish` shows the drafts and waits for your approval before creating anything.
+On both routes `publish` creates one map issue per audit (`AI slop audit @<sha>`) and one issue per batch, linked to the map, with the plan's dependencies as blocking links. Each issue says what changes, lists the done-when checks (baseline, no new dependency, justified test removals, trust-boundary guards untouched), and keeps the evidence as permalinks pinned to the scanned commit. A hidden marker prevents duplicates on reruns, and a rerun syncs the ledger with closed issues. Nothing is created before you approve the drafts.
 
 ## Guardrails
 
@@ -147,7 +149,7 @@ Skill di Claude Code che trova e rimuove la complessità inutile in un'intera co
 |---|---|
 | `/ai-slop-audit audit [percorso]` | inventario dei moduli e analisi in sola lettura; riprende da dove si era fermata |
 | `/ai-slop-audit plan` | baseline di test, lint, typecheck e build, priorità, rischi, dipendenze, lotti `B1…Bn` |
-| `/ai-slop-audit publish [lotti]` | una issue GitHub per lotto, con dipendenze e Agent Brief, dopo la tua approvazione |
+| `/ai-slop-audit publish [lotti]` | una issue per lotto, con dipendenze e prove, dopo la tua approvazione |
 | `/ai-slop-audit fix <ID>` | corregge solo gli ID indicati (`SLOP-012`, `B3` o `#123`), con test prima e verifica dopo |
 | `/ai-slop-audit verify` | controllo finale: check, regressioni, superficie pubblica, dipendenze, test rimossi |
 
@@ -159,9 +161,9 @@ Tutto vive in `.slop-audit/`, escluso da git: `STATUS.md` (riepilogo), `inventor
 
 Alta confidenza vuol dire che le prove escludono ogni modo in cui il codice può essere usato. Media vuol dire che resta aperto un uso indiretto (reflection, consumatori esterni), e il problema si corregge solo con un check che protegge il comportamento. Bassa è un sospetto, che resta fuori dal piano finché nuove prove non lo confermano.
 
-### Integrazione con GitHub
+### Da sola o con le skill di mattpocock
 
-`publish` usa la configurazione creata da `/setup-matt-pocock-skills`. Le issue con tutti i problemi ad alta confidenza ricevono `ready-for-agent` (pronte per `/implement`), le altre `needs-triage` (per `/triage`). Rieseguire `publish` non crea duplicati e allinea il ledger con le issue chiuse.
+La skill funziona da sola: `publish` crea le issue su GitHub con `gh`, oppure file in `.slop-audit/issues/` se il repo non è su GitHub. Se nel repo è stato lanciato `/setup-matt-pocock-skills` (esiste `docs/agents/issue-tracker.md`), usa quel tracker e quelle label: `ready-for-agent` per `/implement`, `needs-triage` per `/triage`. Passa i problemi di design a `/improve-codebase-architecture` e aggiunge `code-review` alla verifica finale. Non copia mai i loro formati e non scrive nei loro file.
 
 ### Regole fisse
 

@@ -1,0 +1,3 @@
+# orchestrate measures free RAM before every dispatch
+
+Subagents in Claude Code run inside its own process, so their own footprint is small; what exhausts memory is the test suites, compilers and analyzers they launch. orchestrate therefore sizes the pool from measured free RAM (`mem.py status`) rather than from the number of units, and a background watchdog script, which costs no tokens, stops the most recently started workers first when memory falls below the reserve. Stopping is cooperative (a stop file checked between units) and becomes a hard `TaskStop` only after a grace period, so at most the unit in flight is lost.

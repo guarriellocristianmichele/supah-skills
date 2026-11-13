@@ -112,8 +112,8 @@ FIXES = [
     ("accent-error", "it", r"\b([Pp])ò\b", r"\1o'"),
     ("accent-error", "it", r"\b([Qq])ual'(è|era)\b", r"\1ual \2"),
     ("accent-error", "it", r"(^|(?<=[.!?]\s))E'(?=\s)", "È"),
-    # one gap per line; lines with several gaps are column alignment
-    ("double-space", "any", r"^(?!(?:.*\S {2,}\S){2})(.*?[^\s.!?:\ue000]) {2,}(?=[^\s\ue000])", r"\1 "),
+    # exactly two spaces, one gap per line; indented lines and wider gaps are alignment
+    ("double-space", "any", r"^(?! {4}|\t)(?!(?:.*\S {2,}\S){2})(.*?[^\s.!?:\ue000])  (?=[^\s\ue000])", r"\1 "),
     ("space-after-period", "any", r"(?<=[a-zà-ÿ]{2}[.!?])(?=[A-ZÀ-Ý][a-zà-ÿ])", " "),
     ("space-before-punct", "any", r"(?<=[^\W_]) +(?=[,;.!?](\s|$))", ""),
     ("space-after-comma", "any", r"(?<=[^\W\d_]),(?=[^\W\d_])", ", "),

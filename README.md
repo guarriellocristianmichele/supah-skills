@@ -120,9 +120,9 @@ New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\ai-slop-prose
 
 The scripts inside the skills need Python 3.8+ on your `PATH` (standard library only, nothing to pip install) and git. On Windows: `winget install Python.Python.3.13`.
 
-### 3. Optional: connect GitHub
+### 3. Optional: pair with mattpocock/skills
 
-To publish audit findings as GitHub issues, install [mattpocock/skills](https://github.com/mattpocock/skills) and run `/setup-matt-pocock-skills` once in the repo. `/ai-slop-audit publish` reads the issue tracker and labels it configures.
+Everything works standalone: `/ai-slop-audit publish` files GitHub issues through `gh`, or local files when the repo isn't on GitHub. If you also use [mattpocock/skills](https://github.com/mattpocock/skills), run `/setup-matt-pocock-skills` once in the repo: the audit then publishes to the tracker and labels it configured, so `/triage` and `/implement` pick the issues up, and hands design work to `/improve-codebase-architecture`. The two sets never write each other's files.
 
 ### 4. That's it.
 
@@ -237,7 +237,7 @@ Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice mo
    - Claude Code, progetto: `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, poi `claude plugin install supah-skills@guarriellocristianmichele --scope project`, e commit di `.claude/settings.json`;
    - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-prose` o `orchestrate`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
    - Codex, Copilot CLI e Gemini CLI: i comandi nei riquadri della sezione [Installation](#installation-1-minute-setup).
-3. Facoltativo: per pubblicare i risultati dell'audit come issue GitHub, installa le skill di mattpocock e lancia `/setup-matt-pocock-skills` una volta nel repo.
+3. Facoltativo: tutto funziona da solo, ma se usi anche le skill di mattpocock lancia `/setup-matt-pocock-skills` una volta nel repo. L'audit userà il suo tracker e le sue label (così `/triage` e `/implement` vedono le issue) e passerà i problemi di design a `/improve-codebase-architecture`. Le due raccolte non scrivono mai nei file dell'altra.
 
 Servono Python 3.8 o superiore (solo libreria standard) e git.
 

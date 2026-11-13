@@ -1,0 +1,4 @@
+# Deliberate exceptions for the README sweep run by scripts/release.py --check.
+# rule	matched text	reason
+metric	triads_per_1k	term
+marked-word	Delving	quote

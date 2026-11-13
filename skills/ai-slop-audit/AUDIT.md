@@ -24,8 +24,10 @@ Each category names the evidence that makes a finding real.
 - **duplication (textual)**: copy-pasted blocks. Evidence: both locations and the shared span.
 - **duplication (semantic)**: different code, same behaviour. Evidence: both locations, equivalence argued over inputs and edge cases, and every divergence listed; a divergence may be a deliberate fix, so note which copy is newer (`git log -L`).
 - **reinvented**: logic the stdlib, an existing dependency or a project utility already provides. Evidence: the existing implementation and equivalence including edge cases.
-- **premature-abstraction**: interface, factory, strategy, generic or config option with one implementation, one caller, or one value ever set: one adapter is a hypothetical seam, two are real. Evidence: implementation and caller counts, plus the **deletion test** (`codebase-design`): deleting it removes complexity rather than moving it to callers.
-- **wrapper**: forwards to another call and adds nothing. Evidence: the body and the deletion test. It earns its place when it is a test seam, a deliberate API boundary, or narrows types; check before flagging.
+- **premature-abstraction**: interface, factory, strategy, generic or config option with one implementation, one caller, or one value ever set. Evidence: implementation and caller counts, and what removing it does: the complexity disappears, rather than moving into the callers.
+- **wrapper**: forwards to another call and adds nothing. Evidence: the body, and the same removal check. It earns its place when it is a test seam, a deliberate API boundary, or narrows types; check before flagging.
+
+When the cure for either is a new interface rather than a removal (several shallow modules that belong in one deeper module), the finding is design work: set the `handoff` status from SKILL.md's Companions table and leave the code alone.
 - **defensive-check**: null/type checks on values proven valid upstream, try/catch that only rethrows or swallows, re-validation of validated data. Evidence: the value's origin traced to show the guarded case is impossible. Checks at a **trust boundary** (user input, network, env, files, deserialization, auth, FFI) are security: keep them.
 - **tautological-test**: asserts what a mock was told to return, asserts constants, or has no assertion. Evidence: the **mutation** of production code it would catch; none means tautological.
 - **redundant-test**: exercises the same behaviour and branch as another test. Evidence: both tests and the branch they share.

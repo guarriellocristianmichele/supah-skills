@@ -45,7 +45,21 @@ Code changes happen in `fix` only, for the IDs given; tracker writes in `publish
 - `plan.md`: batches `B1` upward, each with `issue: #<n>` once published.
 - `checks.md`: verification commands, baseline commit, baseline results.
 
-Finding status: `open` → `planned` → `fixed`; `stale` or `rejected:<reason>` from any state.
+Finding status: `open` → `planned` → `fixed`; `stale`, `rejected:<reason>` or `handoff:<skill>` from any state.
+
+## Companions
+
+The skill runs **standalone**, or **integrated** with the mattpocock engineering skills when `docs/agents/issue-tracker.md` exists (written by `/setup-matt-pocock-skills`). Integrated means reading their configuration and handing work to their skills; their files and formats stay theirs.
+
+| Need | Integrated | Standalone |
+|---|---|---|
+| issue tracker | the operations in `docs/agents/issue-tracker.md`, labels from `docs/agents/triage-labels.md` | `gh` when `origin` is on GitHub and `gh auth status` passes; otherwise files in `.slop-audit/issues/` |
+| vocabulary and decisions | `GLOSSARY.md` and `docs/adr/` when present | the same files when present |
+| a fix that needs a new interface instead of a deletion | `handoff:improve-codebase-architecture` | `handoff:design`, listed for the human |
+| a published batch already closed by `/implement` | synced to `fixed`, never rebuilt | the same |
+| review in `verify` | the `code-review` skill (`mattpocock-skills:code-review` as a plugin) | `verify`'s own checks |
+
+Their reserved paths (`docs/agents/`, `.scratch/`, `.out-of-scope/`) are read, never written.
 
 ## Findings
 

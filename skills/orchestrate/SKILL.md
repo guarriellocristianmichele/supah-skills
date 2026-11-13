@@ -9,6 +9,8 @@ allowed-tools: Bash(python *mem.py*)
 
 The caller (a skill or the user) supplies a **job**: a name, the **units** (independent: no unit needs another's output), the task brief for one unit, its done criterion, a **profile** (`light`: reads and searches; `build`: runs tests, typecheck or builds), and where workers may write besides their work file. Ask for whatever is missing.
 
+A workflow that already runs its own subagents (the mattpocock `implement-spec` and `research`, for instance) keeps managing them; wrap only work that would otherwise run one unit at a time.
+
 Subagents run inside Claude Code's own process; the RAM that matters is what their commands consume. Measure it, never estimate it from the unit count.
 
 Written for Claude Code, which fills in `${CLAUDE_SKILL_DIR}` (this skill's folder) and `${CLAUDE_SESSION_ID}`, and provides background subagents, background shell commands and TaskStop. On another agent: resolve the placeholders yourself (use a timestamp as the session id), use its own subagent and background-process mechanisms, and when it has no background subagents, run the job inline with the same checkpoints.

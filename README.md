@@ -208,6 +208,10 @@ User-invoked skills run only when you type them. Model-invoked skills can be typ
 - [ai-slop-prose](./skills/ai-slop-prose/README.md): strips AI writing tells from English or Italian prose with a deterministic scanner, safe punctuation fixes and a fact-preservation check, then rewrites each hit in the author's voice. Works while drafting or as a sweep over existing files.
 - [orchestrate](./skills/orchestrate/README.md): runs a job of independent units inline or on parallel subagents sized to free RAM, with per-unit checkpoints, memory-pressure shedding into `STOPPED_AGENTS_WORK.md`, and resume across sessions. Used by the other two for large jobs.
 
+### Hooks (Claude Code, opt-in)
+
+- [slop-guard](./plugins/slop-guard/README.md): a separate plugin, not a skill. At session start it adds about 150 tokens of rules for code and prose; after each write to a Markdown or text file it scans only the new text and, when it finds a tell, sends Claude one line naming it. Clean writes cost nothing. Install with `claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`; skills.sh doesn't install hooks.
+
 ## Other agents
 
 On Claude Code the skills use argument substitution, command output injected at load time, and background subagents. Each skill tells other agents, in one line, how to do the same by hand. Without background subagents, `orchestrate` runs jobs inline with the same checkpoints. To upload a skill to claude.ai or the Skills API, keep only the `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools` frontmatter keys.
@@ -250,6 +254,7 @@ Servono Python 3.8 o superiore (solo libreria standard) e git.
 - `ai-slop-prose` (si attiva da sola) usa uno scanner deterministico per i segnali di scrittura AI in inglese e italiano, trattini e punteggiatura compresi, con correzioni sicure, controllo che nessun dato vada perso e riscrittura nella voce dell'autore.
 - `orchestrate` (si attiva da sola) esegue lavori grandi inline o su agenti paralleli dimensionati sulla RAM libera, ferma i più recenti quando la memoria scarseggia salvando il lavoro in `STOPPED_AGENTS_WORK.md` e riprende alla sessione successiva.
 - `supah-help` (la avvii tu, `/supah-help`) ti dice quale skill o percorso usare nella tua situazione, i comandi in ordine e il perché di ogni passo.
+- `slop-guard` è un plugin di hook per Claude Code, da installare a parte (`claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`). A inizio sessione aggiunge circa 150 token di regole su codice e testi; dopo ogni scrittura in un file Markdown o di testo controlla solo il testo nuovo e, se trova un segnale, lo segnala a Claude in una riga. Le scritture pulite non costano nulla. skills.sh non installa hook.
 
 ### Licenza
 

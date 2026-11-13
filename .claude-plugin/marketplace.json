@@ -67,6 +67,18 @@
         "help",
         "workflow"
       ]
+    },
+    {
+      "name": "slop-guard",
+      "source": "./plugins/slop-guard",
+      "version": "0.5.0",
+      "description": "Opt-in hooks: short anti-slop rules at session start, and the ai-slop-prose scanner on every prose file Claude saves.",
+      "category": "productivity",
+      "keywords": [
+        "hooks",
+        "code-quality",
+        "writing"
+      ]
     }
   ]
 }

@@ -10,10 +10,11 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCAN = os.path.join(ROOT, "skills", "ai-slop-prose", "scripts", "scan.py")
 FIX = os.path.join(ROOT, "tests", "fixtures")
+ISOLATED = tempfile.mkdtemp(prefix="supah-prose-test-")
 
 
 def run(*args):
-    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", SUPAH_PROSE_HOME=ISOLATED)  # never the user's learned model
     return subprocess.run([sys.executable, SCAN, *args], capture_output=True, text=True,
                           encoding="utf-8", env=env)
 
@@ -95,6 +96,17 @@ class Fix(unittest.TestCase):
             r = json.loads(run("--json", path).stdout)[0]
             self.assertFalse(rules(r) & {"accent-error", "double-space", "space-before-punct",
                                          "space-after-comma", "space-after-period"})
+
+
+    def test_fix_keeps_crlf_line_endings(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "crlf.md")
+            with open(path, "w", encoding="utf-8", newline="") as f:
+                f.write("Una riga , perchè.\r\nSeconda riga.\r\n")
+            run("fix", path)
+            with open(path, encoding="utf-8", newline="") as f:
+                text = f.read()
+            self.assertEqual(text, "Una riga, perché.\r\nSeconda riga.\r\n")
 
 
 class Compare(unittest.TestCase):

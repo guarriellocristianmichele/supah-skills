@@ -84,7 +84,7 @@ def checks():
     ok &= run("tests", [sys.executable, "-m", "unittest", "discover", "-s", "tests"])
     readmes = [os.path.relpath(p, ROOT) for p in
                [os.path.join(ROOT, "README.md")] + sorted(glob.glob(os.path.join(ROOT, "skills", "*", "README.md")))]
-    ok &= run("readme sweep", [sys.executable, SCAN, "--keep", KEEP, *readmes])
+    ok &= run("readme sweep", [sys.executable, SCAN, "--no-learn", "--keep", KEEP, *readmes])
     if shutil.which("claude"):
         ok &= run("plugin validate", ["claude", "plugin", "validate", "."])  # not --strict: the dev-only CLAUDE.md at the root is a known warning
     else:

@@ -13,6 +13,18 @@
       Print every rule id with category, tier and language, the metric thresholds
       and the lexicon sizes.
 
+  scan.py verdict ORIGINAL FINAL [--keep FILE] [--source model|human]
+      Record the verdicts of a finished sweep (keep reason fp -> fp, other reasons -> kept,
+      hit gone from FINAL -> tell) and rebuild the learned model.
+  scan.py learn              rebuild the model and print each rule's measured precision
+  scan.py audit [--fraction F]   sample the model's fp verdicts as TSV for a human to confirm
+  scan.py label FILE         record the confirmed audit file as human verdicts
+
+Context gates resolve hits inside quotes and blockquotes, vocabulary in headings,
+capitalised names and Italian dialogue dashes (kept as auto:*); --no-gates shows them.
+The learned model lives in SUPAH_PROSE_HOME (default: the user config folder,
+supah-skills/prose); --no-learn ignores it.
+
   scan.py compare ORIGINAL REWRITE
       List numbers, URLs, code spans, quotes and proper nouns present in ORIGINAL
       but missing from REWRITE. Exit 0 when nothing is missing, else 1.
@@ -20,6 +32,7 @@
 Tiers: S = one hit is enough to rewrite; M = rewrite unless there is a keep reason;
 W = acted on only when its density metric is flagged.
 Keep file: TSV lines `rule<TAB>matched text<TAB>reason`; matching hits count as resolved.
+Reasons: quote, voice, literal, term, dialogue (a real tell kept) or fp (not a tell).
 A flagged metric is kept with `metric<TAB><metric name><TAB>reason`.
 Per-1k densities need at least 300 words; shorter texts show n/a.
 Categories match the headings of TELLS.md.
@@ -30,6 +43,9 @@ import os
 import re
 import statistics
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import learn  # noqa: E402  (sibling module: verdict learning)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 I = re.IGNORECASE
@@ -181,7 +197,39 @@ def line_col(text, pos):
     return line, pos - (text.rfind("\n", 0, pos) + 1) + 1
 
 
-def scan_file(path, lang_opt, keep):
+QUOTE_PAIRS = (("“", "”"), ("«", "»"))
+
+
+def context_window(raw, start, end):
+    """Five tokens either side of a hit: the unit verdicts are learned on."""
+    left = re.findall(r"\S+", raw[max(0, start - 80):start])[-5:]
+    right = re.findall(r"\S+", raw[end:end + 80])[:5]
+    return " ".join(left + ["[" + raw[start:end] + "]"] + right).replace("\n", " ")
+
+
+def gate(raw, start, end, rule, cat, lang):
+    """Contexts where a hit is not the author's own prose or is a legitimate use."""
+    ls = raw.rfind("\n", 0, start) + 1
+    le = raw.find("\n", end)
+    line = raw[ls:len(raw) if le < 0 else le]
+    before, after = line[:start - ls], line[start - ls + (end - start):]
+    if line.lstrip().startswith(">"):
+        return "auto:quote"
+    if before.count('"') % 2 == 1 and '"' in after:
+        return "auto:quote"
+    for opener, closer in QUOTE_PAIRS:
+        if before.rfind(opener) > before.rfind(closer) and closer in after:
+            return "auto:quote"
+    if cat == "vocabulary" and line.lstrip().startswith("#"):
+        return "auto:heading"
+    if rule == "marked-word" and raw[start].isupper() and not re.search(r"(^\W*|[.!?:]\s+)$", before):
+        return "auto:name"
+    if rule == "em-dash" and lang == "it" and re.match(r"\s*[—–]\s", line):
+        return "auto:dialogue"
+    return None
+
+
+def scan_file(path, lang_opt, keep, gates=True, model=None):
     raw = open(path, encoding="utf-8").read()
     text = mask(raw)
     lang = detect_lang(text) if lang_opt == "auto" else lang_opt
@@ -190,9 +238,12 @@ def scan_file(path, lang_opt, keep):
     def add(rule, cat, tier, start, end):
         match = raw[start:end].replace("\n", " ").strip()
         line, col = line_col(raw, start)
-        kept = keep.get((rule, match.lower()))
-        hits.append({"line": line, "col": col, "tier": tier, "category": cat,
-                     "rule": rule, "match": match[:90], "kept": kept})
+        hit = {"line": line, "col": col, "tier": tier, "category": cat, "rule": rule,
+               "match": match[:90], "context": context_window(raw, start, end)}
+        hit["kept"] = keep.get((rule, match.lower())) or (gate(raw, start, end, rule, cat, lang) if gates else None)
+        if not hit["kept"] and model:
+            hit["tier"], hit["kept"] = learn.apply(model, hit, lang)
+        hits.append(hit)
 
     for rule, cat, tier, rlang, pattern, flags in RULES:
         if rlang in (lang, "any"):
@@ -335,7 +386,10 @@ def compare(original, rewrite):
 
 
 def fix(path, lang_opt):
-    raw = open(path, encoding="utf-8").read()
+    with open(path, encoding="utf-8", newline="") as f:
+        original = f.read()
+    newline = "\r\n" if "\r\n" in original else "\n"  # written back in the file's own style
+    raw = original.replace("\r\n", "\n")
     counts = {}
     for _ in range(5):  # overlapping edits land on the next pass
         text = mask(raw)
@@ -358,7 +412,8 @@ def fix(path, lang_opt):
             counts[rule] = counts.get(rule, 0) + 1
         out.append(raw[last:])
         raw = "".join(out)
-    open(path, "w", encoding="utf-8", newline="").write(raw)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(raw.replace("\n", newline))
     for rule, n in sorted(counts.items()):
         print(f"{rule}: {n}")
     print(f"Fixed: {sum(counts.values())} in {path}")
@@ -389,9 +444,109 @@ def list_rules():
     return 0
 
 
+KEPT_REASONS = {"quote", "voice", "literal", "term", "dialogue"}
+
+
+def cmd_verdict(argv):
+    """Turn a finished sweep into verdicts: kept-file `fp` -> fp, other reasons -> kept,
+    a hit gone from the final text -> tell. Hits still present without a keep entry are skipped."""
+    p = argparse.ArgumentParser(prog="scan.py verdict")
+    p.add_argument("original")
+    p.add_argument("final")
+    p.add_argument("--keep")
+    p.add_argument("--lang", choices=("auto", "en", "it"), default="auto")
+    p.add_argument("--source", choices=("model", "human"), default="model")
+    a = p.parse_args(argv)
+    keep = load_keep(a.keep)
+    before = scan_file(a.original, a.lang, {}, model=None)
+    after = scan_file(a.final, before["lang"], {}, model=None)
+    remaining = {}
+    for h in after["hits"]:
+        k = (h["rule"], h["match"].lower())
+        remaining[k] = remaining.get(k, 0) + 1
+    rows, counts = [], {"tell": 0, "kept": 0, "fp": 0}
+    for h in before["hits"]:
+        if h["kept"]:  # gated (quote, heading, name, dialogue): never reviewed
+            continue
+        k = (h["rule"], h["match"].lower())
+        reason = keep.get(k)
+        if reason == "fp":
+            label = "fp"
+        elif reason in KEPT_REASONS:
+            label = "kept"
+        elif remaining.get(k, 0) > 0:
+            remaining[k] -= 1
+            continue
+        else:
+            label, reason = "tell", "rewritten"
+        counts[label] += 1
+        rows.append({"lang": before["lang"], "rule": h["rule"], "category": h["category"], "tier": h["tier"],
+                     "label": label, "reason": reason, "source": a.source, "match": h["match"],
+                     "context": h["context"]})
+    learn.record(rows)
+    model = learn.rebuild()
+    changed = [f"{k}: {r['base']} -> {r['tier']}" for k, r in model["rules"].items() if r["tier"] != r["base"]]
+    print(f"Recorded {len(rows)} verdicts (tell {counts['tell']}, kept {counts['kept']}, fp {counts['fp']}) "
+          f"in {learn.paths()[0]}")
+    print("Tier changes: " + (", ".join(changed) if changed else "none"))
+    return 0
+
+
+def cmd_learn(argv):
+    """Rebuild the model from the verdict log and print per-rule precision."""
+    argparse.ArgumentParser(prog="scan.py learn").parse_args(argv)
+    model = learn.rebuild()
+    print(f"{model['verdicts']} verdicts · {len(model['suppress'])} suppressed contexts · "
+          f"{len(model['nb'])} trained context classifiers · {learn.paths()[1]}\n")
+    print("| rule/lang | verdicts | precision (mean) | 95% lower bound | tier |\n|---|---|---|---|---|")
+    for key, r in sorted(model["rules"].items(), key=lambda kv: kv[1]["lower95"]):
+        tier = r["tier"] if r["tier"] == r["base"] else f"{r['base']} -> {r['tier']}"
+        print(f"| {key} | {r['n']} | {r['mean']:.2f} | {r['lower95']:.2f} | {tier} |")
+    return 0
+
+
+def cmd_audit(argv):
+    """Print a random sample of the model's fp verdicts as TSV for a human to confirm."""
+    p = argparse.ArgumentParser(prog="scan.py audit")
+    p.add_argument("--fraction", type=float, default=0.1)
+    a = p.parse_args(argv)
+    sample = learn.audit_sample(a.fraction)
+    print("# Set label to fp (not a tell), kept, or tell, then: scan.py label <this file>")
+    print("label\tlang\trule\tcategory\ttier\tmatch\tcontext")
+    for r in sample:
+        print("\t".join([r["label"], r["lang"], r["rule"], r["category"], r["tier"], r["match"], r["context"]]))
+    return 0
+
+
+def cmd_label(argv):
+    """Record human verdicts from an edited audit file; they override model verdicts."""
+    p = argparse.ArgumentParser(prog="scan.py label")
+    p.add_argument("file")
+    a = p.parse_args(argv)
+    rows = []
+    with open(a.file, encoding="utf-8") as f:
+        for line in f:
+            parts = line.rstrip("\n").split("\t")
+            if line.startswith("#") or parts[0] == "label" or len(parts) < 7:
+                continue
+            label, lang, rule, cat, tier, match, context = parts[:7]
+            if label in ("fp", "kept", "tell"):
+                rows.append({"lang": lang, "rule": rule, "category": cat, "tier": tier, "label": label,
+                             "reason": "audit", "source": "human", "match": match, "context": context})
+    learn.record(rows)
+    learn.rebuild()
+    print(f"Recorded {len(rows)} human verdicts.")
+    return 0
+
+
+LEARN_COMMANDS = {"verdict": cmd_verdict, "learn": cmd_learn, "audit": cmd_audit, "label": cmd_label}
+
+
 def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    if len(sys.argv) > 1 and sys.argv[1] in LEARN_COMMANDS:
+        return LEARN_COMMANDS[sys.argv[1]](sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "rules":
         return list_rules()
     if len(sys.argv) > 1 and sys.argv[1] == "fix":
@@ -411,9 +566,12 @@ def main():
     p.add_argument("--lang", choices=("auto", "en", "it"), default="auto")
     p.add_argument("--keep")
     p.add_argument("--json", action="store_true")
+    p.add_argument("--no-gates", action="store_true", help="report hits in quotes, headings, names and dialogue too")
+    p.add_argument("--no-learn", action="store_true", help="ignore the learned model (rule tiers, suppressions)")
     a = p.parse_args()
     keep = load_keep(a.keep)
-    results = [scan_file(f, a.lang, keep) for f in a.files]
+    model = None if a.no_learn else learn.load_model()
+    results = [scan_file(f, a.lang, keep, gates=not a.no_gates, model=model) for f in a.files]
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
         dirty = any(r["flags"] or any(not h["kept"] and h["tier"] in "SM" for h in r["hits"]) for r in results)

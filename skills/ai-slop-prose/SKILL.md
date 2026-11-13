@@ -25,13 +25,19 @@ Inside a session run by another writing skill that builds an article block by bl
 
 `$ARGUMENTS` names the files; text pasted in chat goes to a scratchpad file first.
 
-1. **Snapshot** each file to the scratchpad as `<name>.orig`. More than 3 files: run the `orchestrate` skill when installed, else sweep them in sequence (job `prose-sweep`, units = files, profile `light`, unit brief = steps 2–8 for one file, each worker may edit its own file).
+1. **Snapshot** each file to the scratchpad as `<name>.orig`. More than 3 files: run the `orchestrate` skill when installed (job `prose-sweep`, units = files, profile `light`, unit brief = steps 2–9 for one file, each worker may edit its own file), else sweep them in sequence.
 2. **Fix**: `scan.py fix <file>` applies the unambiguous punctuation and accent corrections.
-3. **Scan**: `scan.py <file>`.
+3. **Scan**: `scan.py --json <file>`; each hit carries its `context` (five tokens either side).
 4. **Voice.** From the passages with no hits, note person, sentence-length range, contractions, humour, punctuation habits and recurring idioms. A sample the user supplies overrides them. Every rewrite matches this voice.
-5. **Sweep** TELLS.md category by category: resolve each scanner hit of that category, then read the whole text once for the category's tells the scanner cannot see. Each hit is rewritten, or kept by appending `rule<TAB>match<TAB>reason` to a keep file in the scratchpad, with reason `quote`, `voice`, `literal`, `term` or `dialogue`.
+5. **Judge and sweep** TELLS.md category by category. Read each hit in its context before acting, then give it one verdict:
+   - **tell**: rewrite it;
+   - **kept**: a real tell the text needs; append `rule<TAB>match<TAB>reason` to a keep file in the scratchpad with reason `quote`, `voice`, `literal`, `term` or `dialogue`;
+   - **fp**: the pattern matched but the text is not doing the thing the rule names (a contrast the argument genuinely draws, a literal `_`, a product called Delve); keep it with reason `fp`.
+
+   Hits marked `auto:` (quote, heading, name, dialogue) or `learned:` were resolved by context gates or by past verdicts; rewrite one anyway when it is in fact a tell. Then read the whole text once for the category's tells the scanner cannot see.
 6. **Facts**: `scan.py compare <orig> <file>` must list nothing missing; restore every lost number, name, link, code span or quote.
 7. **Rescan**: `scan.py --keep <keep file> <file>` exits 0. A new hit means a rewrite brought in another tell: fix it and rescan.
-8. **Report** one line per TELLS.md category (hits, rewritten, kept with reasons, model-only finds; zeros included), the metrics before and after, and the diff against the snapshot.
+8. **Learn**: `scan.py verdict <orig> <file> --keep <keep file>` records every verdict (rewritten hits count as tells) and updates each rule's measured precision; rules that keep producing `fp` lose tier on their own, and contexts judged `fp` twice stop being flagged.
+9. **Report** one line per TELLS.md category (hits, rewritten, kept with reasons, fp, model-only finds; zeros included), the metrics before and after, the diff against the snapshot, and the `fp` verdicts. When there are `fp` verdicts, offer the user `scan.py audit`: a human check of a sample keeps the learning honest, since a model reviewer tends to excuse text that sounds like its own.
 
-**Completion.** The rescan exits 0, compare reports nothing missing, and the report has all eleven category lines. The scanner guarantees every catalogued pattern was found; the category lines record that each category was read for. A clean report means no catalogued tell remains, which is a claim about the text, never about who wrote it.
+**Completion.** The rescan exits 0, compare reports nothing missing, the verdicts are recorded, and the report has all eleven category lines. The scanner guarantees every catalogued pattern was found; the category lines record that each category was read for. A clean report means no catalogued tell remains, which is a claim about the text, never about who wrote it.

@@ -50,7 +50,7 @@ Project (then commit `.claude/settings.json`, so everyone on the repo gets the s
 
 ```bash
 claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project
-claude plugin install supah-skills@supah --scope project
+claude plugin install supah-skills@guarriellocristianmichele --scope project
 ```
 
 Local: the two project commands with `--scope local`.
@@ -59,8 +59,8 @@ One skill only: replace `supah-skills` with the skill's name. Each skill is also
 
 ```bash
 claude plugin install ai-slop-prose --marketplace guarriellocristianmichele/supah-skills --scope user
-claude plugin install ai-slop-audit@supah --scope project      # after the project marketplace add above
-claude plugin install orchestrate@supah --scope project
+claude plugin install ai-slop-audit@guarriellocristianmichele --scope project      # after the project marketplace add above
+claude plugin install orchestrate@guarriellocristianmichele --scope project
 ```
 
 Pick either the full set or single skills: installing `supah-skills` and `ai-slop-prose` together loads `ai-slop-prose` twice.
@@ -72,7 +72,7 @@ Pick either the full set or single skills: installing `supah-skills` and `ai-slo
 
 ```bash
 codex plugin marketplace add guarriellocristianmichele/supah-skills
-codex plugin add supah-skills@supah
+codex plugin add supah-skills@guarriellocristianmichele
 ```
 
 If your Codex has no `plugin add`, install `supah-skills` from the app's Plugins Directory. For a project install, use the *Any agent* route: Codex reads `.agents/skills/`.
@@ -84,7 +84,7 @@ If your Codex has no `plugin add`, install `supah-skills` from the app's Plugins
 
 ```bash
 copilot plugin marketplace add guarriellocristianmichele/supah-skills
-copilot plugin install supah-skills@supah
+copilot plugin install supah-skills@guarriellocristianmichele
 ```
 
 For a project install, use the *Any agent* route: Copilot reads `.agents/skills/`.
@@ -234,7 +234,7 @@ Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice mo
 2. Installa con uno di questi comandi.
    - qualsiasi agente: `npx skills@latest add guarriellocristianmichele/supah-skills`, che chiede skill, agenti e ambito (*Project* o *Global*); `-g` lo fissa a globale;
    - Claude Code, globale: `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user`;
-   - Claude Code, progetto: `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, poi `claude plugin install supah-skills@supah --scope project`, e commit di `.claude/settings.json`;
+   - Claude Code, progetto: `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, poi `claude plugin install supah-skills@guarriellocristianmichele --scope project`, e commit di `.claude/settings.json`;
    - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-prose` o `orchestrate`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
    - Codex, Copilot CLI e Gemini CLI: i comandi nei riquadri della sezione [Installation](#installation-1-minute-setup).
 3. Facoltativo: per pubblicare i risultati dell'audit come issue GitHub, installa le skill di mattpocock e lancia `/setup-matt-pocock-skills` una volta nel repo.

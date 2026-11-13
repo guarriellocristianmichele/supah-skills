@@ -46,6 +46,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import learn  # noqa: E402  (sibling module: verdict learning)
+import extract  # noqa: E402  (sibling module: visible text of source files)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 I = re.IGNORECASE
@@ -278,13 +279,22 @@ def gate(raw, start, end, rule, cat, lang):
     return None
 
 
-def scan_file(path, lang_opt, keep, gates=True, model=None):
+MICRO_SKIP = {"title-case", "colon-capital", "fragment-run"}  # meaningless on a button or a label
+
+
+def visible_text(raw, path):
+    """The text scanned for a file: prose masked as before, source files reduced to what users read."""
+    text, spans, kind = extract.view(raw, path)
+    return (mask(raw), [], "prose") if text is None else (text, spans, kind)
+
+
+def scan_file(path, lang_opt, keep, gates=True, model=None, purpose=None):
     with open(path, encoding="utf-8") as f:
-        return scan_text(f.read(), lang_opt, keep, gates=gates, model=model, path=path)
+        return scan_text(f.read(), lang_opt, keep, gates=gates, model=model, path=path, purpose=purpose)
 
 
-def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>"):
-    text = mask(raw)
+def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>", purpose=None):
+    text, spans, kind = visible_text(raw, path)
     lang = detect_lang(text) if lang_opt == "auto" else lang_opt
     hits = []
 
@@ -293,8 +303,14 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>"):
         line, col = line_col(raw, start)
         tier = calibrated_tier(rule, lang, tier)
         hit = {"line": line, "col": col, "tier": tier, "category": cat, "rule": rule,
-               "match": match[:90], "context": context_window(raw, start, end)}
-        hit["kept"] = keep.get((rule, match.lower())) or (gate(raw, start, end, rule, cat, lang) if gates else None)
+               "match": match[:90], "context": context_window(raw, start, end),
+               "purpose": extract.purpose_at(spans, start) or purpose}
+        # gates read the scanned view: in a source file the quotes around a string literal are masked,
+        # so they are not mistaken for quoted speech
+        hit["kept"] = keep.get((rule, match.lower())) or (gate(text, start, end, rule, cat, lang) if gates else None)
+        if not hit["kept"] and gates and hit["purpose"] in extract.MICROCOPY and (
+                cat == "rhythm" or rule in MICRO_SKIP):
+            hit["kept"] = "auto:microcopy"
         if not hit["kept"] and model:
             hit["tier"], hit["kept"] = learn.apply(model, hit, lang)
         hits.append(hit)
@@ -346,7 +362,7 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>"):
     sents = sentences(text)
     lengths = [len(re.findall(r"\w+", s)) for s in sents]
     run, cursor = 0, 0
-    for s, n in zip(sents, lengths):
+    for s, n in (zip(sents, lengths) if kind == "prose" else ()):  # strings of a UI are not a paragraph
         pos = text.find(s, cursor)
         cursor = pos + len(s) if pos >= 0 else cursor
         is_fragment = n <= 3 and re.search(r"[^\W\d_]{2}", s) and not s.endswith(":")
@@ -374,6 +390,8 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>"):
         if len(lengths) >= 15 else None,
         "short_closer_share": round(closers / len(paragraphs), 2) if len(paragraphs) >= 4 else None,
     }
+    if kind != "prose":  # densities are calibrated on running prose, not on a bag of UI strings
+        metrics = {k: (v if k == "words" else None) for k, v in metrics.items()}
     flags = []
     calibrated = calibration_thresholds(lang, n_words)
     for key, (limit, op) in THRESHOLDS.items():
@@ -394,8 +412,8 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>"):
             if h["tier"] == "M":
                 h["tier"], h["isolated"] = "W", True
     hits.sort(key=lambda h: (h["line"], h["col"]))
-    return {"file": path, "lang": lang, "hits": hits, "metrics": metrics,
-            "flags": flags, "kept_flags": kept_flags}
+    return {"file": path, "lang": lang, "kind": kind, "purpose": purpose, "texts": len(spans),
+            "hits": hits, "metrics": metrics, "flags": flags, "kept_flags": kept_flags}
 
 
 def load_keep(path):
@@ -412,13 +430,16 @@ def load_keep(path):
 def print_report(result):
     hits = result["hits"]
     open_hits = [h for h in hits if not h["kept"] and h["tier"] in ("S", "M")]
-    print(f"## {result['file']} · lang {result['lang']} · {result['metrics']['words']} words\n")
+    source = "" if result.get("kind", "prose") == "prose" else f" · {result['kind']}: {result['texts']} visible texts"
+    goal = f" · purpose: {result['purpose']}" if result.get("purpose") else ""
+    print(f"## {result['file']} · lang {result['lang']} · {result['metrics']['words']} words{source}{goal}\n")
     if hits:
-        print("| line | tier | category | rule | match | kept |\n|---|---|---|---|---|---|")
+        print("| line | tier | category | rule | match | purpose | kept |\n|---|---|---|---|---|---|---|")
         for h in hits:
             match = h["match"].replace("|", "\\|")
             note = h["kept"] or ("isolated" if h.get("isolated") else "")
-            print(f"| {h['line']}:{h['col']} | {h['tier']} | {h['category']} | {h['rule']} | {match} | {note} |")
+            print(f"| {h['line']}:{h['col']} | {h['tier']} | {h['category']} | {h['rule']} | {match} | "
+                  f"{h.get('purpose') or ''} | {note} |")
     else:
         print("No pattern hits.")
     print("\n| metric | value | limit | flag |\n|---|---|---|---|")
@@ -464,13 +485,19 @@ def fix(path, lang_opt):
     raw = original.replace("\r\n", "\n")
     counts = {}
     for _ in range(5):  # overlapping edits land on the next pass
-        text = mask(raw)
+        text = visible_text(raw, path)[0]  # prose masked, or only the user-visible text of a source file
         lang = detect_lang(text) if lang_opt == "auto" else lang_opt
         edits = []
         for rule, rlang, pattern, repl in FIXES:
             if rlang in (lang, "any"):
                 for m in re.finditer(pattern, text, M):
-                    new = m.expand(repl) if isinstance(repl, str) else repl(m)
+                    if isinstance(repl, str):
+                        # groups are read from the original text: the masked view holds filler where code is
+                        new = re.sub(r"\\(\d)", lambda g: raw[m.start(int(g.group(1))):m.end(int(g.group(1)))], repl)
+                    else:
+                        new = repl(m)
+                    if "\ue000" in new or "\ue000" in text[m.start():m.end()]:
+                        continue  # never rewrite across masked code
                     edits.append((m.start(), m.end(), new, rule))
         if not edits:
             break
@@ -640,10 +667,12 @@ def main():
     p.add_argument("--json", action="store_true")
     p.add_argument("--no-gates", action="store_true", help="report hits in quotes, headings, names and dialogue too")
     p.add_argument("--no-learn", action="store_true", help="ignore the learned model (rule tiers, suppressions)")
+    p.add_argument("--purpose", help="what the text is for (landing page, onboarding email, error messages...): "
+                                     "reported with every hit that has no purpose of its own")
     a = p.parse_args()
     keep = load_keep(a.keep)
     model = None if a.no_learn else learn.load_model()
-    results = [scan_file(f, a.lang, keep, gates=not a.no_gates, model=model) for f in a.files]
+    results = [scan_file(f, a.lang, keep, gates=not a.no_gates, model=model, purpose=a.purpose) for f in a.files]
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
         dirty = any(r["flags"] or any(not h["kept"] and h["tier"] in "SM" for h in r["hits"]) for r in results)

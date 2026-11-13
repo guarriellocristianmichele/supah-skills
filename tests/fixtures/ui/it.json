@@ -1,0 +1,9 @@
+{
+  "checkout": {
+    "title": "Nel mondo frenetico di oggi, il tuo carrello è pronto",
+    "button": "Paga ora",
+    "error": "Certo! Ecco cosa è successo: il pagamento non è andato a buon fine.",
+    "empty": "Il tuo carrello è vuoto.",
+    "route": "/checkout/step-2"
+  }
+}

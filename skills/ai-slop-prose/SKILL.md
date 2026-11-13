@@ -1,6 +1,6 @@
 ---
 name: ai-slop-prose
-description: "Strip AI writing tells from English or Italian prose (negative parallelism, dashes, delve-family vocabulary, punchy fragments, false suspense, signposted endings, chat residue, wrong punctuation and 40+ more), found by a deterministic scanner and rewritten in the author's voice. Use when drafting or editing text people read (posts, docs, READMEs, announcements, emails, copy), or when asked to de-slop, humanize or fix punctuation. Documents agents consume (SKILL.md, AGENTS.md, CLAUDE.md) are out of scope."
+description: "Strip AI writing tells from English or Italian prose and from the user-facing text of source files (negative parallelism, dashes, delve-family vocabulary, punchy fragments, false suspense, signposted endings, chat residue, wrong punctuation and 40+ more), found by a deterministic scanner and rewritten in the author's voice. Use when drafting or editing text people read (posts, docs, READMEs, announcements, emails, copy), or when asked to de-slop, humanize or fix punctuation. Documents agents consume (SKILL.md, AGENTS.md, CLAUDE.md) are out of scope."
 argument-hint: "[sweep] [file…]"
 allowed-tools: Bash(python *scan.py*)
 ---
@@ -23,11 +23,11 @@ Inside a session run by another writing skill that builds an article block by bl
 
 ## Sweep
 
-`$ARGUMENTS` names the files; text pasted in chat goes to a scratchpad file first.
+`$ARGUMENTS` names the files; text pasted in chat goes to a scratchpad file first. Source files (components, templates, locale files) are scanned for what their users read only: strings, template text and translations, never comments or code. Each hit carries a `purpose` (button, error, heading...); when the user states what a document is for, pass it as `--purpose`. Rewrites follow `${CLAUDE_SKILL_DIR}/PURPOSES.md` for that purpose.
 
 1. **Snapshot** each file to the scratchpad as `<name>.orig`. More than 3 files: run the `orchestrate` skill when installed (job `prose-sweep`, units = files, profile `light`, unit brief = steps 2–9 for one file, each worker may edit its own file), else sweep them in sequence.
 2. **Fix**: `scan.py fix <file>` applies the unambiguous punctuation and accent corrections.
-3. **Scan**: `scan.py --json <file>`; each hit carries its `context` (five tokens either side).
+3. **Scan**: `scan.py --json [--purpose "<what it is for>"] <file>`; each hit carries its `context` (five tokens either side) and `purpose`.
 4. **Voice.** From the passages with no hits, note person, sentence-length range, contractions, humour, punctuation habits and recurring idioms. A sample the user supplies overrides them. Every rewrite matches this voice.
 5. **Judge and sweep** TELLS.md category by category. Read each hit in its context before acting, then give it one verdict:
    - **tell**: rewrite it;

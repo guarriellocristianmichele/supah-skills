@@ -164,6 +164,7 @@ Asking the agent to "write more naturally" swaps one tic for another.
 - Its tiers and thresholds are calibrated on about 5,200 human and AI documents in both languages: on held-out human text, under 1% of documents end up with a required fix (4/592 English, 0/454 Italian), while every Italian Claude answer in the test set is caught. Each verdict it makes is recorded, and rules that keep misfiring lose tier on their own.
 - It rewrites each hit in the author's voice, then proves the rewrite kept every number, name and link, and rescans until nothing catalogued is left.
 - It fires on its own whenever your agent writes for humans: READMEs, docs, posts, release notes, emails.
+- On an app built with AI, it reads only what users see (JSX and template text, attributes such as `alt` and `placeholder`, translation files) and skips comments and code. Each text gets a purpose (button, error, heading, placeholder...) and the rewrite follows it: a button becomes verb + object, an error says what happened and what to do.
 
 <details>
 <summary>Example</summary>

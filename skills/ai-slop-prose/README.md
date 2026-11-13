@@ -13,6 +13,7 @@ A Claude Code skill that finds the patterns that make English and Italian prose 
 - [Command reference](#command-reference)
 - [Tiers, categories and metrics](#tiers-categories-and-metrics)
 - [What the scanner ignores](#what-the-scanner-ignores)
+- [Source files and purposes](#source-files-and-purposes)
 - [False positives: calibration and learning](#false-positives-calibration-and-learning)
 - [Tuning](#tuning)
 - [For agents](#for-agents)
@@ -57,6 +58,8 @@ The skill is model-invoked: Claude loads it on its own when it writes or edits t
 | You type | What happens |
 |---|---|
 | `/ai-slop-prose sweep README.md` | Full sweep of one file, rewritten in place |
+| `/ai-slop-prose sweep src/components/*.tsx locales/it.json` | Sweep of the text users see in an app: strings, JSX and template text, translations; comments and code are left alone |
+| `/ai-slop-prose sweep landing.md` with "it's our landing page" | The purpose goes to the scanner as `--purpose`, and rewrites follow the landing-page row of `PURPOSES.md` |
 | `/ai-slop-prose sweep docs/*.md` | Sweep of every matching file; more than three run through `orchestrate` |
 | `/ai-slop-prose` followed by pasted text | The text is saved to a scratch file, swept, and returned |
 | "Write the release announcement" | Draft mode: Claude writes to the catalogue's fixes, then sweeps its own draft before showing it |
@@ -94,6 +97,7 @@ Scans each file and prints a report.
 | `--json` | off | Print a JSON array instead of Markdown: `file`, `lang`, `hits[]` (`line`, `col`, `tier`, `category`, `rule`, `match`, `context`, `kept`, `isolated`), `metrics`, `flags`, `kept_flags`. |
 | `--no-gates` | off | Also report hits inside quotes and blockquotes, vocabulary in headings, capitalised names and Italian dialogue dashes, which are otherwise kept as `auto:*`. |
 | `--no-learn` | off | Ignore the learned model (tiers and suppressions learned from verdicts). |
+| `--purpose TEXT` | none | What the text is for (`landing page`, `onboarding email`, `error messages`...). Reported with every hit that has no purpose of its own, and used by the rewrite. |
 
 The Markdown report has three parts per file:
 
@@ -194,6 +198,20 @@ Below the minimum the metric shows `n/a` and cannot be flagged.
 
 Before matching, the scanner blanks out YAML front matter, fenced code blocks (```` ``` ```` and `~~~`), inline code, URLs and HTML comments. Offsets are preserved, so line and column numbers still point at the original file. The blanking uses a private-use character, so spacing rules never mistake a code span for whitespace.
 
+## Source files and purposes
+
+The scanner reads source files the way their users do. A component, template or locale file is reduced to the text people see, with everything else masked, so line and column numbers still point into the original file:
+
+| File types | What is read | What is ignored |
+|---|---|---|
+| `.html`, `.vue`, `.svelte`, `.astro`, `.blade.php`, `.twig`, `.hbs`, `.ejs`, `.erb`, `.njk`, `.liquid` | text between tags; `alt`, `placeholder`, `title`, `aria-label`, `label`, meta `content`; strings in `<script>` blocks | HTML comments, `<style>`, template expressions (`{{ }}`, `{% %}`, `@directives`) |
+| `.js`, `.jsx`, `.ts`, `.tsx`, `.py`, `.php`, `.rb`, `.go`, `.java`, `.kt`, `.swift`, `.cs`, `.dart`, `.rs` | string literals that read as words; JSX text between tags | comments, docstrings, `console.*` and logger calls, imports, tests, strings that are code (CSS classes, paths, URLs, SQL, identifiers) |
+| `.json`, `.yaml`, `.yml`, `.po`, `.properties`, `.arb`, `.strings` | translation values | keys, paths, references |
+
+Every kept text gets a `purpose` from the tag, attribute, key or call around it: `button`, `link`, `label`, `placeholder`, `alt`, `tooltip`, `hint`, `heading`, `title`, `text`, `error`, `message`, `empty-state`, `onboarding`, `meta`, `email`, `i18n` or `string`. On microcopy (buttons, labels, placeholders, headings and the like) rhythm and Title Case rules are skipped, because "Save. Cancel." is a toolbar. Density metrics are off for source files: a bag of interface strings is not running prose. `fix` only edits inside the visible text, never code or comments.
+
+[`PURPOSES.md`](PURPOSES.md) gives, for each purpose and for whole documents (landing page, docs, email, legal, support reply...), what the text has to do and how to rewrite it, with English and Italian examples. A button becomes verb + object; an error says what happened and what to do; a placeholder shows a sample value.
+
 ## False positives: calibration and learning
 
 Three layers keep the scanner from flagging ordinary writing. Method and sources: [`docs/research/2026-11-false-positive-control.md`](../../docs/research/2026-11-false-positive-control.md); measured results: [`docs/research/2026-11-calibration-results.md`](../../docs/research/2026-11-calibration-results.md).
@@ -292,6 +310,10 @@ Opzioni di `scan.py`: `--lang auto|en|it` (lingua, rilevata in automatico), `--k
 6. `scan.py compare` per controllare che nessun dato sia sparito.
 7. `scan.py --keep` finché l'exit code è 0.
 8. Resoconto con una riga per ciascuna delle undici categorie, anche quelle a zero.
+
+### File sorgente e scopo dei testi
+
+Nei file di codice (HTML e template, JS/TS/JSX, PHP, Python, file di traduzione JSON/YAML/.po) lo scanner legge solo i testi che vede l'utente: testo tra i tag, attributi come `alt` e `placeholder`, stringhe e traduzioni. Ignora commenti, docstring, log per sviluppatori e stringhe che sono codice (classi CSS, percorsi, URL). A ogni testo assegna uno scopo (bottone, etichetta, errore, titolo, segnaposto, stato vuoto...) e `PURPOSES.md` spiega come riscriverlo, con esempi in italiano e inglese. Per un documento intero lo scopo si indica con `--purpose`, per esempio `--purpose "landing page"`.
 
 ### Falsi positivi
 

@@ -1,0 +1,23 @@
+# IT marked words: each hit is reported (tier M). Curated from Pangram IT corpus counts, Antonelli 2025, community lists. Built 2026-11.
+# One word form per line. Edit freely; lines starting with # are ignored.
+arazzo
+intricato
+intricata
+intricati
+intricate
+intreccio
+sinergia
+sinergie
+sinergico
+sinergica
+olistico
+olistica
+olistici
+olistiche
+poliedrico
+poliedrica
+caleidoscopio
+sfaccettato
+sfaccettata
+sfaccettature
+ineludibile

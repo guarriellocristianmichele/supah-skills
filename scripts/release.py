@@ -113,6 +113,13 @@ def check_manifests():
             errors.append(f"marketplace entry {name} has source {entry.get('source')}")
         elif not entry.get("version") == version == plugin["version"]:
             errors.append(f"plugin {name} is at {version} (entry {entry.get('version')}), plugin.json at {plugin['version']}")
+    bundle = entries.get(plugin["name"], {}).get("description", "")
+    router = open(os.path.join(ROOT, "skills", "supah-help", "SKILL.md"), encoding="utf-8").read()
+    for name in skills:
+        if name not in bundle:
+            errors.append(f"the {plugin['name']} marketplace description does not name {name}")
+        if name != "supah-help" and name not in router:
+            errors.append(f"supah-help does not route to {name}")
     return errors + check_scanner_copy()
 
 

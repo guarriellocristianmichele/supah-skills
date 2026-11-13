@@ -1,6 +1,6 @@
 ---
 name: supah-help
-description: Ask which supah skill or flow fits your situation, and why. A router over ai-slop-audit, ai-slop-prose and orchestrate, with how they pair with mattpocock/skills.
+description: Ask which supah skill or flow fits your situation, and why. A router over ai-slop-audit, ai-slop-prose, context-audit, orchestrate and the slop-guard hooks, with how they pair with mattpocock/skills.
 argument-hint: "[what you are trying to do]"
 disable-model-invocation: true
 ---
@@ -29,6 +29,7 @@ Every recommendation follows these five habits. State the one behind each step y
 | sharing that cleanup with a team or with agents | after `plan`: `/ai-slop-audit publish`, then work the issues with `fix #<n>` or `/implement #<n>` | issues carry their own done-when checks and evidence, so whoever picks one up needs no local state |
 | cleaning the text people see in an app (UI copy, error messages, translations) | `/ai-slop-prose sweep src/**/*.tsx locales/*.json` | only visible strings are read, never comments or code; each text has a purpose (button, error…) and is rewritten for it |
 | editing a page, post, email or README | `/ai-slop-prose sweep <file>` and say what it is for ("landing page", "onboarding email") | the purpose picks the rewrite rules in PURPOSES.md; calibration keeps human-sounding text untouched (under 1% of human documents need a fix) |
+| paying for a big context before typing anything, or getting instructions that fight each other | `/context-audit` | the first request's tokens are measured from your transcripts and split by plugin, so you cut what costs most; every contradiction is quoted from both sides before anything changes |
 | wanting Claude to avoid slop in every session, without asking | `claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills` (Claude Code only) | its hooks add about 150 tokens of rules per session and scan only the prose Claude just saved, so clean work costs nothing |
 | writing something new for people | nothing to type: ai-slop-prose drafts to its rules and sweeps its own draft | catching a tell while drafting is cheaper than sweeping it out afterwards |
 | told by the scanner that fine text is slop | keep the hit with reason `fp`, finish the sweep, then `scan.py verdict`; once in a while `scan.py audit` | verdicts measure each rule's precision; noisy rules lose tier on their own, and your audit checks the model's judgement |

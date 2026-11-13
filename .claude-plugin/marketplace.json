@@ -9,7 +9,7 @@
     {
       "name": "supah-skills",
       "source": "./",
-      "description": "All four skills: ai-slop-audit, ai-slop-prose, orchestrate and supah-help.",
+      "description": "All five skills: ai-slop-audit, ai-slop-prose, context-audit, orchestrate and supah-help.",
       "category": "productivity",
       "keywords": [
         "skills",
@@ -42,6 +42,19 @@
         "editing",
         "punctuation",
         "style"
+      ]
+    },
+    {
+      "name": "context-audit",
+      "source": "./skills/context-audit",
+      "version": "0.5.0",
+      "description": "Measure what every Claude Code session loads, and find instructions, memories and plugins that contradict each other or hold development back.",
+      "category": "productivity",
+      "keywords": [
+        "context",
+        "tokens",
+        "memory",
+        "audit"
       ]
     },
     {

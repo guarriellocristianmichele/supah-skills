@@ -201,6 +201,7 @@ User-invoked skills run only when you type them. Model-invoked skills can be typ
 ### User-invoked
 
 - [supah-help](./skills/supah-help/README.md): tell it what you are trying to do; it recommends the flow, the commands in order and the reason for each step, including how to pair with mattpocock/skills.
+- [context-audit](./skills/context-audit/README.md): measures what every Claude Code session loads before you type, from your own transcripts and split by plugin, and finds the instructions, memories and plugins that contradict each other or hold development back.
 - [ai-slop-audit](./skills/ai-slop-audit/README.md): evidence-backed audit and cleanup of needless complexity across a codebase. Modes: `audit [path]`, `plan`, `publish [batches]`, `fix <ID>`, `verify`. Keeps its state in `.slop-audit/` across sessions, and never reports a partial scan as complete.
 
 ### Model-invoked
@@ -242,7 +243,7 @@ Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice mo
    - qualsiasi agente: `npx skills@latest add guarriellocristianmichele/supah-skills`, che chiede skill, agenti e ambito (*Project* o *Global*); `-g` lo fissa a globale;
    - Claude Code, globale: `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user`;
    - Claude Code, progetto: `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, poi `claude plugin install supah-skills@guarriellocristianmichele --scope project`, e commit di `.claude/settings.json`;
-   - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-prose` o `orchestrate`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
+   - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-prose`, `context-audit`, `orchestrate` o `supah-help`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
    - Codex, Copilot CLI e Gemini CLI: i comandi nei riquadri della sezione [Installation](#installation-1-minute-setup).
 3. Facoltativo: tutto funziona da solo, ma se usi anche le skill di mattpocock lancia `/setup-matt-pocock-skills` una volta nel repo. L'audit userà il suo tracker e le sue label (così `/triage` e `/implement` vedono le issue) e passerà i problemi di design a `/improve-codebase-architecture`. Le due raccolte non scrivono mai nei file dell'altra.
 
@@ -253,6 +254,7 @@ Servono Python 3.10 o superiore (solo libreria standard) e git.
 - `ai-slop-audit` (la avvii tu) fa un audit di un'intera codebase con prove riproducibili e livello di confidenza per ogni problema. Modalità `audit`, `plan`, `publish`, `fix <ID>`, `verify`. Corregge solo ciò che indichi per ID, a piccoli lotti protetti dai test.
 - `ai-slop-prose` (si attiva da sola) usa uno scanner deterministico per i segnali di scrittura AI in inglese e italiano, trattini e punteggiatura compresi, con correzioni sicure, controllo che nessun dato vada perso e riscrittura nella voce dell'autore.
 - `orchestrate` (si attiva da sola) esegue lavori grandi inline o su agenti paralleli dimensionati sulla RAM libera, ferma i più recenti quando la memoria scarseggia salvando il lavoro in `STOPPED_AGENTS_WORK.md` e riprende alla sessione successiva.
+- `context-audit` (la avvii tu, `/context-audit`) misura quanto contesto carica ogni sessione di Claude Code prima che tu scriva, diviso per plugin, e trova istruzioni, memorie e plugin che si contraddicono o frenano lo sviluppo.
 - `supah-help` (la avvii tu, `/supah-help`) ti dice quale skill o percorso usare nella tua situazione, i comandi in ordine e il perché di ogni passo.
 - `slop-guard` è un plugin di hook per Claude Code, da installare a parte (`claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`). A inizio sessione aggiunge circa 150 token di regole su codice e testi; dopo ogni scrittura in un file Markdown o di testo controlla solo il testo nuovo e, se trova un segnale, lo segnala a Claude in una riga. Le scritture pulite non costano nulla. skills.sh non installa hook.
 

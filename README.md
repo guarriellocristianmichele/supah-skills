@@ -1,127 +1,214 @@
-# supah-skills
+# Supah Skills
 
-Agent skills for cleaning up what AI leaves behind, in code and in prose, plus an orchestrator that runs large jobs across parallel agents without running out of memory. Written for Claude Code first; every skill also runs on other agents that read the [Agent Skills](https://agentskills.io) format.
+[![skills.sh](https://skills.sh/b/guarriellocristianmichele/supah-skills)](https://skills.sh/guarriellocristianmichele/supah-skills)
+
+Agent skills for cleaning up after AI: the dead code and needless layers it leaves in a codebase, and the tics it leaves in prose.
+
+Agents write a lot, fast. Some of it is excellent, and some of it is slop: a wrapper around a wrapper, a test that checks the mock it just configured, a README that `delves into` a `rich tapestry`. These skills find that slop with evidence instead of vibes, and remove it in small steps that keep behaviour, meaning and voice intact.
+
+They're built for Claude Code first and work with any agent that reads the [Agent Skills](https://agentskills.io) format. Take them, change them, make them yours.
 
 *Versione italiana in fondo: [Italiano](#italiano).*
 
-| Skill | Invoked by | What it does |
-|---|---|---|
-| [`ai-slop-audit`](skills/ai-slop-audit/README.md) | you (`/ai-slop-audit`) | Audits a whole codebase for dead code, duplication, needless abstractions, wrappers, unjustified defensive checks and tautological tests. Every finding carries reproducible evidence and a confidence level. Fixes are applied only by ID, in small verified batches, and can be published as GitHub issues. |
-| [`ai-slop-prose`](skills/ai-slop-prose/README.md) | the agent, or you | Finds the patterns that make English and Italian prose read as machine-written (negative parallelism, dashes, inflated vocabulary, false suspense, chat leftovers, wrong punctuation) with a deterministic scanner, then rewrites each one in the author's voice. |
-| [`orchestrate`](skills/orchestrate/README.md) | the agent, or other skills | Splits a job into units and runs them inline or on parallel subagents sized to free RAM, with per-unit checkpoints, shedding under memory pressure and resume across sessions. |
+## Installation (1-minute setup)
 
-## Install
+### 1. Decide where the skills live
 
-Every route asks for, or takes, one decision first: **where** the skills go.
-
-| Scope | Where the skills live | Who gets them |
+| Scope | Where | Who gets them |
 |---|---|---|
 | Global | your home folder | you, in every project |
-| Project | inside the repository, committed with it | everyone who works on the repository |
-| Local (Claude Code only) | inside the repository, kept out of git | you, in this repository only |
+| Project | inside the repo, committed | everyone who works on the repo |
+| Local (Claude Code only) | inside the repo, kept out of git | you, in this repo only |
 
-Then pick **one** route per agent. Installing the same skills twice (for example as a plugin and through skills.sh) leaves the agent with every skill twice.
+You'll be asked for this choice (or pass it as a flag) in the next step. Pick one route per agent: installing the same skills twice gives you every skill twice.
 
-### Any agent, with a prompt for the scope (skills.sh)
+### 2. Get the skills
+
+<details>
+<summary><strong>Any agent</strong> (asks for the scope; manual updates)</summary>
 
 ```bash
 npx skills@latest add guarriellocristianmichele/supah-skills
 ```
 
-Run with no flags, it asks three questions: which skills, which agents, and **Installation scope** (*Project*: in the current directory, committed with your project; *Global*: in your home directory, for all projects). It knows the folders of Claude Code, Codex, Copilot, Gemini CLI, Cursor, OpenCode, Windsurf, Amp, Goose, Cline, Roo, Kiro, Junie, Pi, Factory, Qwen Code, Continue and more.
+It asks which skills, which agents, and the installation scope (*Project* or *Global*). It knows the folders of Claude Code, Codex, Copilot, Gemini CLI, Cursor, OpenCode, Windsurf, Amp, Goose, Cline, Roo, Kiro, Junie, Pi, Factory, Qwen Code, Continue and more.
 
-To answer the questions on the command line instead:
+To answer on the command line: `-g` for global (omit it for project), `-a <agent>` to pick agents, `-s <skill>` to pick skills, `-y` to skip the prompts. Update with `npx skills@latest update`, and re-run `add` to pick up new skills.
 
-| Goal | Command |
-|---|---|
-| Global, chosen agents | `npx skills@latest add guarriellocristianmichele/supah-skills -g -a claude-code codex` |
-| Project, chosen agents | `npx skills@latest add guarriellocristianmichele/supah-skills -a cursor` |
-| One skill only | add `-s ai-slop-prose` |
-| No prompts at all | add `-y` (scope then defaults to project unless `-g` is given) |
+</details>
 
-skills.sh keeps one copy in `.agents/skills/` (or `~/.agents/skills/` when global) and links each agent's folder to it; `--copy` writes real copies instead. Update with `npx skills@latest update` (it asks for the scope again; `-g` or `-p` answers it), and run `add` again to pick up skills added since.
+<details>
+<summary><strong>Claude Code</strong> (plugin; updates itself)</summary>
 
-### Claude Code plugin (updates itself)
+Global:
 
-The plugin route updates automatically. Choose the scope with `--scope`; the command does not ask, and defaults to `user`.
+```bash
+claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user
+```
 
-| Scope | Commands |
-|---|---|
-| Global | `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user` |
-| Project | `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, then `claude plugin install supah-skills@supah --scope project` |
-| Local | the same two commands with `--scope local` |
+Project (then commit `.claude/settings.json`, so everyone on the repo gets the same skills):
 
-Project scope writes the marketplace and the plugin into `.claude/settings.json`: commit that file so everyone on the repository gets the same skills. Local scope writes `.claude/settings.local.json`, which stays out of git.
+```bash
+claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project
+claude plugin install supah-skills@supah --scope project
+```
 
-### Codex and GitHub Copilot CLI plugin (global)
+Local: the two project commands with `--scope local`.
 
-Both read the same `.claude-plugin/` manifests. Their plugin commands install for your user only; for a project install, use skills.sh, whose `.agents/skills/` folder both agents read.
+</details>
+
+<details>
+<summary><strong>Codex</strong> (plugin, global; updates itself)</summary>
 
 ```bash
 codex plugin marketplace add guarriellocristianmichele/supah-skills
 codex plugin add supah-skills@supah
 ```
 
-If your Codex version has no `plugin add` command, install `supah-skills` from the app's Plugins Directory after adding the marketplace.
+If your Codex has no `plugin add`, install `supah-skills` from the app's Plugins Directory. For a project install, use the *Any agent* route: Codex reads `.agents/skills/`.
+
+</details>
+
+<details>
+<summary><strong>GitHub Copilot CLI</strong> (plugin, global; updates itself)</summary>
 
 ```bash
 copilot plugin marketplace add guarriellocristianmichele/supah-skills
 copilot plugin install supah-skills@supah
 ```
 
-### Gemini CLI (manual updates)
+For a project install, use the *Any agent* route: Copilot reads `.agents/skills/`.
+
+</details>
+
+<details>
+<summary><strong>Gemini CLI</strong> (manual updates)</summary>
 
 ```bash
 gemini skills install https://github.com/guarriellocristianmichele/supah-skills.git --path skills --scope user        # global
 gemini skills install https://github.com/guarriellocristianmichele/supah-skills.git --path skills --scope workspace   # project
 ```
 
-Run the same command again to update. On accounts where Gemini CLI has been replaced by Antigravity CLI, use skills.sh with `-a antigravity`.
+Re-run to update. Where Gemini CLI has been replaced by Antigravity CLI, use the *Any agent* route with `-a antigravity`.
 
-### From a local clone
+</details>
 
-Link a skill folder into the agent's skill directory: the user folder for a global install, the same path inside the repository for a project install. Claude Code reads `~/.claude/skills/` (global) and `.claude/skills/` (project). Most other agents (Codex, Copilot, Gemini CLI, Cursor, OpenCode, Amp, Goose, Junie, Pi, Factory, Qwen Code, Roo) also read the shared `~/.agents/skills/` and `.agents/skills/`; Kiro, Cline and Continue use only their own folders. Global install for Claude Code:
+<details>
+<summary><strong>From a local clone</strong></summary>
+
+Link a skill folder into the agent's skill directory: `~/.claude/skills/` (global) or `.claude/skills/` (project) for Claude Code, `~/.agents/skills/` or `.agents/skills/` for most other agents.
 
 ```bash
-ln -s "$PWD/skills/ai-slop-prose" ~/.claude/skills/ai-slop-prose                  # macOS, Linux
+ln -s "$PWD/skills/ai-slop-prose" ~/.claude/skills/ai-slop-prose
 ```
 
 ```powershell
-New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\ai-slop-prose" -Target "$PWD\skills\ai-slop-prose"   # Windows
+New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\ai-slop-prose" -Target "$PWD\skills\ai-slop-prose"
 ```
 
-## Requirements
+</details>
 
-- **Python 3.8 or newer** on `PATH`, for the scripts inside `ai-slop-prose` (scanner) and `orchestrate` (memory gauge). Standard library only: nothing to install with pip. On Windows, install it from [python.org](https://www.python.org/downloads/) or with `winget install Python.Python.3.13`.
-- **git**, for `ai-slop-audit` and for the state that `orchestrate` keeps out of version control.
-- Optional: the [`gh`](https://cli.github.com) CLI and [mattpocock/skills](https://github.com/mattpocock/skills) with `/setup-matt-pocock-skills` run once per repo, to publish audit findings as GitHub issues.
+The scripts inside the skills need Python 3.8+ on your `PATH` (standard library only, nothing to pip install) and git. On Windows: `winget install Python.Python.3.13`.
 
-## How the skills fit together
+### 3. Optional: connect GitHub
 
-- `ai-slop-audit` hands its module scan to `orchestrate`, so a large codebase is scanned in parallel and a scan stopped halfway resumes where it stopped.
-- `ai-slop-prose` hands sweeps of more than three files to `orchestrate` in the same way.
-- Without `orchestrate` installed, both skills run the same work in sequence.
-- `ai-slop-audit` speaks the conventions of the mattpocock engineering skills: its `publish` mode writes issues that `/triage` can label and `/implement` can build from, and its `verify` mode hands the result to `/code-review` when that skill is available.
+To publish audit findings as GitHub issues, install [mattpocock/skills](https://github.com/mattpocock/skills) and run `/setup-matt-pocock-skills` once in the repo. `/ai-slop-audit publish` reads the issue tracker and labels it configures.
 
-## Compatibility
+### 4. That's it.
 
-The skills use Claude Code features where they help: `$ARGUMENTS` and `${CLAUDE_SKILL_DIR}` substitution, command output injected at load time, background subagents, and `disable-model-invocation` for skills you start by hand. Each skill says, in one line near its top, how another agent should resolve these by itself. Consequences outside Claude Code:
+Try `/ai-slop-audit audit` on a codebase, or ask your agent to write something. `ai-slop-prose` steps in on its own.
 
-- `disable-model-invocation: true` (`ai-slop-audit`) is honoured by Cursor, OpenCode, Pi, Factory, Qwen Code and VS Code. Agents that ignore the field, such as Codex and Gemini CLI, may offer the skill on their own.
-- Without background subagents, `orchestrate` runs jobs inline, with the same checkpoints and the same resume file.
-- Uploading a skill to claude.ai or the Skills API fails on frontmatter keys other than `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`. Delete the other keys from the uploaded copy.
-- No agent other than Claude Code substitutes `$ARGUMENTS` or `${CLAUDE_SKILL_DIR}`; the skills tell the agent what those stand for.
+## Why these skills exist
+
+I built these to fix the failure modes I kept hitting with Claude Code, Codex and the rest.
+
+### #1: The code works, but nobody can change it
+
+> "Perfection is achieved, not when there is nothing more to add, but when there is nothing left to take away."
+>
+> Antoine de Saint-Exupéry, *Wind, Sand and Stars*
+
+**The Problem**: Agents add. They wrap a function to "keep things flexible", guard a value that can't be null, write a test that asserts the mock returns what it was told to return, and re-implement a helper that already exists two folders over. Each addition looks reasonable alone. Together they bury the code that matters.
+
+The usual cleanup makes it worse: an agent asked to "remove dead code" deletes a function that a route loads by string, and nothing catches it until production.
+
+**The Fix** is an audit that has to prove every claim:
+
+- [`/ai-slop-audit`](./skills/ai-slop-audit/SKILL.md) inventories every module, finds the entrypoints, and checks every way code can be reached (dynamic imports, string references, DI tokens, framework conventions, the public API) before it calls anything dead. Each finding carries the commands that prove it and a confidence level.
+- Nothing changes until you name a finding: `fix SLOP-012`. Then it writes a characterization test if the behaviour isn't covered, makes the smallest change, and runs your checks against the baseline.
+- `publish` turns the plan into GitHub issues that [`/implement`](https://github.com/mattpocock/skills/tree/main/skills/engineering/implement) can build from, so the cleanup can run as AFK tickets.
+
+### #2: Everything reads like ChatGPT wrote it
+
+> "Never use a long word where a short one will do. If it is possible to cut a word out, always cut it out."
+>
+> George Orwell, *Politics and the English Language*
+
+**The Problem**: You can spot agent prose in a sentence: `It's not just a tool, it's a mindset.` `Let's dive in.` Em dashes everywhere, `pivotal` and `seamless` in every paragraph, a `Here's the thing:` before every point. In Italian it's `Nell'attuale panorama`, `non si tratta solo di… ma di…` and an `In conclusione` nobody asked for.
+
+Asking the agent to "write more naturally" swaps one tic for another.
+
+**The Fix** is a checklist the agent can't skip:
+
+- [`ai-slop-prose`](./skills/ai-slop-prose/SKILL.md) runs a deterministic scanner over the text: 40+ rules across eleven categories, word lists built from the research (Kobak et al.'s 379 excess words, Liang et al., Wikipedia's *Signs of AI writing*, slop-score, and two Italian studies), every kind of dash, and the classic punctuation errors.
+- It rewrites each hit in the author's voice, then proves the rewrite kept every number, name and link, and rescans until nothing catalogued is left.
+- It fires on its own whenever your agent writes for humans: READMEs, docs, posts, release notes, emails.
+
+<details>
+<summary>Example</summary>
+
+```text
+Before: In today's fast-paced world, remote work isn't just a trend — it's a revolution, highlighting the need for flexibility.
+After:  Remote work is changing how teams operate, and it only works when schedules are flexible.
+```
+
+</details>
+
+### #3: Big jobs fall over
+
+> "Adding manpower to a late software project makes it later."
+>
+> Fred Brooks, *The Mythical Man-Month*
+
+**The Problem**: A codebase with 200 modules doesn't fit in one context window, so you fan the work out to subagents. Then the test suites they launch eat the RAM, the machine swaps, and when you kill the session you lose track of what was done.
+
+**The Fix** is to size the team to the machine:
+
+- [`orchestrate`](./skills/orchestrate/SKILL.md) measures the free RAM before every dispatch and starts only as many agents as fit. A watchdog script (no tokens) watches memory while they run.
+- When memory gets tight it stops the newest agents first. Each saves the unit it just finished, and the rest goes into `STOPPED_AGENTS_WORK.md`.
+- The next run, in this session or tomorrow's, picks up from that file. Small jobs just run inline.
+
+### Summary
+
+Agents are fast at adding. These skills are about taking away, carefully, with proof. Enjoy.
+
+## Reference
+
+User-invoked skills run only when you type them. Model-invoked skills can be typed too, and the agent also reaches for them when the task fits.
+
+**User-invoked**
+
+- [ai-slop-audit](./skills/ai-slop-audit/README.md): evidence-backed audit and cleanup of needless complexity across a codebase. Modes: `audit [path]`, `plan`, `publish [batches]`, `fix <ID>`, `verify`. Keeps its state in `.slop-audit/` across sessions, and never reports a partial scan as complete.
+
+**Model-invoked**
+
+- [ai-slop-prose](./skills/ai-slop-prose/README.md): strips AI writing tells from English or Italian prose with a deterministic scanner, safe punctuation fixes and a fact-preservation check, then rewrites each hit in the author's voice. Works while drafting or as a sweep over existing files.
+- [orchestrate](./skills/orchestrate/README.md): runs a job of independent units inline or on parallel subagents sized to free RAM, with per-unit checkpoints, memory-pressure shedding into `STOPPED_AGENTS_WORK.md`, and resume across sessions. Used by the other two for large jobs.
+
+## Other agents
+
+On Claude Code the skills use argument substitution, command output injected at load time, and background subagents. Each skill tells other agents, in one line, how to do the same by hand. Without background subagents, `orchestrate` runs jobs inline with the same checkpoints. To upload a skill to claude.ai or the Skills API, keep only the `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools` frontmatter keys.
 
 ## Development
 
 ```bash
-claude plugin validate . --strict                         # check the plugin manifests
-python skills/ai-slop-prose/scripts/scan.py rules         # list every prose rule
-python skills/ai-slop-prose/scripts/scan.py README.md     # sweep a README before committing it
-python skills/orchestrate/scripts/mem.py status           # see the RAM budget for parallel agents
+claude plugin validate . --strict                      # check the plugin manifests
+python skills/ai-slop-prose/scripts/scan.py rules      # list every prose rule
+python skills/ai-slop-prose/scripts/scan.py README.md  # sweep a README before committing it
+python skills/orchestrate/scripts/mem.py status        # RAM budget for parallel agents
 ```
 
-When adding a skill, put it in `skills/<name>/` and list it in `.claude-plugin/plugin.json`. Bump `version` in `plugin.json` on every release: managed installs update only when it changes.
+New skills go in `skills/<name>/` and in `.claude-plugin/plugin.json`. Bump `version` there on every release: managed installs update only when it changes.
 
 ## License
 
@@ -129,42 +216,25 @@ When adding a skill, put it in `skills/<name>/` and list it in `.claude-plugin/p
 
 ## Italiano
 
-Skill per agenti che ripuliscono quello che l'AI lascia nel codice e nei testi, più un orchestratore che esegue lavori grandi su agenti in parallelo senza esaurire la memoria. Pensate prima di tutto per Claude Code, funzionano anche sugli altri agenti che leggono il formato [Agent Skills](https://agentskills.io).
-
-| Skill | Chi la avvia | Cosa fa |
-|---|---|---|
-| `ai-slop-audit` | tu (`/ai-slop-audit`) | Analizza un'intera codebase in cerca di codice morto, duplicazioni, astrazioni inutili, wrapper, controlli difensivi ingiustificati e test tautologici. Ogni problema ha prove riproducibili e un livello di confidenza. Le correzioni si applicano solo per ID, a piccoli lotti verificati, e si possono pubblicare come issue GitHub. |
-| `ai-slop-prose` | l'agente, oppure tu | Trova gli schemi che fanno sembrare scritto da una macchina un testo inglese o italiano (parallelismi negativi, trattini, lessico gonfiato, falsa suspense, residui di chat, punteggiatura sbagliata) con uno scanner deterministico, poi li riscrive nella voce dell'autore. |
-| `orchestrate` | l'agente, oppure altre skill | Divide un lavoro in unità e le esegue inline o su subagent paralleli dimensionati sulla RAM libera, con checkpoint per unità, arresto ordinato quando la memoria scarseggia e ripresa tra sessioni. |
+Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice morto e livelli inutili nella codebase, tic di scrittura nei testi. Pensate per Claude Code, funzionano con qualsiasi agente che legga il formato Agent Skills.
 
 ### Installazione
 
-La prima scelta è dove installare:
+1. Scegli dove installarle: globale (cartella utente, tutti i progetti), progetto (dentro il repo, nel commit, per tutto il team) o locale (solo Claude Code, dentro il repo ma fuori da git).
+2. Installa con uno di questi comandi.
+   - qualsiasi agente: `npx skills@latest add guarriellocristianmichele/supah-skills`, che chiede skill, agenti e ambito (*Project* o *Global*); `-g` lo fissa a globale;
+   - Claude Code, globale: `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user`;
+   - Claude Code, progetto: `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, poi `claude plugin install supah-skills@supah --scope project`, e commit di `.claude/settings.json`;
+   - Codex, Copilot CLI e Gemini CLI: i comandi nei riquadri della sezione [Installation](#installation-1-minute-setup).
+3. Facoltativo: per pubblicare i risultati dell'audit come issue GitHub, installa le skill di mattpocock e lancia `/setup-matt-pocock-skills` una volta nel repo.
 
-| Ambito | Dove finiscono le skill | Chi le usa |
-|---|---|---|
-| Globale | nella tua cartella utente | tu, in tutti i progetti |
-| Progetto | dentro il repository, nel commit | chiunque lavori sul repository |
-| Locale (solo Claude Code) | dentro il repository, fuori da git | tu, solo in questo repository |
+Servono Python 3.8 o superiore (solo libreria standard) e git.
 
-Poi scegli un solo canale per agente: installare due volte le stesse skill le duplica.
+### Le skill
 
-| Canale | Globale | Progetto | Aggiornamento |
-|---|---|---|---|
-| skills.sh, qualsiasi agente | `npx skills@latest add guarriellocristianmichele/supah-skills` chiede l'ambito; `-g` lo fissa a globale | lo stesso comando, risposta *Project*, oppure senza `-g` | `npx skills@latest update` |
-| Plugin Claude Code | `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user` | `claude plugin marketplace add … --scope project`, poi `claude plugin install supah-skills@supah --scope project`, e commit di `.claude/settings.json` | automatico |
-| Plugin Codex, Copilot CLI | `codex plugin …` o `copilot plugin …`, come nella sezione [Install](#install) | non disponibile: usa skills.sh | automatico |
-| Gemini CLI | `gemini skills install <repo>.git --path skills --scope user` | lo stesso con `--scope workspace` | rilanciando il comando |
-
-Il comando di skills.sh senza opzioni chiede quali skill, quali agenti e l'ambito (*Project* o *Global*). Il plugin di Claude Code non chiede nulla: l'ambito si sceglie con `--scope` e, se manca, vale `user`.
-
-### Requisiti
-
-Python 3.8 o superiore per gli script (solo libreria standard), git per `ai-slop-audit`. Facoltativi: `gh` e le skill di mattpocock, per pubblicare i risultati dell'audit come issue GitHub.
-
-### Compatibilità
-
-Su Claude Code le skill usano sostituzioni (`$ARGUMENTS`, `${CLAUDE_SKILL_DIR}`), output di comandi caricato all'avvio e subagent in background. Ogni skill spiega in una riga come un altro agente deve risolverle da solo. Senza subagent in background, `orchestrate` lavora in sequenza con gli stessi checkpoint.
+- `ai-slop-audit` (la avvii tu) fa un audit di un'intera codebase con prove riproducibili e livello di confidenza per ogni problema. Modalità `audit`, `plan`, `publish`, `fix <ID>`, `verify`. Corregge solo ciò che indichi per ID, a piccoli lotti protetti dai test.
+- `ai-slop-prose` (si attiva da sola) usa uno scanner deterministico per i segnali di scrittura AI in inglese e italiano, trattini e punteggiatura compresi, con correzioni sicure, controllo che nessun dato vada perso e riscrittura nella voce dell'autore.
+- `orchestrate` (si attiva da sola) esegue lavori grandi inline o su agenti paralleli dimensionati sulla RAM libera, ferma i più recenti quando la memoria scarseggia salvando il lavoro in `STOPPED_AGENTS_WORK.md` e riprende alla sessione successiva.
 
 ### Licenza
 

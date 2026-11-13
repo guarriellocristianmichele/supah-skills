@@ -33,19 +33,13 @@ python "$S" --keep keep.tsv post.md          # 4. exit 0 means done
 
 ## Install
 
-Claude Code loads personal skills from `~/.claude/skills/`. Link this folder there.
-
-Windows (PowerShell):
-
-```powershell
-New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\ai-slop-prose" -Target "<repo>\skills\ai-slop-prose"
-```
-
-macOS and Linux:
+Install for any agent, choosing global or project scope when asked:
 
 ```sh
-ln -s "<repo>/skills/ai-slop-prose" ~/.claude/skills/ai-slop-prose
+npx skills@latest add guarriellocristianmichele/supah-skills -s ai-slop-prose
 ```
+
+The [repository README](../../README.md#install) lists every route (Claude Code plugin with `--scope user|project|local`, Codex, Copilot, Gemini CLI, local links) and what each scope means.
 
 Requirements: Python 3.8 or newer on `PATH`. The scanner uses only the standard library. Sweeps over more than three files use the [`orchestrate`](../orchestrate/README.md) skill when it is installed.
 

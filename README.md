@@ -12,18 +12,50 @@ Agent skills for cleaning up what AI leaves behind, in code and in prose, plus a
 
 ## Install
 
-Pick **one** route per agent. Installing the same skills twice (for example as a plugin and through skills.sh) leaves the agent with every skill twice.
+Every route asks for, or takes, one decision first: **where** the skills go.
 
-### Claude Code (updates itself)
+| Scope | Where the skills live | Who gets them |
+|---|---|---|
+| Global | your home folder | you, in every project |
+| Project | inside the repository, committed with it | everyone who works on the repository |
+| Local (Claude Code only) | inside the repository, kept out of git | you, in this repository only |
+
+Then pick **one** route per agent. Installing the same skills twice (for example as a plugin and through skills.sh) leaves the agent with every skill twice.
+
+### Any agent, with a prompt for the scope (skills.sh)
 
 ```bash
-claude plugin marketplace add guarriellocristianmichele/supah-skills
-claude plugin install supah-skills@supah
+npx skills@latest add guarriellocristianmichele/supah-skills
 ```
 
-### Codex and GitHub Copilot CLI (plugin marketplace)
+Run with no flags, it asks three questions: which skills, which agents, and **Installation scope** (*Project*: in the current directory, committed with your project; *Global*: in your home directory, for all projects). It knows the folders of Claude Code, Codex, Copilot, Gemini CLI, Cursor, OpenCode, Windsurf, Amp, Goose, Cline, Roo, Kiro, Junie, Pi, Factory, Qwen Code, Continue and more.
 
-Both read the same `.claude-plugin/` manifests.
+To answer the questions on the command line instead:
+
+| Goal | Command |
+|---|---|
+| Global, chosen agents | `npx skills@latest add guarriellocristianmichele/supah-skills -g -a claude-code codex` |
+| Project, chosen agents | `npx skills@latest add guarriellocristianmichele/supah-skills -a cursor` |
+| One skill only | add `-s ai-slop-prose` |
+| No prompts at all | add `-y` (scope then defaults to project unless `-g` is given) |
+
+skills.sh keeps one copy in `.agents/skills/` (or `~/.agents/skills/` when global) and links each agent's folder to it; `--copy` writes real copies instead. Update with `npx skills@latest update` (it asks for the scope again; `-g` or `-p` answers it), and run `add` again to pick up skills added since.
+
+### Claude Code plugin (updates itself)
+
+The plugin route updates automatically. Choose the scope with `--scope`; the command does not ask, and defaults to `user`.
+
+| Scope | Commands |
+|---|---|
+| Global | `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user` |
+| Project | `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, then `claude plugin install supah-skills@supah --scope project` |
+| Local | the same two commands with `--scope local` |
+
+Project scope writes the marketplace and the plugin into `.claude/settings.json`: commit that file so everyone on the repository gets the same skills. Local scope writes `.claude/settings.local.json`, which stays out of git.
+
+### Codex and GitHub Copilot CLI plugin (global)
+
+Both read the same `.claude-plugin/` manifests. Their plugin commands install for your user only; for a project install, use skills.sh, whose `.agents/skills/` folder both agents read.
 
 ```bash
 codex plugin marketplace add guarriellocristianmichele/supah-skills
@@ -40,24 +72,15 @@ copilot plugin install supah-skills@supah
 ### Gemini CLI (manual updates)
 
 ```bash
-gemini skills install https://github.com/guarriellocristianmichele/supah-skills.git --path skills
+gemini skills install https://github.com/guarriellocristianmichele/supah-skills.git --path skills --scope user        # global
+gemini skills install https://github.com/guarriellocristianmichele/supah-skills.git --path skills --scope workspace   # project
 ```
 
-Run the same command again to update. Add `--scope workspace` to install into the current project instead of your user folder. On accounts where Gemini CLI has been replaced by Antigravity CLI, use skills.sh with `-a antigravity`.
-
-### Every other agent, or editable copies (skills.sh)
-
-```bash
-npx skills@latest add guarriellocristianmichele/supah-skills            # asks which agents and skills
-npx skills@latest add guarriellocristianmichele/supah-skills -a cursor  # preselect an agent
-npx skills@latest add guarriellocristianmichele/supah-skills --skill ai-slop-prose
-```
-
-Add `-g` to install for your user instead of the current project. skills.sh keeps one copy in `.agents/skills/` and links each agent's folder to it. Update with `npx skills@latest update`, and run `add` again to pick up skills added since.
+Run the same command again to update. On accounts where Gemini CLI has been replaced by Antigravity CLI, use skills.sh with `-a antigravity`.
 
 ### From a local clone
 
-Link a skill folder into the agent's skill directory. Claude Code reads `~/.claude/skills/`. Most other agents (Codex, Copilot, Gemini CLI, Cursor, OpenCode, Amp, Goose, Junie, Pi, Factory, Qwen Code, Roo) also read the shared `~/.agents/skills/`; Kiro, Cline and Continue use only their own folders. For Claude Code:
+Link a skill folder into the agent's skill directory: the user folder for a global install, the same path inside the repository for a project install. Claude Code reads `~/.claude/skills/` (global) and `.claude/skills/` (project). Most other agents (Codex, Copilot, Gemini CLI, Cursor, OpenCode, Amp, Goose, Junie, Pi, Factory, Qwen Code, Roo) also read the shared `~/.agents/skills/` and `.agents/skills/`; Kiro, Cline and Continue use only their own folders. Global install for Claude Code:
 
 ```bash
 ln -s "$PWD/skills/ai-slop-prose" ~/.claude/skills/ai-slop-prose                  # macOS, Linux
@@ -116,14 +139,24 @@ Skill per agenti che ripuliscono quello che l'AI lascia nel codice e nei testi, 
 
 ### Installazione
 
-Scegli un solo canale per agente: installare due volte le stesse skill le duplica.
+La prima scelta è dove installare:
 
-| Agente | Comandi | Aggiornamento |
+| Ambito | Dove finiscono le skill | Chi le usa |
 |---|---|---|
-| Claude Code | `claude plugin marketplace add guarriellocristianmichele/supah-skills`, poi `claude plugin install supah-skills@supah` | automatico |
-| Codex, Copilot CLI | gli stessi due passaggi con `codex plugin …` o `copilot plugin …`, come nella sezione [Install](#install) | automatico |
-| Gemini CLI | `gemini skills install https://github.com/guarriellocristianmichele/supah-skills.git --path skills` | rilanciando il comando |
-| Tutti gli altri | `npx skills@latest add guarriellocristianmichele/supah-skills`, con `-a <agente>` per sceglierlo subito e `--skill <nome>` per una sola skill | `npx skills@latest update` |
+| Globale | nella tua cartella utente | tu, in tutti i progetti |
+| Progetto | dentro il repository, nel commit | chiunque lavori sul repository |
+| Locale (solo Claude Code) | dentro il repository, fuori da git | tu, solo in questo repository |
+
+Poi scegli un solo canale per agente: installare due volte le stesse skill le duplica.
+
+| Canale | Globale | Progetto | Aggiornamento |
+|---|---|---|---|
+| skills.sh, qualsiasi agente | `npx skills@latest add guarriellocristianmichele/supah-skills` chiede l'ambito; `-g` lo fissa a globale | lo stesso comando, risposta *Project*, oppure senza `-g` | `npx skills@latest update` |
+| Plugin Claude Code | `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user` | `claude plugin marketplace add … --scope project`, poi `claude plugin install supah-skills@supah --scope project`, e commit di `.claude/settings.json` | automatico |
+| Plugin Codex, Copilot CLI | `codex plugin …` o `copilot plugin …`, come nella sezione [Install](#install) | non disponibile: usa skills.sh | automatico |
+| Gemini CLI | `gemini skills install <repo>.git --path skills --scope user` | lo stesso con `--scope workspace` | rilanciando il comando |
+
+Il comando di skills.sh senza opzioni chiede quali skill, quali agenti e l'ambito (*Project* o *Global*). Il plugin di Claude Code non chiede nulla: l'ambito si sceglie con `--scope` e, se manca, vale `user`.
 
 ### Requisiti
 

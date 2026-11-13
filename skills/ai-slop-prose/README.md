@@ -33,13 +33,19 @@ python "$S" --keep keep.tsv post.md          # 4. exit 0 means done
 
 ## Install
 
-Install for any agent, choosing global or project scope when asked:
+This skill alone, for any agent (asks for global or project scope):
 
 ```sh
 npx skills@latest add guarriellocristianmichele/supah-skills -s ai-slop-prose
 ```
 
-The [repository README](../../README.md#install) lists every route (Claude Code plugin with `--scope user|project|local`, Codex, Copilot, Gemini CLI, local links) and what each scope means.
+This skill alone, as a Claude Code plugin (`--scope user`, `project` or `local`):
+
+```sh
+claude plugin install ai-slop-prose --marketplace guarriellocristianmichele/supah-skills --scope user
+```
+
+Inside a Claude Code session: `/plugin install ai-slop-prose --marketplace guarriellocristianmichele/supah-skills`. The [repository README](../../README.md#installation-1-minute-setup) covers every route, the full set, and what each scope means.
 
 Requirements: Python 3.8 or newer on `PATH`. The scanner uses only the standard library. Sweeps over more than three files use the [`orchestrate`](../orchestrate/README.md) skill when it is installed.
 

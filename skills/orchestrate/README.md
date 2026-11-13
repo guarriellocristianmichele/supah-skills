@@ -20,7 +20,21 @@ Other skills in this repository use it: `ai-slop-audit` hands it the module scan
 
 ## Install
 
-See the [repository README](../../README.md#install). Requirements: Python 3.8 or newer on `PATH` (standard library only) and a git repository for the state directory.
+This skill alone, for any agent (asks for global or project scope):
+
+```sh
+npx skills@latest add guarriellocristianmichele/supah-skills -s orchestrate
+```
+
+This skill alone, as a Claude Code plugin (`--scope user`, `project` or `local`):
+
+```sh
+claude plugin install orchestrate --marketplace guarriellocristianmichele/supah-skills --scope user
+```
+
+Inside a Claude Code session: `/plugin install orchestrate --marketplace guarriellocristianmichele/supah-skills`. The [repository README](../../README.md#installation-1-minute-setup) covers every route, the full set, and what each scope means.
+
+Requirements: Python 3.8 or newer on `PATH` (standard library only) and a git repository for the state directory.
 
 ## Usage
 

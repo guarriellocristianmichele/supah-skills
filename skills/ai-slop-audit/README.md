@@ -19,7 +19,21 @@ A Claude Code skill that finds and removes needless complexity across a whole co
 
 ## Install
 
-See the [repository README](../../README.md#install). The skill needs git, and works best with the [`orchestrate`](../orchestrate/README.md) skill installed for large codebases. Publishing to GitHub needs `gh` and a repo configured with `/setup-matt-pocock-skills`.
+This skill alone, for any agent (asks for global or project scope):
+
+```sh
+npx skills@latest add guarriellocristianmichele/supah-skills -s ai-slop-audit
+```
+
+This skill alone, as a Claude Code plugin (`--scope user`, `project` or `local`):
+
+```sh
+claude plugin install ai-slop-audit --marketplace guarriellocristianmichele/supah-skills --scope user
+```
+
+Inside a Claude Code session: `/plugin install ai-slop-audit --marketplace guarriellocristianmichele/supah-skills`. The [repository README](../../README.md#installation-1-minute-setup) covers every route, the full set, and what each scope means.
+
+The skill needs git, and works best with the [`orchestrate`](../orchestrate/README.md) skill installed for large codebases. Publishing to GitHub needs `gh` and a repo configured with `/setup-matt-pocock-skills`.
 
 The skill is user-invoked (`disable-model-invocation: true`): it runs only when you type its name.
 

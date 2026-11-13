@@ -33,7 +33,7 @@ npx skills@latest add guarriellocristianmichele/supah-skills
 
 It asks which skills, which agents, and the installation scope (*Project* or *Global*). It knows the folders of Claude Code, Codex, Copilot, Gemini CLI, Cursor, OpenCode, Windsurf, Amp, Goose, Cline, Roo, Kiro, Junie, Pi, Factory, Qwen Code, Continue and more.
 
-To answer on the command line: `-g` for global (omit it for project), `-a <agent>` to pick agents, `-s <skill>` to pick skills, `-y` to skip the prompts. Update with `npx skills@latest update`, and re-run `add` to pick up new skills.
+To answer on the command line: `-g` for global (omit it for project), `-a <agent>` to pick agents, `-s <skill>` to pick skills (for example `-s ai-slop-prose`, or `-s ai-slop-prose orchestrate`), `-y` to skip the prompts. Update with `npx skills@latest update`, and re-run `add` to pick up new skills.
 
 </details>
 
@@ -54,6 +54,16 @@ claude plugin install supah-skills@supah --scope project
 ```
 
 Local: the two project commands with `--scope local`.
+
+One skill only: replace `supah-skills` with the skill's name. Each skill is also its own plugin in the same marketplace.
+
+```bash
+claude plugin install ai-slop-prose --marketplace guarriellocristianmichele/supah-skills --scope user
+claude plugin install ai-slop-audit@supah --scope project      # after the project marketplace add above
+claude plugin install orchestrate@supah --scope project
+```
+
+Pick either the full set or single skills: installing `supah-skills` and `ai-slop-prose` together loads `ai-slop-prose` twice.
 
 </details>
 
@@ -89,7 +99,7 @@ gemini skills install https://github.com/guarriellocristianmichele/supah-skills.
 gemini skills install https://github.com/guarriellocristianmichele/supah-skills.git --path skills --scope workspace   # project
 ```
 
-Re-run to update. Where Gemini CLI has been replaced by Antigravity CLI, use the *Any agent* route with `-a antigravity`.
+Re-run to update. For one skill, point `--path` at its folder, for example `--path skills/ai-slop-prose`. Where Gemini CLI has been replaced by Antigravity CLI, use the *Any agent* route with `-a antigravity`.
 
 </details>
 
@@ -225,6 +235,7 @@ Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice mo
    - qualsiasi agente: `npx skills@latest add guarriellocristianmichele/supah-skills`, che chiede skill, agenti e ambito (*Project* o *Global*); `-g` lo fissa a globale;
    - Claude Code, globale: `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user`;
    - Claude Code, progetto: `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, poi `claude plugin install supah-skills@supah --scope project`, e commit di `.claude/settings.json`;
+   - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-prose` o `orchestrate`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
    - Codex, Copilot CLI e Gemini CLI: i comandi nei riquadri della sezione [Installation](#installation-1-minute-setup).
 3. Facoltativo: per pubblicare i risultati dell'audit come issue GitHub, installa le skill di mattpocock e lancia `/setup-matt-pocock-skills` una volta nel repo.
 

@@ -14,7 +14,8 @@ ISOLATED = tempfile.mkdtemp(prefix="supah-prose-test-")
 
 
 def run(*args):
-    env = dict(os.environ, PYTHONIOENCODING="utf-8", SUPAH_PROSE_HOME=ISOLATED)  # never the user's learned model
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", SUPAH_PROSE_HOME=ISOLATED,
+               SUPAH_PROSE_NO_CALIBRATION="1")  # designed tiers; calibration is tested on its own  # never the user's learned model
     return subprocess.run([sys.executable, SCAN, *args], capture_output=True, text=True,
                           encoding="utf-8", env=env)
 
@@ -38,7 +39,7 @@ class ScanDetects(unittest.TestCase):
         r, code = scan_json("slop-en.md")
         self.assertEqual(r["lang"], "en")
         self.assertEqual(code, 1)
-        for rule in ("chat-residue", "staged-opener", "not-x-but-y", "countdown", "self-question",
+        for rule in ("chat-residue", "staged-opener", "not-x-its-y", "countdown", "self-question",
                      "inflated", "ing-tail", "importance-flag", "tradeoff-denial", "filler-transition",
                      "signposted-ending", "copula-avoidance", "marked-word", "bold-lead-bullet",
                      "title-case", "fragment-run", "em-dash"):
@@ -48,7 +49,7 @@ class ScanDetects(unittest.TestCase):
         r, code = scan_json("slop-it.md")
         self.assertEqual(r["lang"], "it")
         self.assertEqual(code, 1)
-        for rule in ("chat-residue", "not-x-but-y", "countdown", "self-question", "inflated",
+        for rule in ("chat-residue", "not-x-its-y", "countdown", "self-question", "inflated",
                      "ing-tail", "importance-flag", "vague-attribution", "signposted-ending", "em-dash"):
             self.assertIn(rule, rules(r), rule)
 
@@ -76,7 +77,7 @@ class KeepFile(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             keep = os.path.join(d, "keep.tsv")
             with open(keep, "w", encoding="utf-8") as f:
-                f.write("not-x-but-y\tisn't just a trend — it's\tquote\n")
+                f.write("not-x-its-y\tisn't just a trend — it's\tquote\n")
                 f.write("em-dash\t—\tquote\n")
             r, code = scan_json("compare-original.md", "--keep", keep)
             self.assertTrue(all(h["kept"] for h in r["hits"] if h["tier"] in "SM"))

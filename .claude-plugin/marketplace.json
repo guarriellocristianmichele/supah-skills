@@ -11,31 +11,50 @@
       "source": "./",
       "description": "All three skills: ai-slop-audit, ai-slop-prose and orchestrate.",
       "category": "productivity",
-      "keywords": ["skills", "code-quality", "writing", "orchestration"]
+      "keywords": [
+        "skills",
+        "code-quality",
+        "writing",
+        "orchestration"
+      ]
     },
     {
       "name": "ai-slop-audit",
       "source": "./skills/ai-slop-audit",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "description": "Evidence-backed audit and cleanup of needless complexity across a codebase, with GitHub issue publishing.",
       "category": "development",
-      "keywords": ["code-quality", "refactoring", "dead-code", "audit"]
+      "keywords": [
+        "code-quality",
+        "refactoring",
+        "dead-code",
+        "audit"
+      ]
     },
     {
       "name": "ai-slop-prose",
       "source": "./skills/ai-slop-prose",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "description": "Strip AI writing tells from English or Italian prose with a deterministic scanner, then rewrite in the author's voice.",
       "category": "productivity",
-      "keywords": ["writing", "editing", "punctuation", "style"]
+      "keywords": [
+        "writing",
+        "editing",
+        "punctuation",
+        "style"
+      ]
     },
     {
       "name": "orchestrate",
       "source": "./skills/orchestrate",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "description": "Run large jobs inline or on parallel subagents sized to free RAM, with checkpoints and resume.",
       "category": "productivity",
-      "keywords": ["orchestration", "subagents", "parallel"]
+      "keywords": [
+        "orchestration",
+        "subagents",
+        "parallel"
+      ]
     }
   ]
 }

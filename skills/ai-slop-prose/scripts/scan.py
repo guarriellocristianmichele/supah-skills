@@ -62,14 +62,20 @@ RULES = [
     ("citation-leak", "residue", "S", "any", r"(contentReference\[oaicite:\d+\]|oai_citation|utm_source=chatgpt\.com|\bturn\d+(search|view|news|fetch)\d+\b)", 0),
 
     # contrast: negative parallelism and relatives
-    ("not-x-but-y", "contrast", "S", "en", r"\b(?:is|are|was|were)(?:n't| not)\s+(?:just |only |merely |simply |about )?[^.?!\n]{1,80}?[,;:—–]\s*(?:it|they|this|that)(?:'s|'re|\s+(?:is|are|was|were))\b", I),
-    ("not-x-but-y", "contrast", "S", "en", r"\bnot (?:just|only|merely|simply) [^.?!\n]{1,80}?[,;—–-]\s*(?:but|it's|it is|they're|they are)\b", I),
-    ("not-x-but-y", "contrast", "S", "en", r"\bnot (?!only\b|that\b|to\b|a single\b)[^.?!,;\n]{1,60}[,;]\s*but (?!also\b|when\b|if\b|because\b)", I),
+    # calibrated 2026-11: an intensifier or article right after "not" separates the trope
+    # from conditionals and concessions ("If you are not sure, it is best...")
+    ("not-x-its-y", "contrast", "S", "en", r"\b(?:is|are|was|were)(?:n't| not)\s+(?:just|only|merely|simply|about|a|an|the) [^.?!\n]{1,50}?[,;:—–]\s*(?:it|they|this|that)(?:'s|'re|\s+(?:is|are|was|were))\b", I),
+    # "not only X but also Y" is the standard correlative, not the trope
+    ("not-just-x", "contrast", "S", "en", r"\bnot (?:just|only|merely|simply) [^.?!\n]{1,80}?[,;—–-]\s*(?:but(?! also\b)|it's|it is|they're|they are)\b", I),
+    # removed 2026-11: a generic "not X, but Y" hit human concessions as often as AI text (119 vs 101 documents)
     ("not-x-but-y", "contrast", "S", "en", r"\b(?:it|this|that)(?:'s| is| was) not (?:about |just |only )?[^.?!\n]{1,60}\.\s+(?:it|this|that)(?:'s| is| was)\b", I),
     ("not-x-but-y", "contrast", "S", "en", r"\bnot because [^.?!\n]{1,60}, but because\b", I),
     ("rather-than-merely", "contrast", "M", "en", r"\brather than (merely|simply|just)\b|\bless (like )?an? \w+ (and|than) more (like )?an?\b", I),
     ("countdown", "contrast", "M", "any", r"\b(Not|Non) (an? |the |un |una |il |la )?\w+\.\s+(Not|Non) (an? |the |un |una |il |la )?\w+\.", 0),
-    ("not-x-but-y", "contrast", "S", "it", r"\b[Nn]on (?:è|era|fu|sono|erano|si tratta)(?: solo| soltanto| semplicemente| più)?\b[^.;?!\n]{1,80}?[,;:—–]\s*(?:ma|bensì|è|era|sono|si tratta)\b", 0),
+    # calibrated 2026-11: "non è X, ma Y" is an ordinary concession in Italian news (Il Post, DICE);
+    # the trope repeats the verb ("non è X, è Y") or the preposition ("non si tratta di X, ma di Y")
+    ("not-x-its-y", "contrast", "S", "it", r"\b[Nn]on (?:è|era|fu|sono|erano)(?: solo| soltanto| semplicemente| più)? [^.;?!\n]{1,50}?[,;:—–]\s*(?:è|era|fu|sono|erano)\b", 0),
+    ("not-x-but-y", "contrast", "S", "it", r"\b[Nn]on si tratta (?:solo |soltanto |semplicemente )?di [^.?!\n]{1,60}?[,;:]?\s*(?:ma|bensì) (?:anche )?di\b", 0),
     ("not-x-but-y", "contrast", "S", "it", r"\b[Nn]on (?:è|era|fu) (?:solo |soltanto )?[^.?!\n]{1,60}\.\s+(?:È|Era|Fu)\b", 0),
     ("non-solo-ma-anche", "contrast", "W", "it", r"\bnon solo\b[^.?!\n]{1,80}\bma anche\b", I),
 
@@ -148,6 +154,39 @@ STOP = {
     "en": set("the and of to is that it for with as was on are be this by not".split()),
     "it": set("il la di che è e per un una non con del della sono come gli le si".split()),
 }
+STYLE_CATEGORIES = {"punctuation", "formatting"}  # style rules: enforced, never combined
+CALIBRATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calibration.json")
+_calibration = {}
+
+
+def calibration():
+    """Tiers and thresholds measured by scripts/calibrate.py on human and AI corpora (optional file)."""
+    if "data" not in _calibration:
+        data = None
+        if os.path.exists(CALIBRATION_FILE) and not os.environ.get("SUPAH_PROSE_NO_CALIBRATION"):
+            with open(CALIBRATION_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+        _calibration["data"] = data
+    return _calibration["data"]
+
+
+def calibrated_tier(rule, lang, tier):
+    cal = calibration()
+    return (cal or {}).get("rules", {}).get(f"{rule}/{lang}", {}).get("tier", tier)
+
+
+def length_bucket(words):
+    return "<150" if words < 150 else "150-400" if words < 400 else "400-1000" if words < 1000 else ">1000"
+
+
+def calibration_thresholds(lang, words):
+    """Bucket threshold when calibrated, else the language-wide one ("*"), else the designed default."""
+    by_lang = (calibration() or {}).get("metrics", {}).get(lang, {})
+    merged = dict(by_lang.get("*", {}))
+    merged.update(by_lang.get(length_bucket(words), {}))
+    return merged
+
+
 MIN_WORDS = 300
 THRESHOLDS = {  # metric -> (limit, direction)
     "style_words_per_1k": (12, ">"),
@@ -230,7 +269,11 @@ def gate(raw, start, end, rule, cat, lang):
 
 
 def scan_file(path, lang_opt, keep, gates=True, model=None):
-    raw = open(path, encoding="utf-8").read()
+    with open(path, encoding="utf-8") as f:
+        return scan_text(f.read(), lang_opt, keep, gates=gates, model=model, path=path)
+
+
+def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>"):
     text = mask(raw)
     lang = detect_lang(text) if lang_opt == "auto" else lang_opt
     hits = []
@@ -238,6 +281,7 @@ def scan_file(path, lang_opt, keep, gates=True, model=None):
     def add(rule, cat, tier, start, end):
         match = raw[start:end].replace("\n", " ").strip()
         line, col = line_col(raw, start)
+        tier = calibrated_tier(rule, lang, tier)
         hit = {"line": line, "col": col, "tier": tier, "category": cat, "rule": rule,
                "match": match[:90], "context": context_window(raw, start, end)}
         hit["kept"] = keep.get((rule, match.lower())) or (gate(raw, start, end, rule, cat, lang) if gates else None)
@@ -258,15 +302,20 @@ def scan_file(path, lang_opt, keep, gates=True, model=None):
         pos = re.search("[“”«»]", text).start()
         add("quote-mix", "punctuation", "W", pos, pos + 1)
 
-    marked = load_words(f"{lang}-marked.txt")
-    style = load_words(f"{lang}-style.txt")
+    demoted = set((calibration() or {}).get("demoted_words", {}).get(lang, []))
+    marked = load_words(f"{lang}-marked.txt") - demoted  # words common in human text count as density only
+    style = load_words(f"{lang}-style.txt") | demoted
     words = list(re.finditer(r"[^\W\d_]+(?:['’][^\W\d_]+)?", text))
     n_words = max(1, len(words))
     style_count = 0
+    marked_hits = [w for w in words if w.group(0).lower() in marked]
+    # calibrated: a single marked word is ordinary human writing; the tell is several distinct ones
+    marked_min = (calibration() or {}).get("marked_min", {}).get(lang, 1)
+    marked_tier = "M" if len({w.group(0).lower() for w in marked_hits}) >= marked_min else "W"
     for w in words:
         lw = w.group(0).lower()
         if lw in marked:
-            add("marked-word", "vocabulary", "M", w.start(), w.end())
+            add("marked-word", "vocabulary", marked_tier, w.start(), w.end())
         elif lw in style:
             style_count += 1
 
@@ -316,12 +365,24 @@ def scan_file(path, lang_opt, keep, gates=True, model=None):
         "short_closer_share": round(closers / len(paragraphs), 2) if len(paragraphs) >= 4 else None,
     }
     flags = []
+    calibrated = calibration_thresholds(lang, n_words)
     for key, (limit, op) in THRESHOLDS.items():
+        limit = calibrated.get(key, limit)
         v = metrics.get(key)
         if v is not None and (v > limit if op == ">" else v < limit):
             flags.append(key)
     kept_flags = [f for f in flags if ("metric", f) in keep]
     flags = [f for f in flags if f not in kept_flags]
+    # calibrated combined evidence: without an S hit, M hits are required fixes only when enough
+    # distinct M rules agree; an isolated one stays visible as W (scripts/calibrate.py, evidence_min)
+    evidence_min = (calibration() or {}).get("evidence_min", {}).get(lang, 1)
+    authorship = [h for h in hits if not h["kept"] and h["category"] not in STYLE_CATEGORIES]
+    strong = any(h["tier"] == "S" for h in authorship)
+    medium_rules = {h["rule"] for h in authorship if h["tier"] == "M"}
+    if not strong and len(medium_rules) < evidence_min:
+        for h in authorship:
+            if h["tier"] == "M":
+                h["tier"], h["isolated"] = "W", True
     hits.sort(key=lambda h: (h["line"], h["col"]))
     return {"file": path, "lang": lang, "hits": hits, "metrics": metrics,
             "flags": flags, "kept_flags": kept_flags}
@@ -346,7 +407,8 @@ def print_report(result):
         print("| line | tier | category | rule | match | kept |\n|---|---|---|---|---|---|")
         for h in hits:
             match = h["match"].replace("|", "\\|")
-            print(f"| {h['line']}:{h['col']} | {h['tier']} | {h['category']} | {h['rule']} | {match} | {h['kept'] or ''} |")
+            note = h["kept"] or ("isolated" if h.get("isolated") else "")
+            print(f"| {h['line']}:{h['col']} | {h['tier']} | {h['category']} | {h['rule']} | {match} | {note} |")
     else:
         print("No pattern hits.")
     print("\n| metric | value | limit | flag |\n|---|---|---|---|")

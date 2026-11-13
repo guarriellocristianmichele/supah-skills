@@ -1,0 +1,613 @@
+{
+ "built": "2026-11-13",
+ "alpha": 0.005,
+ "documents": 5200,
+ "buckets": [
+  "<150",
+  "150-400",
+  "400-1000",
+  ">1000"
+ ],
+ "rules": {
+  "analogy-opener/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0028,
+   "human_upper95": 0.0073,
+   "ai_rate": 0.0047,
+   "lr": 1.65,
+   "admitted": "W"
+  },
+  "bold-lead-bullet/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0027,
+   "ai_rate": 0.0047,
+   "lr": 14.87,
+   "admitted": "style"
+  },
+  "chat-residue/en": {
+   "designed": "S",
+   "tier": "S",
+   "human_rate": 0.0,
+   "human_upper95": 0.0027,
+   "ai_rate": 0.0575,
+   "lr": 163.61,
+   "admitted": "S"
+  },
+  "copula-avoidance/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0057,
+   "human_upper95": 0.0112,
+   "ai_rate": 0.0293,
+   "lr": 4.96,
+   "admitted": "W"
+  },
+  "double-space/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0334,
+   "human_upper95": 0.0441,
+   "ai_rate": 0.0,
+   "lr": 0.02,
+   "admitted": "style"
+  },
+  "em-dash/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0092,
+   "human_upper95": 0.0157,
+   "ai_rate": 0.0,
+   "lr": 0.06,
+   "admitted": "style"
+  },
+  "en-dash-as-dash/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0071,
+   "human_upper95": 0.013,
+   "ai_rate": 0.0047,
+   "lr": 0.71,
+   "admitted": "style"
+  },
+  "exclamation-stack/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0064,
+   "human_upper95": 0.0121,
+   "ai_rate": 0.0035,
+   "lr": 0.61,
+   "admitted": "style"
+  },
+  "false-candor/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0028,
+   "human_upper95": 0.0073,
+   "ai_rate": 0.0023,
+   "lr": 0.92,
+   "admitted": "W"
+  },
+  "filler-transition/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0043,
+   "human_upper95": 0.0093,
+   "ai_rate": 0.0399,
+   "lr": 8.77,
+   "admitted": "M"
+  },
+  "fragment-run/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0675,
+   "human_upper95": 0.0818,
+   "ai_rate": 0.0528,
+   "lr": 0.79,
+   "admitted": "W"
+  },
+  "hyphen-as-dash/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.1229,
+   "human_upper95": 0.1411,
+   "ai_rate": 0.0552,
+   "lr": 0.45,
+   "admitted": "style"
+  },
+  "importance-flag/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0036,
+   "human_upper95": 0.0083,
+   "ai_rate": 0.0528,
+   "lr": 13.67,
+   "admitted": "M"
+  },
+  "inflated/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0028,
+   "human_upper95": 0.0073,
+   "ai_rate": 0.0869,
+   "lr": 27.36,
+   "admitted": "M"
+  },
+  "ing-tail/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0007,
+   "human_upper95": 0.004,
+   "ai_rate": 0.0845,
+   "lr": 79.87,
+   "admitted": "S"
+  },
+  "marked-word/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0277,
+   "human_upper95": 0.0376,
+   "ai_rate": 0.2664,
+   "lr": 9.52,
+   "admitted": "W"
+  },
+  "meta-text/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0027,
+   "ai_rate": 0.0012,
+   "lr": 4.96,
+   "admitted": "too few"
+  },
+  "not-just-x/en": {
+   "designed": "S",
+   "tier": "W",
+   "human_rate": 0.0085,
+   "human_upper95": 0.0148,
+   "ai_rate": 0.034,
+   "lr": 3.9,
+   "admitted": "W"
+  },
+  "not-x-but-y/en": {
+   "designed": "S",
+   "tier": "W",
+   "human_rate": 0.0043,
+   "human_upper95": 0.0093,
+   "ai_rate": 0.0141,
+   "lr": 3.18,
+   "admitted": "W"
+  },
+  "not-x-its-y/en": {
+   "designed": "S",
+   "tier": "M",
+   "human_rate": 0.0014,
+   "human_upper95": 0.0052,
+   "ai_rate": 0.0106,
+   "lr": 6.28,
+   "admitted": "M"
+  },
+  "placeholder/en": {
+   "designed": "S",
+   "tier": "S",
+   "human_rate": 0.0,
+   "human_upper95": 0.0027,
+   "ai_rate": 0.0106,
+   "lr": 31.4,
+   "admitted": "S"
+  },
+  "promotional/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0135,
+   "human_upper95": 0.021,
+   "ai_rate": 0.0411,
+   "lr": 3.01,
+   "admitted": "W"
+  },
+  "quote-mix/en": {
+   "designed": "W",
+   "tier": "W",
+   "human_rate": 0.0227,
+   "human_upper95": 0.0319,
+   "ai_rate": 0.0035,
+   "lr": 0.18,
+   "admitted": "style"
+  },
+  "rather-than-merely/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0014,
+   "human_upper95": 0.0052,
+   "ai_rate": 0.0023,
+   "lr": 1.65,
+   "admitted": "too few"
+  },
+  "self-question/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0085,
+   "human_upper95": 0.0148,
+   "ai_rate": 0.0129,
+   "lr": 1.52,
+   "admitted": "W"
+  },
+  "signposted-ending/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0554,
+   "human_upper95": 0.0686,
+   "ai_rate": 0.0775,
+   "lr": 1.4,
+   "admitted": "W"
+  },
+  "space-after-comma/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0582,
+   "human_upper95": 0.0717,
+   "ai_rate": 0.0,
+   "lr": 0.01,
+   "admitted": "style"
+  },
+  "space-after-period/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0057,
+   "human_upper95": 0.0112,
+   "ai_rate": 0.034,
+   "lr": 5.74,
+   "admitted": "style"
+  },
+  "space-before-punct/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.4162,
+   "human_upper95": 0.4421,
+   "ai_rate": 0.0035,
+   "lr": 0.01,
+   "admitted": "style"
+  },
+  "stacked-hedge/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.005,
+   "human_upper95": 0.0102,
+   "ai_rate": 0.0082,
+   "lr": 1.65,
+   "admitted": "W"
+  },
+  "staged-opener/en": {
+   "designed": "S",
+   "tier": "S",
+   "human_rate": 0.0,
+   "human_upper95": 0.0027,
+   "ai_rate": 0.0023,
+   "lr": 8.26,
+   "admitted": "too few"
+  },
+  "symbol/en": {
+   "designed": "W",
+   "tier": "W",
+   "human_rate": 0.0021,
+   "human_upper95": 0.0062,
+   "ai_rate": 0.0,
+   "lr": 0.24,
+   "admitted": "style"
+  },
+  "title-case/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0027,
+   "ai_rate": 0.0035,
+   "lr": 11.57,
+   "admitted": "style"
+  },
+  "tradeoff-denial/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0028,
+   "human_upper95": 0.0073,
+   "ai_rate": 0.0035,
+   "lr": 1.29,
+   "admitted": "W"
+  },
+  "vague-attribution/en": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0036,
+   "human_upper95": 0.0083,
+   "ai_rate": 0.0035,
+   "lr": 1.05,
+   "admitted": "W"
+  },
+  "accent-error/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.1223,
+   "human_upper95": 0.1425,
+   "ai_rate": 0.0148,
+   "lr": 0.14,
+   "admitted": "style"
+  },
+  "chat-residue/it": {
+   "designed": "S",
+   "tier": "S",
+   "human_rate": 0.0009,
+   "human_upper95": 0.0049,
+   "ai_rate": 0.0,
+   "lr": 1.41,
+   "admitted": "too few"
+  },
+  "colon-capital/it": {
+   "designed": "W",
+   "tier": "W",
+   "human_rate": 0.083,
+   "human_upper95": 0.1004,
+   "ai_rate": 0.0332,
+   "lr": 0.42,
+   "admitted": "style"
+  },
+  "em-dash/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0017,
+   "human_upper95": 0.0063,
+   "ai_rate": 0.0,
+   "lr": 0.85,
+   "admitted": "style"
+  },
+  "exclamation-stack/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.007,
+   "human_upper95": 0.0137,
+   "ai_rate": 0.0,
+   "lr": 0.25,
+   "admitted": "style"
+  },
+  "false-candor/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0009,
+   "human_upper95": 0.0049,
+   "ai_rate": 0.0,
+   "lr": 1.41,
+   "admitted": "too few"
+  },
+  "fragment-run/it": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.007,
+   "human_upper95": 0.0137,
+   "ai_rate": 0.0111,
+   "lr": 1.74,
+   "admitted": "W"
+  },
+  "hyphen-as-dash/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.1546,
+   "human_upper95": 0.1767,
+   "ai_rate": 0.1993,
+   "lr": 1.3,
+   "admitted": "style"
+  },
+  "importance-flag/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0037,
+   "lr": 12.68,
+   "admitted": "too few"
+  },
+  "inflated/it": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.014,
+   "human_upper95": 0.0226,
+   "ai_rate": 0.0111,
+   "lr": 0.9,
+   "admitted": "W"
+  },
+  "ing-tail/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0026,
+   "human_upper95": 0.0077,
+   "ai_rate": 0.0037,
+   "lr": 1.81,
+   "admitted": "too few"
+  },
+  "marked-word/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0035,
+   "human_upper95": 0.0089,
+   "ai_rate": 0.0074,
+   "lr": 2.35,
+   "admitted": "M"
+  },
+  "meta-text/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0,
+   "lr": 4.23,
+   "admitted": "too few"
+  },
+  "non-solo-ma-anche/it": {
+   "designed": "W",
+   "tier": "W",
+   "human_rate": 0.0262,
+   "human_upper95": 0.0372,
+   "ai_rate": 0.0037,
+   "lr": 0.21,
+   "admitted": "W"
+  },
+  "not-x-but-y/it": {
+   "designed": "S",
+   "tier": "W",
+   "human_rate": 0.0052,
+   "human_upper95": 0.0114,
+   "ai_rate": 0.0,
+   "lr": 0.33,
+   "admitted": "W"
+  },
+  "not-x-its-y/it": {
+   "designed": "S",
+   "tier": "W",
+   "human_rate": 0.007,
+   "human_upper95": 0.0137,
+   "ai_rate": 0.0037,
+   "lr": 0.75,
+   "admitted": "W"
+  },
+  "promotional/it": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0052,
+   "human_upper95": 0.0114,
+   "ai_rate": 0.0111,
+   "lr": 2.28,
+   "admitted": "W"
+  },
+  "quote-mix/it": {
+   "designed": "W",
+   "tier": "W",
+   "human_rate": 0.0192,
+   "human_upper95": 0.0289,
+   "ai_rate": 0.0037,
+   "lr": 0.28,
+   "admitted": "style"
+  },
+  "self-question/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0026,
+   "human_upper95": 0.0077,
+   "ai_rate": 0.0,
+   "lr": 0.6,
+   "admitted": "too few"
+  },
+  "signposted-ending/it": {
+   "designed": "M",
+   "tier": "W",
+   "human_rate": 0.0079,
+   "human_upper95": 0.0149,
+   "ai_rate": 0.0,
+   "lr": 0.22,
+   "admitted": "W"
+  },
+  "space-after-comma/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.007,
+   "human_upper95": 0.0137,
+   "ai_rate": 0.0037,
+   "lr": 0.75,
+   "admitted": "style"
+  },
+  "space-after-period/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.207,
+   "human_upper95": 0.2314,
+   "ai_rate": 0.0037,
+   "lr": 0.03,
+   "admitted": "style"
+  },
+  "space-before-punct/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0367,
+   "human_upper95": 0.0492,
+   "ai_rate": 0.2435,
+   "lr": 6.61,
+   "admitted": "style"
+  },
+  "symbol/it": {
+   "designed": "W",
+   "tier": "W",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0,
+   "lr": 4.23,
+   "admitted": "style"
+  },
+  "vague-attribution/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0017,
+   "human_upper95": 0.0063,
+   "ai_rate": 0.0,
+   "lr": 0.85,
+   "admitted": "too few"
+  }
+ },
+ "metrics": {
+  "en": {
+   "*": {
+    "style_words_per_1k": 12,
+    "dash_per_1k": 22.5,
+    "connective_sentence_share": 0.2,
+    "triads_per_1k": 15.0,
+    "bold_per_1k": 6,
+    "sentence_length_cv": 0.24
+   },
+   "150-400": {
+    "connective_sentence_share": 0.2
+   },
+   "400-1000": {
+    "style_words_per_1k": 12,
+    "dash_per_1k": 31.3,
+    "connective_sentence_share": 0.2,
+    "triads_per_1k": 16.3,
+    "bold_per_1k": 6,
+    "sentence_length_cv": 0.23
+   }
+  },
+  "it": {
+   "*": {
+    "style_words_per_1k": 15.5,
+    "dash_per_1k": 33.2,
+    "connective_sentence_share": 0.21,
+    "triads_per_1k": 18.8,
+    "bold_per_1k": 6
+   },
+   "150-400": {
+    "style_words_per_1k": 17.9,
+    "dash_per_1k": 27.7,
+    "connective_sentence_share": 0.29,
+    "triads_per_1k": 25.9,
+    "bold_per_1k": 6
+   }
+  }
+ },
+ "demoted_words": {
+  "en": [
+   "bolstering",
+   "embark",
+   "garner",
+   "garnered",
+   "grappling",
+   "noteworthy",
+   "showcase",
+   "showcased"
+  ],
+  "it": []
+ },
+ "marked_min": {
+  "en": 2,
+  "it": 2
+ },
+ "evidence_min": {
+  "en": 2,
+  "it": 2
+ }
+}

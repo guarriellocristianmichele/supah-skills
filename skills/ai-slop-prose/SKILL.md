@@ -34,7 +34,7 @@ Inside a session run by another writing skill that builds an article block by bl
    - **kept**: a real tell the text needs; append `rule<TAB>match<TAB>reason` to a keep file in the scratchpad with reason `quote`, `voice`, `literal`, `term` or `dialogue`;
    - **fp**: the pattern matched but the text is not doing the thing the rule names (a contrast the argument genuinely draws, a literal `_`, a product called Delve); keep it with reason `fp`.
 
-   Hits marked `auto:` (quote, heading, name, dialogue) or `learned:` were resolved by context gates or by past verdicts; rewrite one anyway when it is in fact a tell. Then read the whole text once for the category's tells the scanner cannot see.
+   Hits marked `auto:` (quote, heading, name, dialogue) or `learned:` were resolved by context gates or by past verdicts, and an `isolated` W hit is an M rule alone in otherwise clean text, which calibration showed is usually human; rewrite any of them when it is in fact a tell. Then read the whole text once for the category's tells the scanner cannot see.
 6. **Facts**: `scan.py compare <orig> <file>` must list nothing missing; restore every lost number, name, link, code span or quote.
 7. **Rescan**: `scan.py --keep <keep file> <file>` exits 0. A new hit means a rewrite brought in another tell: fix it and rescan.
 8. **Learn**: `scan.py verdict <orig> <file> --keep <keep file>` records every verdict (rewritten hits count as tells) and updates each rule's measured precision; rules that keep producing `fp` lose tier on their own, and contexts judged `fp` twice stop being flagged.

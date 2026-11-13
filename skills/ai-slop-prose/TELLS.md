@@ -20,7 +20,9 @@ Fix: delete. A placeholder becomes the real value, or a question to the user whe
 
 Denying a claim nobody made in order to assert another.
 
-- S `not-x-but-y`: "It isn't just a tool — it's a mindset", "Non è solo una tendenza, è una rivoluzione", "This isn't about speed. It's about trust."
+- S `not-x-its-y`: "It isn't just a tool — it's a mindset", "Non è solo una tendenza, è una rivoluzione".
+- S `not-just-x`: "not just X, but Y" (the correlative "not only X but also Y" is ordinary English and is not matched).
+- S `not-x-but-y`: the split form, "This isn't about speed. It's about trust.", "Non è X. È Y.", "not because X, but because Y", "Non si tratta di X, ma di Y". Calibration: 10 human vs 72 AI documents in English.
 - M `rather-than-merely`: "rather than merely", "less a tool than a mirror".
 - M `countdown`: "Not a bug. Not a feature. A design flaw."
 - W `non-solo-ma-anche`: standard Italian correlative, suspicious only in clusters.

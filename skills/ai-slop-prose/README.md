@@ -13,6 +13,7 @@ A Claude Code skill that finds the patterns that make English and Italian prose 
 - [Command reference](#command-reference)
 - [Tiers, categories and metrics](#tiers-categories-and-metrics)
 - [What the scanner ignores](#what-the-scanner-ignores)
+- [False positives: calibration and learning](#false-positives-calibration-and-learning)
 - [Tuning](#tuning)
 - [For agents](#for-agents)
 - [Limits](#limits)
@@ -73,7 +74,8 @@ Every step has a command or a check, so a run can be audited afterwards.
 | 5 | Sweep | work through `TELLS.md` one category at a time | each hit is rewritten or written to the keep file with a reason |
 | 6 | Facts | `scan.py compare <orig> <file>` | `Missing: 0` |
 | 7 | Rescan | `scan.py --keep <keep> <file>` | exit code 0 |
-| 8 | Report | one line per category, metrics before and after, diff | all eleven categories are listed, zeros included |
+| 8 | Learn | `scan.py verdict <orig> <file> --keep <keep>` | it prints the recorded verdicts and any tier changes |
+| 9 | Report | one line per category, metrics before and after, diff, `fp` verdicts | all eleven categories are listed, zeros included |
 
 A rewrite that swaps one pattern for another (a contrast turned into a rhetorical question, say) shows up again at step 7, so the loop closes only when the text is clean.
 
@@ -89,7 +91,9 @@ Scans each file and prints a report.
 |---|---|---|
 | `--lang auto\|en\|it` | `auto` | Language of the rules. `auto` counts common function words of each language and picks the larger count. |
 | `--keep FILE` | none | Keep file (see below). Matching hits and metrics count as resolved. |
-| `--json` | off | Print a JSON array instead of Markdown: `file`, `lang`, `hits[]` (`line`, `col`, `tier`, `category`, `rule`, `match`, `kept`), `metrics`, `flags`, `kept_flags`. |
+| `--json` | off | Print a JSON array instead of Markdown: `file`, `lang`, `hits[]` (`line`, `col`, `tier`, `category`, `rule`, `match`, `context`, `kept`, `isolated`), `metrics`, `flags`, `kept_flags`. |
+| `--no-gates` | off | Also report hits inside quotes and blockquotes, vocabulary in headings, capitalised names and Italian dialogue dashes, which are otherwise kept as `auto:*`. |
+| `--no-learn` | off | Ignore the learned model (tiers and suppressions learned from verdicts). |
 
 The Markdown report has three parts per file:
 
@@ -123,6 +127,14 @@ Code fences, inline code, URLs, front matter and HTML comments are never touched
 
 Lists what the rewrite dropped: numbers, URLs, inline code, quoted strings, and capitalised names that appear mid-sentence. Exit 0 means nothing is missing. Run it after every rewrite; a missing token is restored, or the report explains why it was meant to go.
 
+### `scan.py verdict ORIGINAL FINAL [--keep FILE] [--source model|human]`
+
+Records the verdicts of a finished sweep and rebuilds the learned model. A hit kept with reason `fp` becomes a false positive, one kept with any other reason becomes `kept` (a real tell left on purpose), and a hit that disappeared from FINAL becomes `tell` (rewritten). Hits still present without a keep entry, and hits resolved by context gates, are not recorded.
+
+### `scan.py learn`, `scan.py audit`, `scan.py label FILE`
+
+`learn` rebuilds the model and prints each rule's verdict count, mean precision, 95% lower bound and tier. `audit [--fraction 0.1]` prints a random sample of the model's `fp` verdicts as TSV; edit the `label` column (`fp`, `kept` or `tell`) and record it with `label FILE` as human verdicts, which override the model's for the same context.
+
 ### `scan.py rules`
 
 Prints every rule id with its category, tier and language, the metric thresholds, and the size of each lexicon. This output is the authoritative rule list; the tables in this README summarise it.
@@ -138,7 +150,7 @@ em-dash	—	dialogue
 metric	dash_per_1k	voice
 ```
 
-Matching ignores case. Valid reasons are `quote` (quoted material), `voice` (a habit the author shows consistently), `literal` (the word used in its plain sense, such as the `_` character), `term` (a domain term) and `dialogue`. Keep the file in a scratch directory, outside the document's repository.
+Matching ignores case. Valid reasons are `fp` (not a tell: the pattern matched, the text is doing something else), `quote` (quoted material), `voice` (a habit the author shows consistently), `literal` (the word used in its plain sense, such as the `_` character), `term` (a domain term) and `dialogue`. Keep the file in a scratch directory, outside the document's repository.
 
 ## Tiers, categories and metrics
 
@@ -182,10 +194,32 @@ Below the minimum the metric shows `n/a` and cannot be flagged.
 
 Before matching, the scanner blanks out YAML front matter, fenced code blocks (```` ``` ```` and `~~~`), inline code, URLs and HTML comments. Offsets are preserved, so line and column numbers still point at the original file. The blanking uses a private-use character, so spacing rules never mistake a code span for whitespace.
 
+## False positives: calibration and learning
+
+Three layers keep the scanner from flagging ordinary writing. Method and sources: [`docs/research/2026-11-false-positive-control.md`](../../docs/research/2026-11-false-positive-control.md); measured results: [`docs/research/2026-11-calibration-results.md`](../../docs/research/2026-11-calibration-results.md).
+
+**1. Calibration on corpora** (`scripts/calibrate.py`, shipped as `scripts/calibration.json`). Every rule was run on about 5,200 documents: human text written before ChatGPT (arXiv, CNN/DailyMail, Reddit, non-native student essays, HC3; Il Post, DICE, Europarl, PAISÀ) and AI text (ChatGPT, Beemo, GPT-4o and Llama 3; Llama-2 for Italian).
+
+- A rule keeps its tier only if the Wilson 95% upper bound of the human documents it hits is ≤ 0.5% (S) or ≤ 1% (M), and, in English, if it hits AI text 20 or 5 times as often. Calibration only lowers tiers.
+- Marked words common in human text move to the density list, and the rest flag a document only from two distinct words on.
+- Density thresholds are split-conformal quantiles of human text per language and length bucket (α = 0.005).
+- A document needs one S hit or two distinct M rules before M hits become required fixes; an M rule alone is reported as W with the note `isolated`.
+
+On the 30% holdout, the share of human documents left with any required fix is 4/592 in English (0.68%, 95% upper bound 1.54%) and 4/455 in Italian (0.88%, upper bound 2.00%); 25.6% of English AI documents still need fixes. Punctuation and formatting rules are style policy and are not part of these numbers.
+
+**2. Context gates.** Hits inside quotes and blockquotes, marked words in headings, capitalised names and Italian dialogue dashes are kept automatically as `auto:quote`, `auto:heading`, `auto:name` and `auto:dialogue`.
+
+**3. Learning from verdicts** (`scripts/learn.py`). Every reviewed hit becomes a verdict in your config folder (`%APPDATA%\supah-skills\prose` on Windows, `~/.config/supah-skills/prose` elsewhere, or `SUPAH_PROSE_HOME`).
+
+- Each rule's precision is a Beta-Binomial posterior with discounted counts (γ = 0.99). A rule drops a tier only after 30 verdicts and when P(precision < target) > 0.95, and climbs back when its lower bound clears the target. Demoted rules still surface now and then (Thompson sampling), so they can recover.
+- A context judged `fp` twice, and never a tell, stops being flagged.
+- After 200 verdicts in a category, a naive Bayes model on the context can suppress hits, never add them.
+- `scan.py audit` asks you to confirm a sample of the model's `fp` verdicts, because a model reviewer tends to excuse text that sounds like its own.
+
 ## Tuning
 
 - **Lexicons** are plain text files in `scripts/lexicon/`, one word form per line, `#` for comments. `*-marked.txt` words are reported one by one (tier M); `*-style.txt` words only count towards `style_words_per_1k` (tier W). Add inflected forms explicitly: matching is exact and case-insensitive.
-- **Thresholds** are the `THRESHOLDS` and `MIN_WORDS` constants at the top of `scan.py`.
+- **Thresholds** are the `THRESHOLDS` and `MIN_WORDS` constants at the top of `scan.py`, overridden per language and length by `calibration.json`. After changing a rule or lexicon, run `python scripts/calibrate.py run` and `report` from the repository root (and `fetch` once, the first time). Set `SUPAH_PROSE_NO_CALIBRATION=1` to scan with the designed tiers.
 - **Rules** are tuples in the `RULES` list: `(rule id, category, tier, lang, pattern, flags)`, where `lang` is `en`, `it` or `any` and `category` must match a heading in `TELLS.md`. Unambiguous corrections go in `FIXES`: `(rule id, lang, pattern, replacement)`.
 - Model vocabulary turns over quickly: consecutive model versions share only part of their favourite words. Review the lexicons every few months, and date your additions in the file header.
 
@@ -243,6 +277,8 @@ La skill si attiva da sola quando Claude scrive o rivede testi destinati a perso
 | `scan.py fix FILE...` | applica le correzioni sicure: accenti (perchè → perché, qual'è → qual è, E' → È, pò → po'), doppi spazi, spazio prima della punteggiatura, spazio mancante dopo virgola e punto | 0 |
 | `scan.py compare ORIGINALE RISCRITTO` | elenca numeri, link, codice, citazioni e nomi spariti nella riscrittura | 0 se non manca nulla |
 | `scan.py rules` | stampa tutte le regole, le soglie e i lessici | 0 |
+| `scan.py verdict ORIGINALE FINALE --keep KEEP` | registra i verdetti di una revisione (`fp`, `kept`, `tell`) e aggiorna la precisione misurata di ogni regola | 0 |
+| `scan.py audit`, poi `scan.py label FILE` | ti fa confermare un campione dei falsi positivi decisi dal modello | 0 |
 
 Opzioni di `scan.py`: `--lang auto|en|it` (lingua, rilevata in automatico), `--keep FILE` (eccezioni motivate), `--json` (output per programmi).
 
@@ -257,9 +293,13 @@ Opzioni di `scan.py`: `--lang auto|en|it` (lingua, rilevata in automatico), `--k
 7. `scan.py --keep` finché l'exit code è 0.
 8. Resoconto con una riga per ciascuna delle undici categorie, anche quelle a zero.
 
+### Falsi positivi
+
+Livelli e soglie sono calibrati su circa 5.200 testi umani (scritti prima di ChatGPT) e AI, in inglese e in italiano. Una regola M da sola in un testo pulito resta visibile come W (`isolated`): servono una regola S o due regole M diverse perché la correzione diventi obbligatoria. Sul 30% di testi tenuti da parte restano segnalati 4 testi umani su 592 in inglese (0,68%, limite superiore 1,54%) e 4 su 455 in italiano (0,88%, limite superiore 2,00%). Le citazioni, i titoli, i nomi propri e i trattini di dialogo vengono esclusi in automatico. Ogni verdetto (`fp`, `kept`, `tell`) viene registrato e una regola che sbaglia spesso perde livello da sola, dopo almeno 30 verdetti.
+
 ### Keep file
 
-File TSV con tre colonne: regola, testo trovato, motivo. I motivi ammessi sono `quote`, `voice`, `literal`, `term` e `dialogue`. Per mantenere una metrica: `metric`, nome della metrica, motivo.
+File TSV con tre colonne: regola, testo trovato, motivo. I motivi ammessi sono `fp` (non è un segnale AI), `quote`, `voice`, `literal`, `term` e `dialogue`. Per mantenere una metrica: `metric`, nome della metrica, motivo.
 
 ### Trattini e punteggiatura
 

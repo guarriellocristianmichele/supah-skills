@@ -50,8 +50,21 @@ class ScanDetects(unittest.TestCase):
         self.assertEqual(r["lang"], "it")
         self.assertEqual(code, 1)
         for rule in ("chat-residue", "not-x-its-y", "countdown", "self-question", "inflated",
-                     "ing-tail", "importance-flag", "vague-attribution", "signposted-ending", "em-dash"):
+                     "ing-tail", "importance-flag", "vague-attribution", "em-dash"):
             self.assertIn(rule, rules(r), rule)
+        self.assertIn("summary-closer", rules(r, "W"))  # "In conclusione" is common in human Italian too
+
+    def test_italian_assistant_residue(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "it.md")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("Perfetto! Ecco una proposta per la tua email.\n\n**Oggetto della mail**\n\n"
+                        "Se hai domande, non esitare a scrivermi: sono qui e posso aiutarti a sistemarla.\n\n"
+                        "In sintesi, la mail è pronta da inviare al tuo responsabile.\n")
+            out = json.loads(run("--json", "--lang", "it", path).stdout)[0]
+        found = {h["rule"] for h in out["hits"]}
+        for rule in ("chat-residue", "ecco-opener", "bold-heading", "signposted-ending"):
+            self.assertIn(rule, found, rule)
 
     def test_italian_punctuation(self):
         r, _ = scan_json("punct-it.md")

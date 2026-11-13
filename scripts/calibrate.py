@@ -73,14 +73,20 @@ SOURCES = [
      {"dataset": "KarlGauss/paisa_corpus", "config": "default", "split": "train", "field": "text_content"}),
     ("coling-it", "it", "ai", "news", "filter",
      {"dataset": "Jinyan1/COLING_2025_MGT_multingual", "config": "default", "split": "train", "field": "text",
-      "where": "\"lang\"='it'"}),
+      "where": "\"lang\"='it'", "representative": False}),  # Llama-2 fine-tuned to imitate human news
+    # real Italian conversations with GPT-4 / GPT-3.5 (2023-2024), first assistant answer of each; ODC-BY
+    ("wildchat-it", "it", "ai", "chat", "filter",
+     {"dataset": "allenai/WildChat-1M", "config": "default", "split": "train", "field": "conversation",
+      "where": "\"language\"='Italian'", "extract": "first_assistant"}),
+    # assistant answers to realistic Italian requests, written by Claude subagents (.calibration/gen/)
+    ("claude-it", "it", "ai", "assistant", "localdir", {"dir": "gen/claude-it"}),
 ]
 
 
 def http_json(url, tries=6):
     for attempt in range(tries):
         try:
-            with urllib.request.urlopen(url, timeout=120) as r:
+            with urllib.request.urlopen(url, timeout=300) as r:
                 return json.load(r)
         except Exception as e:  # datasets-server answers 502/503 under load
             err = e
@@ -104,7 +110,13 @@ def fetch_rows(spec, n, use_filter=False):
             r = row["row"]
             if spec.get("keep_id") and not spec["keep_id"](r):
                 continue
-            out.append((f"{spec['dataset']}#{row['row_idx']}", r[spec["field"]]))
+            value = r[spec["field"]]
+            if spec.get("extract") == "first_assistant":
+                value = next((t["content"] for t in value or [] if t.get("role") == "assistant"
+                              and len(t.get("content", "").split()) >= MIN_WORDS), None)
+                if value is None:
+                    continue
+            out.append((f"{spec['dataset']}#{row['row_idx']}", value))
         if len(out) >= n * 1.5:
             break
     return out
@@ -151,6 +163,16 @@ def fetch_hc3(spec, n, cache={}):
     return out[::step][: n * 2]
 
 
+def fetch_localdir(spec, n):
+    folder = os.path.join(WORK, spec["dir"])
+    out = []
+    for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        if name.endswith((".txt", ".md")):
+            with open(os.path.join(folder, name), encoding="utf-8") as f:
+                out.append((f"{spec['dir']}/{name}", f.read()))
+    return out[: n * 2]
+
+
 def cmd_fetch(args):
     os.makedirs(WORK, exist_ok=True)
     seen = 0
@@ -167,6 +189,8 @@ def cmd_fetch(args):
                     items = fetch_csv(spec, args.per_source)
                 elif kind == "gzlines":
                     items = fetch_gzlines(spec, args.per_source)
+                elif kind == "localdir":
+                    items = fetch_localdir(spec, args.per_source)
                 else:
                     items = fetch_hc3(spec, args.per_source)
             except Exception as e:
@@ -177,7 +201,8 @@ def cmd_fetch(args):
                 words = len((text or "").split())
                 if MIN_WORDS <= words <= MAX_WORDS and kept < args.per_source:
                     f.write(json.dumps({"id": doc_id, "source": sid, "lang": lang, "origin": origin,
-                                        "genre": genre, "text": text}, ensure_ascii=False) + "\n")
+                                        "genre": genre, "representative": spec.get("representative", True),
+                                        "text": text}, ensure_ascii=False) + "\n")
                     kept += 1
             seen += kept
             print(f"  {sid}: {kept} documents")
@@ -188,10 +213,13 @@ def cmd_fetch(args):
 def cmd_run(args):
     os.environ["SUPAH_PROSE_NO_CALIBRATION"] = "1"  # measure the designed tiers, not a previous calibration
     import scan  # noqa: E402
-    n = 0
+    n, skipped = 0, {}
     with open(DOCS, encoding="utf-8") as src, open(SCANS, "w", encoding="utf-8") as out:
         for line in src:
             d = json.loads(line)
+            if scan.detect_lang(scan.mask(d["text"])) != d["lang"]:  # e.g. English answers in "Italian" chats
+                skipped[d["source"]] = skipped.get(d["source"], 0) + 1
+                continue
             r = scan.scan_text(d["text"], d["lang"], {}, gates=True, model=None, path=d["id"])
             counts = {}
             for h in r["hits"]:
@@ -199,13 +227,14 @@ def cmd_run(args):
                     key = f"{h['rule']}|{h['category']}|{h['tier']}"
                     counts[key] = counts.get(key, 0) + 1
             record = {k: d[k] for k in ("id", "source", "lang", "origin", "genre")}
+            record["representative"] = d.get("representative", d["source"] != "coling-it")
             record.update(marked=sorted({h["match"].lower() for h in r["hits"]
                                          if h["rule"] == "marked-word" and not h["kept"]}))
             record.update(words=r["metrics"]["words"], counts=counts, metrics=r["metrics"],
                           split="cal" if int(hashlib.sha1(d["id"].encode()).hexdigest(), 16) % 10 < 7 else "hold")
             out.write(json.dumps(record) + "\n")
             n += 1
-    print(f"scanned {n} documents -> {SCANS}")
+    print(f"scanned {n} documents -> {SCANS}; skipped for language mismatch: {skipped or 'none'}")
     return 0
 
 
@@ -226,7 +255,7 @@ def clopper_pearson_upper(k, n, conf=0.95):
 S_MAX_HUMAN, M_MAX_HUMAN = 0.005, 0.01   # Wilson 95% upper bound on the human document hit rate
 DOC_MAX_HUMAN = 0.01  # the same bound for a whole document carrying required fixes
 S_MIN_LR, M_MIN_LR = 20, 5
-REPRESENTATIVE_AI = {"en"}  # the only Italian AI corpus is a fine-tuned news generator built to look human
+MIN_REPRESENTATIVE_AI = 80  # likelihood ratios need this many representative AI calibration documents
 
 
 def worse(a, b):
@@ -285,8 +314,8 @@ def cmd_report(args):
         human = [d for d in docs if d["lang"] == lang and d["origin"] == "human"]
         ai = [d for d in docs if d["lang"] == lang and d["origin"] == "ai"]
         h_cal = [d for d in human if d["split"] == "cal"]
-        a_cal = [d for d in ai if d["split"] == "cal"]
-        representative = lang in REPRESENTATIVE_AI
+        a_cal = [d for d in ai if d["split"] == "cal" and d.get("representative", True)]
+        representative = len(a_cal) >= MIN_REPRESENTATIVE_AI
         rule_keys = sorted({k for d in human + ai for k in d["counts"]})
         lines.append(f"\n## Rules, {lang} (calibration split: {len(h_cal)} human, {len(a_cal)} AI documents; "
                      f"likelihood ratio {'used' if representative else 'not used: AI corpus not representative'})\n")
@@ -402,6 +431,7 @@ def cmd_report(args):
         lines.append(f"\nA document needs one S hit or {m} distinct M rules before its M hits are required fixes; "
                      "isolated M hits are reported as W.")
         k = sum(flagged(d) for d in hold)
+        ai_hold = [d for d in ai_hold if d.get("representative", True)]
         r_ai = sum(flagged(d) for d in ai_hold)
         lines.append(f"\n**Holdout, {lang}:** {k}/{len(hold)} human documents carry an open S/M authorship hit "
                      f"(95% upper bound {clopper_pearson_upper(k, len(hold)) if hold else float('nan'):.2%}); "
@@ -409,6 +439,15 @@ def cmd_report(args):
                      f"({(r_ai / len(ai_hold)) if ai_hold else float('nan'):.1%} recall). "
                      "Style rules (punctuation, formatting) are excluded from both counts.")
 
+    # last fallback: thresholds over every language's human calibration text, for metrics such as
+    # sentence-length spread that no single language has enough long documents to calibrate
+    pooled = [d for d in docs if d["origin"] == "human" and d["split"] == "cal"]
+    metrics_out["*"] = {"*": {}}
+    for metric, (default, op) in scan.THRESHOLDS.items():
+        tau = conformal([d["metrics"][metric] for d in pooled if d["metrics"].get(metric) is not None],
+                        args.alpha, upper=(op == ">"))
+        if tau is not None:
+            metrics_out["*"]["*"][metric] = max(tau, default) if op == ">" else min(tau, default)
     calibration = {"built": time.strftime("%Y-%m-%d"), "alpha": args.alpha, "documents": len(docs),
                    "buckets": [b[2] for b in BUCKETS], "rules": rules_out, "metrics": metrics_out,
                    "demoted_words": words_out, "marked_min": marked_min,

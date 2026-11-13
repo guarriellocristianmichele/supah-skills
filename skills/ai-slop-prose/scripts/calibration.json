@@ -1,7 +1,7 @@
 {
  "built": "2026-11-13",
  "alpha": 0.005,
- "documents": 5200,
+ "documents": 5702,
  "buckets": [
   "<150",
   "150-400",
@@ -17,6 +17,15 @@
    "ai_rate": 0.0047,
    "lr": 1.65,
    "admitted": "W"
+  },
+  "bold-heading/en": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0027,
+   "ai_rate": 0.0117,
+   "lr": 34.7,
+   "admitted": "style"
   },
   "bold-lead-bullet/en": {
    "designed": "M",
@@ -327,10 +336,46 @@
   "accent-error/it": {
    "designed": "M",
    "tier": "M",
-   "human_rate": 0.1223,
-   "human_upper95": 0.1425,
-   "ai_rate": 0.0148,
-   "lr": 0.14,
+   "human_rate": 0.1225,
+   "human_upper95": 0.1428,
+   "ai_rate": 0.0,
+   "lr": 0.01,
+   "admitted": "style"
+  },
+  "ai-disclaimer/it": {
+   "designed": "S",
+   "tier": "S",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0028,
+   "lr": 9.71,
+   "admitted": "too few"
+  },
+  "analogy-opener/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0028,
+   "lr": 9.71,
+   "admitted": "too few"
+  },
+  "bold-heading/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.1388,
+   "lr": 320.56,
+   "admitted": "style"
+  },
+  "bold-lead-bullet/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0963,
+   "lr": 223.42,
    "admitted": "style"
   },
   "chat-residue/it": {
@@ -338,35 +383,62 @@
    "tier": "S",
    "human_rate": 0.0009,
    "human_upper95": 0.0049,
-   "ai_rate": 0.0,
-   "lr": 1.41,
-   "admitted": "too few"
+   "ai_rate": 0.0765,
+   "lr": 59.36,
+   "admitted": "S"
   },
   "colon-capital/it": {
    "designed": "W",
    "tier": "W",
-   "human_rate": 0.083,
-   "human_upper95": 0.1004,
-   "ai_rate": 0.0332,
-   "lr": 0.42,
+   "human_rate": 0.0822,
+   "human_upper95": 0.0996,
+   "ai_rate": 0.1785,
+   "lr": 2.18,
    "admitted": "style"
+  },
+  "double-space/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0028,
+   "lr": 9.71,
+   "admitted": "style"
+  },
+  "ecco-opener/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0017,
+   "human_upper95": 0.0064,
+   "ai_rate": 0.1388,
+   "lr": 64.11,
+   "admitted": "M"
   },
   "em-dash/it": {
    "designed": "M",
    "tier": "M",
    "human_rate": 0.0017,
-   "human_upper95": 0.0063,
-   "ai_rate": 0.0,
-   "lr": 0.85,
+   "human_upper95": 0.0064,
+   "ai_rate": 0.0028,
+   "lr": 1.94,
+   "admitted": "style"
+  },
+  "emoji-marker/it": {
+   "designed": "M",
+   "tier": "M",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0028,
+   "lr": 9.71,
    "admitted": "style"
   },
   "exclamation-stack/it": {
    "designed": "M",
    "tier": "M",
    "human_rate": 0.007,
-   "human_upper95": 0.0137,
+   "human_upper95": 0.0138,
    "ai_rate": 0.0,
-   "lr": 0.25,
+   "lr": 0.19,
    "admitted": "style"
   },
   "false-candor/it": {
@@ -374,26 +446,26 @@
    "tier": "M",
    "human_rate": 0.0009,
    "human_upper95": 0.0049,
-   "ai_rate": 0.0,
-   "lr": 1.41,
+   "ai_rate": 0.0028,
+   "lr": 3.24,
    "admitted": "too few"
   },
   "fragment-run/it": {
    "designed": "M",
    "tier": "W",
    "human_rate": 0.007,
-   "human_upper95": 0.0137,
-   "ai_rate": 0.0111,
-   "lr": 1.74,
+   "human_upper95": 0.0138,
+   "ai_rate": 0.0198,
+   "lr": 2.86,
    "admitted": "W"
   },
   "hyphen-as-dash/it": {
    "designed": "M",
    "tier": "M",
-   "human_rate": 0.1546,
-   "human_upper95": 0.1767,
-   "ai_rate": 0.1993,
-   "lr": 1.3,
+   "human_rate": 0.1549,
+   "human_upper95": 0.177,
+   "ai_rate": 0.0283,
+   "lr": 0.19,
    "admitted": "style"
   },
   "importance-flag/it": {
@@ -401,17 +473,17 @@
    "tier": "M",
    "human_rate": 0.0,
    "human_upper95": 0.0033,
-   "ai_rate": 0.0037,
-   "lr": 12.68,
-   "admitted": "too few"
+   "ai_rate": 0.0255,
+   "lr": 61.52,
+   "admitted": "S"
   },
   "inflated/it": {
    "designed": "M",
    "tier": "W",
    "human_rate": 0.014,
    "human_upper95": 0.0226,
-   "ai_rate": 0.0111,
-   "lr": 0.9,
+   "ai_rate": 0.0142,
+   "lr": 1.08,
    "admitted": "W"
   },
   "ing-tail/it": {
@@ -419,26 +491,26 @@
    "tier": "M",
    "human_rate": 0.0026,
    "human_upper95": 0.0077,
-   "ai_rate": 0.0037,
-   "lr": 1.81,
-   "admitted": "too few"
+   "ai_rate": 0.017,
+   "lr": 6.01,
+   "admitted": "M"
   },
   "marked-word/it": {
    "designed": "M",
-   "tier": "M",
+   "tier": "W",
    "human_rate": 0.0035,
-   "human_upper95": 0.0089,
-   "ai_rate": 0.0074,
-   "lr": 2.35,
-   "admitted": "M"
+   "human_upper95": 0.009,
+   "ai_rate": 0.0028,
+   "lr": 1.08,
+   "admitted": "W"
   },
   "meta-text/it": {
    "designed": "M",
    "tier": "M",
    "human_rate": 0.0,
    "human_upper95": 0.0033,
-   "ai_rate": 0.0,
-   "lr": 4.23,
+   "ai_rate": 0.0028,
+   "lr": 9.71,
    "admitted": "too few"
   },
   "non-solo-ma-anche/it": {
@@ -446,8 +518,8 @@
    "tier": "W",
    "human_rate": 0.0262,
    "human_upper95": 0.0372,
-   "ai_rate": 0.0037,
-   "lr": 0.21,
+   "ai_rate": 0.0085,
+   "lr": 0.37,
    "admitted": "W"
   },
   "not-x-but-y/it": {
@@ -455,35 +527,44 @@
    "tier": "W",
    "human_rate": 0.0052,
    "human_upper95": 0.0114,
-   "ai_rate": 0.0,
-   "lr": 0.33,
+   "ai_rate": 0.0227,
+   "lr": 4.23,
    "admitted": "W"
   },
   "not-x-its-y/it": {
    "designed": "S",
    "tier": "W",
    "human_rate": 0.007,
-   "human_upper95": 0.0137,
-   "ai_rate": 0.0037,
-   "lr": 0.75,
+   "human_upper95": 0.0138,
+   "ai_rate": 0.0198,
+   "lr": 2.86,
    "admitted": "W"
+  },
+  "placeholder/it": {
+   "designed": "S",
+   "tier": "S",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0567,
+   "lr": 132.76,
+   "admitted": "S"
   },
   "promotional/it": {
    "designed": "M",
    "tier": "W",
    "human_rate": 0.0052,
    "human_upper95": 0.0114,
-   "ai_rate": 0.0111,
-   "lr": 2.28,
+   "ai_rate": 0.0,
+   "lr": 0.25,
    "admitted": "W"
   },
   "quote-mix/it": {
    "designed": "W",
    "tier": "W",
    "human_rate": 0.0192,
-   "human_upper95": 0.0289,
-   "ai_rate": 0.0037,
-   "lr": 0.28,
+   "human_upper95": 0.029,
+   "ai_rate": 0.0142,
+   "lr": 0.79,
    "admitted": "style"
   },
   "self-question/it": {
@@ -492,33 +573,33 @@
    "human_rate": 0.0026,
    "human_upper95": 0.0077,
    "ai_rate": 0.0,
-   "lr": 0.6,
+   "lr": 0.46,
    "admitted": "too few"
   },
   "signposted-ending/it": {
    "designed": "M",
-   "tier": "W",
-   "human_rate": 0.0079,
-   "human_upper95": 0.0149,
-   "ai_rate": 0.0,
-   "lr": 0.22,
-   "admitted": "W"
+   "tier": "M",
+   "human_rate": 0.0009,
+   "human_upper95": 0.0049,
+   "ai_rate": 0.0255,
+   "lr": 20.51,
+   "admitted": "S"
   },
   "space-after-comma/it": {
    "designed": "M",
    "tier": "M",
    "human_rate": 0.007,
-   "human_upper95": 0.0137,
-   "ai_rate": 0.0037,
-   "lr": 0.75,
+   "human_upper95": 0.0138,
+   "ai_rate": 0.0,
+   "lr": 0.19,
    "admitted": "style"
   },
   "space-after-period/it": {
    "designed": "M",
    "tier": "M",
-   "human_rate": 0.207,
-   "human_upper95": 0.2314,
-   "ai_rate": 0.0037,
+   "human_rate": 0.2065,
+   "human_upper95": 0.2309,
+   "ai_rate": 0.0057,
    "lr": 0.03,
    "admitted": "style"
   },
@@ -526,27 +607,54 @@
    "designed": "M",
    "tier": "M",
    "human_rate": 0.0367,
-   "human_upper95": 0.0492,
-   "ai_rate": 0.2435,
-   "lr": 6.61,
+   "human_upper95": 0.0493,
+   "ai_rate": 0.0028,
+   "lr": 0.11,
    "admitted": "style"
+  },
+  "staged-opener/it": {
+   "designed": "S",
+   "tier": "S",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0028,
+   "lr": 9.71,
+   "admitted": "too few"
+  },
+  "summary-closer/it": {
+   "designed": "W",
+   "tier": "W",
+   "human_rate": 0.007,
+   "human_upper95": 0.0138,
+   "ai_rate": 0.0312,
+   "lr": 4.38,
+   "admitted": "W"
   },
   "symbol/it": {
    "designed": "W",
    "tier": "W",
    "human_rate": 0.0,
    "human_upper95": 0.0033,
-   "ai_rate": 0.0,
-   "lr": 4.23,
+   "ai_rate": 0.017,
+   "lr": 42.09,
+   "admitted": "style"
+  },
+  "title-case/it": {
+   "designed": "W",
+   "tier": "W",
+   "human_rate": 0.0,
+   "human_upper95": 0.0033,
+   "ai_rate": 0.0255,
+   "lr": 61.52,
    "admitted": "style"
   },
   "vague-attribution/it": {
    "designed": "M",
    "tier": "M",
    "human_rate": 0.0017,
-   "human_upper95": 0.0063,
-   "ai_rate": 0.0,
-   "lr": 0.85,
+   "human_upper95": 0.0064,
+   "ai_rate": 0.0057,
+   "lr": 3.24,
    "admitted": "too few"
   }
  },
@@ -587,6 +695,16 @@
     "triads_per_1k": 25.9,
     "bold_per_1k": 6
    }
+  },
+  "*": {
+   "*": {
+    "style_words_per_1k": 13.7,
+    "dash_per_1k": 30.8,
+    "connective_sentence_share": 0.2,
+    "triads_per_1k": 15.6,
+    "bold_per_1k": 6,
+    "sentence_length_cv": 0.24
+   }
   }
  },
  "demoted_words": {
@@ -600,11 +718,16 @@
    "showcase",
    "showcased"
   ],
-  "it": []
+  "it": [
+   "intricata",
+   "poliedrico",
+   "sinergia",
+   "sinergie"
+  ]
  },
  "marked_min": {
   "en": 2,
-  "it": 2
+  "it": 1
  },
  "evidence_min": {
   "en": 2,

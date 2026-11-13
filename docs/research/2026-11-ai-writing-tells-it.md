@@ -62,3 +62,20 @@ Not accessed: De Cesare's monograph *L'italiano sintetico dell'intelligenza arti
 ## Calibration run
 
 On Antonelli 2025 (≈19,600 words of human academic prose that quotes many AI outputs), the scanner's S and M hits were almost all inside the quoted AI answers, which is correct. Two metrics flagged on the human prose: `dash_per_1k` (the author's correct spaced en dashes) and `short_closer_share` (PDF extraction artefacts). Both are W-tier and resolvable with a `metric` keep entry.
+
+## Mined from modern Italian AI text (2026-11-13)
+
+With 277 WildChat-1M answers (GPT-4 and GPT-3.5, 2023–2024) and 80 Claude answers to realistic Italian requests on the calibration split, contrasted with 1,145 human documents, these assistant formulas recur in both AI sources and almost never in human text, and are now rules:
+
+| Formula | Human | WildChat | Claude | Rule |
+|---|---|---|---|---|
+| "posso aiutarti", "aiutarti a" | 0 | 12 | 9 | `chat-residue` S |
+| opening "Certo!", "Perfetto!", "Ottimo!" | 0 | 8 | 1 | `chat-residue` S |
+| "non esitare a…" | 0 | 2 | 0 | `chat-residue` S |
+| "Ecco una/un/alcuni…" at line start | 2 | 22 | 23 | `ecco-opener` M |
+| "In sintesi" | 0 | 8 | 1 | `signposted-ending` M |
+| a whole line in bold as a heading | 0 | 1 | 48 | `bold-heading` (formatting) |
+
+Rejected despite strong ratios: second-person address ("le tue", "potresti", "assicurati di", "ricorda che"). Assistants address the reader, but so do human guides and blogs, and our human Italian corpus has no how-to genre, so the contrast measures genre, not authorship. "In conclusione", "In definitiva" and "Riassumendo" appear in 9 human documents and moved to `summary-closer` (W).
+
+Gap: a human Italian corpus of second-person practical writing (guides, recipes, product pages) would let the second-person formulas be tested properly.

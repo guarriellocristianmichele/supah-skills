@@ -57,6 +57,9 @@ RULES = [
     ("chat-residue", "residue", "S", "en", r"\b(I hope (this|that|it) helps|Certainly!|Of course!|Great question|Absolutely!|Would you like me to|Let me know if you|Feel free to (ask|reach out)|Happy to help|I'd be happy to|I hope you found)", I),
     ("ai-disclaimer", "residue", "S", "en", r"\b(as of my (last|latest) (knowledge|training)|my knowledge cutoff|as an AI( language model)?\b|I (don't|do not|cannot|can't) browse)", I),
     ("chat-residue", "residue", "S", "it", r"(\bCerto!|\bCertamente!|\bEcco (a te|qui|una versione|il testo|la versione)\b|\bSpero (che )?(questo|ti) (sia|possa essere) (utile|d'aiuto)|\bSe vuoi,? posso\b|\bVuoi che (ti|io)\b|\bFammi sapere se\b|\bSarei felice di\b|\bSono qui per aiutarti\b|\bHai (pienamente |perfettamente |assolutamente )?ragione\b|\bOttima domanda\b)", I),
+    # mined 2026-11 from WildChat-1M and Claude Italian answers against 1,145 human documents (0 human hits each)
+    ("chat-residue", "residue", "S", "it", r"(\b(?:posso|possa|potrei|per) aiutart[ie]\b|\baiutarvi\b|\bnon esit(?:are|ate) a\b|\A\s*(?:Certo|Perfetto|Ottimo|Assolutamente|Certamente|Volentieri)\b[!,.])", I),
+    ("ecco-opener", "residue", "M", "it", r"^\s*(?:[#*>-]+\s*)?(?:(?:Certo|Perfetto|Ottimo|Assolutamente|Certamente|Volentieri)[!,.]\s+)?Ecco (?:un|una|uno|il|lo|la|i|gli|le|alcuni|alcune|come|cosa|perché|qui|a te)\b", M),
     ("ai-disclaimer", "residue", "S", "it", r"\b(Come (modello linguistico|intelligenza artificiale)|in base alle mie (ultime )?conoscenze|al mio ultimo aggiornamento)\b", I),
     ("placeholder", "residue", "S", "any", r"(\[(Your|Insert|Add|Describe|Company|Name|Tuo|Tua|Inserisci|Nome|Azienda|Data)\b[^\]\n]{0,40}\]|\b20\d\d-(xx|XX)-(xx|XX)\b|\bINSERT_[A-Z_]+\b|example\.com/source\d)", 0),
     ("citation-leak", "residue", "S", "any", r"(contentReference\[oaicite:\d+\]|oai_citation|utm_source=chatgpt\.com|\bturn\d+(search|view|news|fetch)\d+\b)", 0),
@@ -107,7 +110,10 @@ RULES = [
 
     # framing: signposting and talk about the text
     ("signposted-ending", "framing", "M", "en", r"(?:^|(?<=[.!?]\s))(In conclusion|In summary|To summarize|To sum up|All in all|The bottom line|At the end of the day)\b", M),
-    ("signposted-ending", "framing", "M", "it", r"(?:^|(?<=[.!?]\s))(In conclusione|In sintesi|In definitiva|Alla fine dei conti|Per concludere|Riassumendo|Non ci resta che)\b", M),
+    # calibrated 2026-11: "In sintesi" is the assistant's closer (9 AI, 0 human documents); the others are
+    # common in human Italian too (9 human documents) and stay visible as W
+    ("signposted-ending", "framing", "M", "it", r"(?:^|(?<=[.!?]\s))(In sintesi|In poche parole|Per riassumere|Non ci resta che)\b", M),
+    ("summary-closer", "framing", "W", "it", r"(?:^|(?<=[.!?]\s))(In conclusione|In definitiva|Alla fine dei conti|Per concludere|Riassumendo)\b", M),
     ("meta-text", "framing", "M", "en", r"\b(In this (article|post|guide|section),? (we|I)('ll| will)|This (article|post|guide) (will )?(explores?|covers?|walks?)|Let's (explore|take a closer look)|the table below (shows|compares))\b", I),
     ("meta-text", "framing", "M", "it", r"\b(In questo (articolo|post|testo|approfondimento),? (vedremo|esploreremo|analizzeremo|scopriremo))\b", I),
     ("filler-transition", "framing", "M", "en", r"(?:^|(?<=[.!?]\s))(It's worth noting|It is worth noting|Notably|Importantly|Interestingly|It's important to note|It is important to (note|remember))\b", M),
@@ -116,6 +122,8 @@ RULES = [
 
     # formatting: markdown tells
     ("bold-lead-bullet", "formatting", "M", "any", r"^\s*(?:[-*+]|\d+\.)\s+\*\*[^*\n]{1,60}(?::\*\*|\*\*\s*[:—–-])", M),
+    # a whole line in bold used as a heading: 48 of 80 Claude answers, 0 of 1,145 human Italian documents
+    ("bold-heading", "formatting", "M", "any", r"^\s*\*\*[^*\n]{3,60}\*\*:?\s*$", M),
     ("emoji-marker", "formatting", "M", "any", r"^(?:#{1,6}\s*|\s*[-*+]\s+)[\U0001F300-\U0001FAFF☀-➿✅✨]", M),
 
     # punctuation: dashes, symbols, spacing, accents
@@ -180,9 +188,11 @@ def length_bucket(words):
 
 
 def calibration_thresholds(lang, words):
-    """Bucket threshold when calibrated, else the language-wide one ("*"), else the designed default."""
-    by_lang = (calibration() or {}).get("metrics", {}).get(lang, {})
-    merged = dict(by_lang.get("*", {}))
+    """Bucket threshold when calibrated, else the language-wide one, else the all-language one, else the default."""
+    metrics = (calibration() or {}).get("metrics", {})
+    by_lang = metrics.get(lang, {})
+    merged = dict(metrics.get("*", {}).get("*", {}))
+    merged.update(by_lang.get("*", {}))
     merged.update(by_lang.get(length_bucket(words), {}))
     return merged
 

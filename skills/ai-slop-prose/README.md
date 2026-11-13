@@ -198,14 +198,14 @@ Before matching, the scanner blanks out YAML front matter, fenced code blocks (`
 
 Three layers keep the scanner from flagging ordinary writing. Method and sources: [`docs/research/2026-11-false-positive-control.md`](../../docs/research/2026-11-false-positive-control.md); measured results: [`docs/research/2026-11-calibration-results.md`](../../docs/research/2026-11-calibration-results.md).
 
-**1. Calibration on corpora** (`scripts/calibrate.py`, shipped as `scripts/calibration.json`). Every rule was run on about 5,200 documents: human text written before ChatGPT (arXiv, CNN/DailyMail, Reddit, non-native student essays, HC3; Il Post, DICE, Europarl, PAISÀ) and AI text (ChatGPT, Beemo, GPT-4o and Llama 3; Llama-2 for Italian).
+**1. Calibration on corpora** (`scripts/calibrate.py`, shipped as `scripts/calibration.json`). Every rule was run on about 5,200 documents: human text written before ChatGPT (arXiv, CNN/DailyMail, Reddit, non-native student essays, HC3; Il Post, DICE, Europarl, PAISÀ) and AI text (ChatGPT, Beemo, GPT-4o and Llama 3 in English; GPT-4 conversations from WildChat and Claude answers in Italian).
 
 - A rule keeps its tier only if the Wilson 95% upper bound of the human documents it hits is ≤ 0.5% (S) or ≤ 1% (M), and, in English, if it hits AI text 20 or 5 times as often. Calibration only lowers tiers.
 - Marked words common in human text move to the density list, and the rest flag a document only from two distinct words on.
 - Density thresholds are split-conformal quantiles of human text per language and length bucket (α = 0.005).
 - A document needs one S hit or two distinct M rules before M hits become required fixes; an M rule alone is reported as W with the note `isolated`.
 
-On the 30% holdout, the share of human documents left with any required fix is 4/592 in English (0.68%, 95% upper bound 1.54%) and 4/455 in Italian (0.88%, upper bound 2.00%); 25.6% of English AI documents still need fixes. Punctuation and formatting rules are style policy and are not part of these numbers.
+On the 30% holdout, the share of human documents left with any required fix is 4/592 in English (0.68%, 95% upper bound 1.54%; 3 of the 4 are non-native student essays) and 0/454 in Italian (upper bound 0.66%). On AI text, 40/40 Italian Claude answers and 56/112 English GPT-4o/Llama 3 documents carry required fixes, against 9/112 Italian GPT-4 answers and 14/113 English ChatGPT answers: recall is traded for precision. Punctuation and formatting rules are style policy and are not part of these numbers.
 
 **2. Context gates.** Hits inside quotes and blockquotes, marked words in headings, capitalised names and Italian dialogue dashes are kept automatically as `auto:quote`, `auto:heading`, `auto:name` and `auto:dialogue`.
 
@@ -295,7 +295,7 @@ Opzioni di `scan.py`: `--lang auto|en|it` (lingua, rilevata in automatico), `--k
 
 ### Falsi positivi
 
-Livelli e soglie sono calibrati su circa 5.200 testi umani (scritti prima di ChatGPT) e AI, in inglese e in italiano. Una regola M da sola in un testo pulito resta visibile come W (`isolated`): servono una regola S o due regole M diverse perché la correzione diventi obbligatoria. Sul 30% di testi tenuti da parte restano segnalati 4 testi umani su 592 in inglese (0,68%, limite superiore 1,54%) e 4 su 455 in italiano (0,88%, limite superiore 2,00%). Le citazioni, i titoli, i nomi propri e i trattini di dialogo vengono esclusi in automatico. Ogni verdetto (`fp`, `kept`, `tell`) viene registrato e una regola che sbaglia spesso perde livello da sola, dopo almeno 30 verdetti.
+Livelli e soglie sono calibrati su circa 5.200 testi umani (scritti prima di ChatGPT) e AI, in inglese e in italiano. Una regola M da sola in un testo pulito resta visibile come W (`isolated`): servono una regola S o due regole M diverse perché la correzione diventi obbligatoria. Sul 30% di testi tenuti da parte restano segnalati 4 testi umani su 592 in inglese (0,68%, limite superiore 1,54%) e 0 su 454 in italiano (limite superiore 0,66%). Le risposte italiane di Claude vengono riconosciute tutte (40 su 40). Le citazioni, i titoli, i nomi propri e i trattini di dialogo vengono esclusi in automatico. Ogni verdetto (`fp`, `kept`, `tell`) viene registrato e una regola che sbaglia spesso perde livello da sola, dopo almeno 30 verdetti.
 
 ### Keep file
 

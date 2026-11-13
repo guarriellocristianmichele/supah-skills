@@ -161,7 +161,7 @@ Asking the agent to "write more naturally" swaps one tic for another.
 **The Fix** is a checklist the agent can't skip:
 
 - [`ai-slop-prose`](./skills/ai-slop-prose/SKILL.md) runs a deterministic scanner over the text: 40+ rules across eleven categories, word lists built from the research (Kobak et al.'s 379 excess words, Liang et al., Wikipedia's *Signs of AI writing*, slop-score, and two Italian studies), every kind of dash, and the classic punctuation errors.
-- Its tiers and thresholds are calibrated on about 5,200 human and AI documents in both languages: on held-out human text, under 1% of documents end up with a required fix (4/592 English, 4/455 Italian). Each verdict it makes is recorded, and rules that keep misfiring lose tier on their own.
+- Its tiers and thresholds are calibrated on about 5,200 human and AI documents in both languages: on held-out human text, under 1% of documents end up with a required fix (4/592 English, 0/454 Italian), while every Italian Claude answer in the test set is caught. Each verdict it makes is recorded, and rules that keep misfiring lose tier on their own.
 - It rewrites each hit in the author's voice, then proves the rewrite kept every number, name and link, and rescans until nothing catalogued is left.
 - It fires on its own whenever your agent writes for humans: READMEs, docs, posts, release notes, emails.
 

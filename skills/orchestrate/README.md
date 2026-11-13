@@ -34,7 +34,7 @@ claude plugin install orchestrate --marketplace guarriellocristianmichele/supah-
 
 Inside a Claude Code session: `/plugin install orchestrate --marketplace guarriellocristianmichele/supah-skills`. The [repository README](../../README.md#installation-1-minute-setup) covers every route, the full set, and what each scope means.
 
-Requirements: Python 3.8 or newer on `PATH` (standard library only) and a git repository for the state directory.
+Requirements: Python 3.10 or newer on `PATH` (standard library only) and a git repository for the state directory.
 
 ## Usage
 

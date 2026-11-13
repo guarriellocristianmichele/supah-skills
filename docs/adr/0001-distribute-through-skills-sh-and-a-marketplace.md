@@ -6,4 +6,5 @@ Skills install through `npx skills add guarriellocristianmichele/supah-skills` f
 
 - The scope is prompted only by skills.sh; the Claude Code CLI takes `--scope` and defaults to `user`, so the README gives the command for each scope.
 - Installing the bundle and a single-skill plugin together loads that skill twice; the README says to pick one.
+- Hook plugins that are not skills live in `plugins/<name>` with their own manifest and have no skills.sh route (ADR 0008).
 - `version` lives in `plugin.json` and in each single-skill marketplace entry; `scripts/release.py` keeps them equal.

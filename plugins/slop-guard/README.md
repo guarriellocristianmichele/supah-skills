@@ -10,7 +10,7 @@ A Claude Code plugin with two hooks that keep AI slop out of what Claude writes,
 claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user
 ```
 
-Use `--scope project` (after `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`) to share it through `.claude/settings.json`. skills.sh installs skills only, so this plugin has no `npx skills` route. It needs Python 3.8+ and bash (Git Bash on Windows, which Claude Code already uses).
+Use `--scope project` (after `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`) to share it through `.claude/settings.json`. skills.sh installs skills only, so this plugin has no `npx skills` route. It needs Python 3.10+ and bash (Git Bash on Windows, which Claude Code already uses).
 
 ## What it does
 
@@ -39,7 +39,7 @@ For a full sweep with voice matching and the fact check, use the [ai-slop-prose]
 
 Plugin di Claude Code con due hook che tengono l'AI slop fuori da ciò che Claude scrive, con un costo in token quasi nullo. Non contiene skill: si installa accanto alle skill o da solo.
 
-Installazione: `claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`, oppure `--scope project` per condividerlo nel repo. skills.sh installa solo skill, quindi qui non serve. Richiede Python 3.8+ e bash (su Windows Git Bash, che Claude Code usa già).
+Installazione: `claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`, oppure `--scope project` per condividerlo nel repo. skills.sh installa solo skill, quindi qui non serve. Richiede Python 3.10+ e bash (su Windows Git Bash, che Claude Code usa già).
 
 - A inizio sessione, dopo `/clear` e dopo una compattazione aggiunge circa 150 token di regole su codice e testi. Valgono per codice e file, mai per le risposte in chat.
 - Quando Claude salva un file Markdown o di testo, lo scanner di ai-slop-prose legge solo il testo appena scritto. Se è pulito non succede nulla; altrimenti Claude riceve una riga con i segnali da correggere, al massimo sei.

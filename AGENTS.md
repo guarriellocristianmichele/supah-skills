@@ -12,4 +12,4 @@ Agent skills (Agent Skills format) for cleaning AI slop out of code and prose, p
 - A change to a scanner rule or lexicon comes with a fixture or an assertion in `tests/`, and a recalibration: `python scripts/calibrate.py fetch` (once, into the ignored `.calibration/`), then `run` and `report`; commit the new `calibration.json` and `docs/research/2026-11-calibration-results.md` (ADR 0007).
 - Skill bodies use Claude Code features (`$ARGUMENTS`, `${CLAUDE_SKILL_DIR}`, `` !`cmd` ``) and keep the one line that tells other agents how to resolve them.
 - Pairing with mattpocock/skills goes through their configuration files only: never copy their formats, never write `docs/agents/`, `.scratch/` or `.out-of-scope/` (ADR 0005).
-- Skill scripts stay Python 3.8+, standard library only (ADR 0002).
+- Skill scripts stay Python 3.10+, standard library only (ADR 0002, ADR 0009).

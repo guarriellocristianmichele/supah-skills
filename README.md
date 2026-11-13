@@ -118,7 +118,7 @@ New-Item -ItemType Junction -Path "$env:USERPROFILE\.claude\skills\ai-slop-prose
 
 </details>
 
-The scripts inside the skills need Python 3.8+ on your `PATH` (standard library only, nothing to pip install) and git. On Windows: `winget install Python.Python.3.13`.
+The scripts inside the skills need Python 3.10+ on your `PATH` (standard library only, nothing to pip install) and git. On Windows: `winget install Python.Python.3.13`.
 
 ### 3. Optional: pair with mattpocock/skills
 
@@ -246,7 +246,7 @@ Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice mo
    - Codex, Copilot CLI e Gemini CLI: i comandi nei riquadri della sezione [Installation](#installation-1-minute-setup).
 3. Facoltativo: tutto funziona da solo, ma se usi anche le skill di mattpocock lancia `/setup-matt-pocock-skills` una volta nel repo. L'audit userà il suo tracker e le sue label (così `/triage` e `/implement` vedono le issue) e passerà i problemi di design a `/improve-codebase-architecture`. Le due raccolte non scrivono mai nei file dell'altra.
 
-Servono Python 3.8 o superiore (solo libreria standard) e git.
+Servono Python 3.10 o superiore (solo libreria standard) e git.
 
 ### Le skill
 

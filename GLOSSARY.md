@@ -79,3 +79,11 @@ _Avoid_: monitor, supervisor
 **Scope**:
 Where an installed skill lives: global (the user's home folder), project (inside the repository, committed) or local (inside the repository, kept out of git; Claude Code only).
 _Avoid_: level, target
+
+**Hook plugin**:
+A Claude Code plugin under `plugins/<name>` that holds hooks and no skill; installed only through the plugin marketplace.
+_Avoid_: extension, add-on
+
+**Rules file**:
+The short text a hook plugin injects at session start (`hooks/rules.md` in slop-guard); every line costs tokens in every session.
+_Avoid_: prompt, system prompt, reminder

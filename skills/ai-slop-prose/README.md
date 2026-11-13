@@ -49,7 +49,7 @@ claude plugin install ai-slop-prose --marketplace guarriellocristianmichele/supa
 
 Inside a Claude Code session: `/plugin install ai-slop-prose --marketplace guarriellocristianmichele/supah-skills`. The [repository README](../../README.md#installation-1-minute-setup) covers every route, the full set, and what each scope means.
 
-Requirements: Python 3.8 or newer on `PATH`. The scanner uses only the standard library. Sweeps over more than three files use the [`orchestrate`](../orchestrate/README.md) skill when it is installed.
+Requirements: Python 3.10 or newer on `PATH`. The scanner uses only the standard library. Sweeps over more than three files use the [`orchestrate`](../orchestrate/README.md) skill when it is installed.
 
 ## Invocation
 
@@ -281,7 +281,7 @@ Skill di Claude Code che trova gli schemi tipici della prosa generata dall'AI, i
 
 ### Installazione
 
-Collega la cartella in `~/.claude/skills/` (su Windows con `New-Item -ItemType Junction`, su macOS e Linux con `ln -s`, come nella sezione [Install](#install)). Serve Python 3.8 o superiore.
+Collega la cartella in `~/.claude/skills/` (su Windows con `New-Item -ItemType Junction`, su macOS e Linux con `ln -s`, come nella sezione [Install](#install)). Serve Python 3.10 o superiore.
 
 ### Uso
 

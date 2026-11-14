@@ -9,7 +9,7 @@
     {
       "name": "supah-skills",
       "source": "./",
-      "description": "All six skills: ai-slop-audit, ai-slop-prose, context-audit, mutation-check, orchestrate and supah-help.",
+      "description": "All seven skills: ai-slop-audit, ai-slop-prose, context-audit, doc-truth, mutation-check, orchestrate and supah-help.",
       "category": "productivity",
       "keywords": [
         "skills",
@@ -55,6 +55,19 @@
         "tokens",
         "memory",
         "audit"
+      ]
+    },
+    {
+      "name": "doc-truth",
+      "source": "./skills/doc-truth",
+      "version": "0.5.0",
+      "description": "Check that docs still tell the truth about the repo: links, anchors, commands, flags, scripts, environment variables.",
+      "category": "development",
+      "keywords": [
+        "docs",
+        "readme",
+        "links",
+        "drift"
       ]
     },
     {

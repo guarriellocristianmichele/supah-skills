@@ -35,6 +35,7 @@ With no arguments it shows the situations and asks which one is yours. It is use
 | a big context before you type, or instructions that fight | `/context-audit` |
 | slop kept out of every session | install the `slop-guard` plugin |
 | writing something new | nothing: ai-slop-prose drafts to its rules |
+| docs that may have drifted from the code | `/doc-truth` |
 | tests you don't trust | `/mutation-check <file> <test command>` |
 | fine text flagged as slop | keep with reason `fp`, `scan.py verdict`, now and then `scan.py audit` |
 | many files, or a slow machine | `orchestrate` runs on its own; `/orchestrate` for your own jobs |

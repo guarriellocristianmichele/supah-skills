@@ -34,7 +34,7 @@ Each survivor gets a verdict. It is either equivalent (the change behaves the sa
 
 ## Safety
 
-The file is changed in place while your tests run and restored after every mutant, on errors and on Ctrl+C. The script refuses a file with uncommitted changes, so `git checkout -- <file>` always brings it back. Your test command runs through the shell exactly as you wrote it.
+The file is changed in place while your tests run and restored after every mutant, on errors and on Ctrl+C. The script refuses a file with uncommitted changes, so `git checkout -- <file>` always brings it back. Your test command runs through the shell exactly as written, so the skill never pre-approves it: Claude Code asks you to confirm each run with the command in full.
 
 ## Limits
 

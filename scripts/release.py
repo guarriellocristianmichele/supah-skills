@@ -8,7 +8,7 @@
 Checks: every skill folder is listed in plugin.json and has its own marketplace entry;
 every plugins/<name> folder has one too; all versions agree; the slop-guard scanner copies
 equal their sources; the test suite passes; every README passes the prose
-scanner (exceptions in docs/readme-keep.tsv); `claude plugin validate` (errors only) when
+scanner (exceptions in docs/readme-keep.tsv); READMEs, AGENTS.md and ADRs pass doc-truth; `claude plugin validate` (errors only) when
 the claude CLI is installed.
 """
 import filecmp
@@ -149,6 +149,8 @@ def checks():
                [os.path.join(ROOT, "README.md")] + sorted(glob.glob(os.path.join(ROOT, "skills", "*", "README.md")))
                + sorted(glob.glob(os.path.join(ROOT, "plugins", "*", "README.md")))]
     ok &= run("readme sweep", [sys.executable, SCAN, "--no-learn", "--keep", KEEP, *readmes])
+    docs = readmes + ["AGENTS.md", "GLOSSARY.md"] + sorted(os.path.relpath(p, ROOT) for p in glob.glob(os.path.join(ROOT, "docs", "adr", "*.md")))
+    ok &= run("doc truth", [sys.executable, os.path.join(ROOT, "skills", "doc-truth", "scripts", "doctruth.py"), "--root", ROOT, *docs])
     if shutil.which("claude"):
         ok &= run("plugin validate", ["claude", "plugin", "validate", "."])  # not --strict: the dev-only CLAUDE.md at the root is a known warning
     else:

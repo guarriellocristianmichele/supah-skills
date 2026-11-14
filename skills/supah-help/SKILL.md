@@ -1,6 +1,6 @@
 ---
 name: supah-help
-description: Ask which supah skill or flow fits your situation, and why. A router over ai-slop-audit, ai-slop-prose, context-audit, orchestrate and the slop-guard hooks, with how they pair with mattpocock/skills.
+description: Ask which supah skill or flow fits your situation, and why. A router over ai-slop-audit, ai-slop-prose, context-audit, mutation-check, orchestrate and the slop-guard hooks, with how they pair with mattpocock/skills.
 argument-hint: "[what you are trying to do]"
 disable-model-invocation: true
 ---
@@ -32,6 +32,7 @@ Every recommendation follows these five habits. State the one behind each step y
 | paying for a big context before typing anything, or getting instructions that fight each other | `/context-audit` | the first request's tokens are measured from your transcripts and split by plugin, so you cut what costs most; every contradiction is quoted from both sides before anything changes |
 | wanting Claude to avoid slop in every session, without asking | `claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills` (Claude Code only) | its hooks add about 150 tokens of rules per session and scan only the prose Claude just saved, so clean work costs nothing |
 | writing something new for people | nothing to type: ai-slop-prose drafts to its rules and sweeps its own draft | catching a tell while drafting is cheaper than sweeping it out afterwards |
+| unsure whether the tests protect a refactor, or suspecting a test checks nothing | `/mutation-check <file> --function <name> <test command>` | each change the tests let through is a behaviour nobody checks; a survivor is called equivalent or a gap only after reading it |
 | told by the scanner that fine text is slop | keep the hit with reason `fp`, finish the sweep, then `scan.py verdict`; once in a while `scan.py audit` | verdicts measure each rule's precision; noisy rules lose tier on their own, and your audit checks the model's judgement |
 | running a job over many files, or a slow, loaded machine | nothing to type for the two skills above, they call `orchestrate`; `/orchestrate` for your own fan-out | agents are sized to free RAM, stopped newest-first under pressure, and resumed from `STOPPED_AGENTS_WORK.md` |
 | coming back after an interrupted session | run the same command again | `.slop-audit/`, `.orchestrator/` and the verdict log keep the state; nothing restarts from zero |

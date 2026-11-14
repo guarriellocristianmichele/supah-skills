@@ -207,6 +207,7 @@ User-invoked skills run only when you type them. Model-invoked skills can be typ
 ### Model-invoked
 
 - [ai-slop-prose](./skills/ai-slop-prose/README.md): strips AI writing tells from English or Italian prose with a deterministic scanner, safe punctuation fixes and a fact-preservation check, then rewrites each hit in the author's voice. Works while drafting or as a sweep over existing files.
+- [mutation-check](./skills/mutation-check/README.md): changes the code one small step at a time, runs your own tests after each, and lists the changes they let through. A test file that lets every change through is tautological. ai-slop-audit uses it as evidence.
 - [orchestrate](./skills/orchestrate/README.md): runs a job of independent units inline or on parallel subagents sized to free RAM, with per-unit checkpoints, memory-pressure shedding into `STOPPED_AGENTS_WORK.md`, and resume across sessions. Used by the other two for large jobs.
 
 ### Hooks (Claude Code, opt-in)
@@ -243,7 +244,7 @@ Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice mo
    - qualsiasi agente: `npx skills@latest add guarriellocristianmichele/supah-skills`, che chiede skill, agenti e ambito (*Project* o *Global*); `-g` lo fissa a globale;
    - Claude Code, globale: `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user`;
    - Claude Code, progetto: `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, poi `claude plugin install supah-skills@guarriellocristianmichele --scope project`, e commit di `.claude/settings.json`;
-   - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-prose`, `context-audit`, `orchestrate` o `supah-help`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
+   - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-prose`, `context-audit`, `mutation-check`, `orchestrate` o `supah-help`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
    - Codex, Copilot CLI e Gemini CLI: i comandi nei riquadri della sezione [Installation](#installation-1-minute-setup).
 3. Facoltativo: tutto funziona da solo, ma se usi anche le skill di mattpocock lancia `/setup-matt-pocock-skills` una volta nel repo. L'audit userà il suo tracker e le sue label (così `/triage` e `/implement` vedono le issue) e passerà i problemi di design a `/improve-codebase-architecture`. Le due raccolte non scrivono mai nei file dell'altra.
 
@@ -253,6 +254,7 @@ Servono Python 3.10 o superiore (solo libreria standard) e git.
 
 - `ai-slop-audit` (la avvii tu) fa un audit di un'intera codebase con prove riproducibili e livello di confidenza per ogni problema. Modalità `audit`, `plan`, `publish`, `fix <ID>`, `verify`. Corregge solo ciò che indichi per ID, a piccoli lotti protetti dai test.
 - `ai-slop-prose` (si attiva da sola) usa uno scanner deterministico per i segnali di scrittura AI in inglese e italiano, trattini e punteggiatura compresi, con correzioni sicure, controllo che nessun dato vada perso e riscrittura nella voce dell'autore.
+- `mutation-check` (si attiva da sola) modifica il codice un passo alla volta, lancia i tuoi test dopo ogni modifica ed elenca quelle che i test lasciano passare: la prova dei test tautologici.
 - `orchestrate` (si attiva da sola) esegue lavori grandi inline o su agenti paralleli dimensionati sulla RAM libera, ferma i più recenti quando la memoria scarseggia salvando il lavoro in `STOPPED_AGENTS_WORK.md` e riprende alla sessione successiva.
 - `context-audit` (la avvii tu, `/context-audit`) misura quanto contesto carica ogni sessione di Claude Code prima che tu scriva, diviso per plugin, e trova istruzioni, memorie e plugin che si contraddicono o frenano lo sviluppo.
 - `supah-help` (la avvii tu, `/supah-help`) ti dice quale skill o percorso usare nella tua situazione, i comandi in ordine e il perché di ogni passo.

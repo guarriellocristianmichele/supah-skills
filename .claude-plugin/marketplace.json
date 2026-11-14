@@ -9,7 +9,7 @@
     {
       "name": "supah-skills",
       "source": "./",
-      "description": "All five skills: ai-slop-audit, ai-slop-prose, context-audit, orchestrate and supah-help.",
+      "description": "All six skills: ai-slop-audit, ai-slop-prose, context-audit, mutation-check, orchestrate and supah-help.",
       "category": "productivity",
       "keywords": [
         "skills",
@@ -55,6 +55,18 @@
         "tokens",
         "memory",
         "audit"
+      ]
+    },
+    {
+      "name": "mutation-check",
+      "source": "./skills/mutation-check",
+      "version": "0.5.0",
+      "description": "Mutate code, run your own tests, and list the changes they let through: evidence for tautological tests.",
+      "category": "development",
+      "keywords": [
+        "testing",
+        "mutation",
+        "test-quality"
       ]
     },
     {

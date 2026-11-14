@@ -2,20 +2,22 @@
 """slop-guard hooks for Claude Code. Stdlib only.
 
   guard.py session   print rules.md; SessionStart adds stdout to Claude's context
-  guard.py post      PostToolUse on Write/Edit/MultiEdit: scan only the prose just written;
-                     unresolved S/M tells go to stderr in one line with exit 2 (Claude reads it),
-                     anything else exits 0 with no output
+  guard.py post      PostToolUse on Write/Edit/MultiEdit: scan only what was just written
+                     (prose: the new text; Python/JS/TS: the saved file, keeping hits on the new
+                     lines); unresolved S/M hits go to stderr in one line with exit 2 (Claude
+                     reads it), anything else exits 0 with no output
 
-The scanner in ../scanner is a copy of skills/ai-slop-prose/scripts kept equal by
-scripts/release.py, because an installed plugin cannot reach files outside its folder.
+../scanner and ../codescan are copies of skills/ai-slop-prose/scripts and skills/ai-slop-audit/scripts
+kept equal by scripts/release.py, because an installed plugin cannot reach files outside its folder.
 """
 import json
 import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SCANNER = os.path.join(os.path.dirname(HERE), "scanner")
+PLUGIN = os.path.dirname(HERE)
 PROSE = (".md", ".mdx", ".markdown", ".txt", ".rst")
+CODE = (".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts")
 AGENT_DOCS = {"skill.md", "agents.md", "claude.md", "gemini.md", "memory.md"}
 SHOWN = 6
 
@@ -28,10 +30,10 @@ def session():
 
 def written(tool_input):
     if "content" in tool_input:
-        return tool_input["content"]
+        return [tool_input["content"]]
     if "edits" in tool_input:
-        return "\n".join(e.get("new_string", "") for e in tool_input["edits"])
-    return tool_input.get("new_string", "")
+        return [e.get("new_string", "") for e in tool_input["edits"]]
+    return [tool_input.get("new_string", "")]
 
 
 def for_agents(path):
@@ -51,26 +53,59 @@ def for_agents(path):
     return False
 
 
+def prose_items(path, texts):
+    sys.path.insert(0, os.path.join(PLUGIN, "scanner"))
+    import learn
+    import scan
+    result = scan.scan_text("\n".join(texts), "auto", {}, model=learn.load_model(), path=path)
+    hits = ['%s "%s"' % (h["rule"], h["match"].strip()) for h in result["hits"]
+            if not h["kept"] and h["tier"] in ("S", "M")]
+    return hits, result["flags"]
+
+
+def new_lines(source, texts):
+    """Line numbers of the saved file that hold the text just written."""
+    lines = set()
+    for text in texts:
+        at = source.find(text) if text else -1
+        if at >= 0:
+            first = source.count("\n", 0, at) + 1
+            lines.update(range(first, first + text.count("\n") + 1))
+    return lines
+
+
+def code_items(path, texts):
+    sys.path.insert(0, os.path.join(PLUGIN, "codescan"))
+    import codescan
+    with open(path, encoding="utf-8", errors="replace") as f:
+        source = f.read()
+    result = codescan.scan_text(source, path)
+    fresh = new_lines(source, texts)
+    return ['%s "%s"' % (h["rule"], h["match"].strip()) for h in codescan.open_hits(result)
+            if h["line"] in fresh], []
+
+
 def post():
     event = json.load(sys.stdin)
     tool_input = event.get("tool_input") or {}
     path = tool_input.get("file_path") or ""
-    text = written(tool_input)
-    if not path.lower().endswith(PROSE) or not text.strip() or for_agents(path):
+    texts = [t for t in written(tool_input) if t.strip()]
+    lower = path.lower()
+    if not texts or for_agents(path):
         return 0
-    sys.path.insert(0, SCANNER)
-    import learn
-    import scan
-    result = scan.scan_text(text, "auto", {}, model=learn.load_model(), path=path)
+    if lower.endswith(PROSE):
+        hits, flags = prose_items(path, texts)
+    elif lower.endswith(CODE) and os.path.isfile(path):
+        hits, flags = code_items(path, texts)
+    else:
+        return 0
     counts = {}
-    for h in result["hits"]:
-        if not h["kept"] and h["tier"] in ("S", "M"):
-            key = '%s "%s"' % (h["rule"], h["match"].strip())
-            counts[key] = counts.get(key, 0) + 1
+    for key in hits:
+        counts[key] = counts.get(key, 0) + 1
     items = [k if n == 1 else "%s x%d" % (k, n) for k, n in counts.items()]
     if len(items) > SHOWN:
         items = items[:SHOWN] + ["+%d more" % (len(items) - SHOWN)]
-    items += result["flags"]
+    items += flags
     if not items:
         return 0
     sys.stderr.write("slop-guard %s: %s. Rewrite them; leave a quote or a term as it is.\n"

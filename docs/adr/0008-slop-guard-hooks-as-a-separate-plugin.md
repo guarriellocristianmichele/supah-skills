@@ -8,9 +8,9 @@ Rules against slop are injected by hooks, not by a skill, because a skill loads 
 - A marketplace entry with `source: "./"`: rejected; it shares the root `plugin.json`, so its hooks would merge into the bundle.
 - Referencing `skills/ai-slop-prose/scripts` from the plugin: impossible; an installed plugin is copied to the cache without files outside its folder. A symlink would break on Windows checkouts (`core.symlinks=false`), so `scanner/` is a copy kept equal by `scripts/release.py`.
 - A `UserPromptSubmit` reminder on every prompt: rejected for its per-prompt token cost.
-- Scanning code on write: no deterministic code scanner exists (ADR 0003), so code relies on the injected rules.
+- Scanning code on write: added later with the code scanner (ADR 0010); it reads the saved file, because an edit alone often does not parse, and keeps the hits on the new lines.
 
 ## Consequences
 
-- After any change to `skills/ai-slop-prose/scripts` (rules, lexicons, calibration), run `python scripts/release.py --sync`; `--check` fails until the copy matches.
+- After any change to `skills/ai-slop-prose/scripts` or `skills/ai-slop-audit/scripts` (rules, lexicons, calibration), run `python scripts/release.py --sync`; `--check` fails until the copies match.
 - skills.sh does not install hooks, so slop-guard is a Claude Code plugin only.

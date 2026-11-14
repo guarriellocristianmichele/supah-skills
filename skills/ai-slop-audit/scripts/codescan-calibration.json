@@ -1,0 +1,271 @@
+{
+ "method": "ADR 0010: tier from judged precision; rates and likelihood ratios are context",
+ "sizes": {
+  "py": {
+   "human": 874,
+   "frontier": 93,
+   "codemirage_ai": 1115,
+   "by_source": {
+    "codemirage-claude-3.5-haiku": 119,
+    "codemirage-deepseek-r1": 114,
+    "codemirage-deepseek-v3": 120,
+    "codemirage-gemini-2.0-flash": 118,
+    "codemirage-gemini-2.0-flash-thinking-exp": 113,
+    "codemirage-gemini-2.0-pro-exp": 82,
+    "codemirage-gpt-4o-mini": 119,
+    "codemirage-llama3.3-70b": 119,
+    "codemirage-o3-mini": 120,
+    "codemirage-qwen2.5-coder": 91,
+    "frontier-sonnet": 93
+   }
+  },
+  "js": {
+   "human": 1000,
+   "frontier": 106,
+   "codemirage_ai": 1200,
+   "by_source": {
+    "codemirage-claude-3.5-haiku": 120,
+    "codemirage-deepseek-r1": 120,
+    "codemirage-deepseek-v3": 120,
+    "codemirage-gemini-2.0-flash": 120,
+    "codemirage-gemini-2.0-flash-thinking-exp": 120,
+    "codemirage-gemini-2.0-pro-exp": 120,
+    "codemirage-gpt-4o-mini": 120,
+    "codemirage-llama3.3-70b": 120,
+    "codemirage-o3-mini": 120,
+    "codemirage-qwen2.5-coder": 120,
+    "frontier-sonnet": 106
+   }
+  }
+ },
+ "rules": {
+  "placeholder/py": {
+   "tier": "S",
+   "precision": [
+    8,
+    8
+   ],
+   "human_rate": 0.0023,
+   "human_upper": 0.0083,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0018,
+   "lr": 1.88
+  },
+  "changelog-comment/py": {
+   "tier": "M",
+   "precision": [
+    0,
+    0
+   ],
+   "human_rate": 0.0,
+   "human_upper": 0.0044,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0,
+   "lr": 9.4
+  },
+  "step-comment/py": {
+   "tier": "W",
+   "precision": [
+    4,
+    8
+   ],
+   "human_rate": 0.0092,
+   "human_upper": 0.018,
+   "frontier_rate": 0.0108,
+   "codemirage_rate": 0.0045,
+   "lr": 1.66
+  },
+  "restating-comment/py": {
+   "tier": "S",
+   "precision": [
+    8,
+    8
+   ],
+   "human_rate": 0.0389,
+   "human_upper": 0.0539,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0852,
+   "lr": 0.14
+  },
+  "restating-docstring/py": {
+   "tier": "W",
+   "precision": [
+    5,
+    8
+   ],
+   "human_rate": 0.0069,
+   "human_upper": 0.0149,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.009,
+   "lr": 0.72
+  },
+  "emoji-output/py": {
+   "tier": "M",
+   "precision": [
+    0,
+    0
+   ],
+   "human_rate": 0.0,
+   "human_upper": 0.0044,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0,
+   "lr": 9.4
+  },
+  "catch-rethrow/py": {
+   "tier": "S",
+   "precision": [
+    8,
+    8
+   ],
+   "human_rate": 0.0023,
+   "human_upper": 0.0083,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0054,
+   "lr": 1.88
+  },
+  "swallowed-exception/py": {
+   "tier": "S",
+   "precision": [
+    8,
+    8
+   ],
+   "human_rate": 0.0149,
+   "human_upper": 0.0253,
+   "frontier_rate": 0.0108,
+   "codemirage_rate": 0.0126,
+   "lr": 1.04
+  },
+  "annotated-isinstance/py": {
+   "tier": "M",
+   "precision": [
+    3,
+    4
+   ],
+   "human_rate": 0.0,
+   "human_upper": 0.0044,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0018,
+   "lr": 9.4
+  },
+  "forwarding-wrapper/py": {
+   "tier": "W",
+   "precision": [
+    5,
+    8
+   ],
+   "human_rate": 0.008,
+   "human_upper": 0.0164,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0179,
+   "lr": 0.63
+  },
+  "bool-return/py": {
+   "tier": "M",
+   "precision": [
+    4,
+    5
+   ],
+   "human_rate": 0.0023,
+   "human_upper": 0.0083,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0027,
+   "lr": 1.88
+  },
+  "placeholder/js": {
+   "tier": "S",
+   "precision": [
+    8,
+    8
+   ],
+   "human_rate": 0.0,
+   "human_upper": 0.0038,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0042,
+   "lr": 9.43
+  },
+  "changelog-comment/js": {
+   "tier": "M",
+   "precision": [
+    0,
+    0
+   ],
+   "human_rate": 0.0,
+   "human_upper": 0.0038,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0,
+   "lr": 9.43
+  },
+  "step-comment/js": {
+   "tier": "W",
+   "precision": [
+    4,
+    8
+   ],
+   "human_rate": 0.0,
+   "human_upper": 0.0038,
+   "frontier_rate": 0.0094,
+   "codemirage_rate": 0.0008,
+   "lr": 28.3
+  },
+  "restating-comment/js": {
+   "tier": "S",
+   "precision": [
+    8,
+    8
+   ],
+   "human_rate": 0.015,
+   "human_upper": 0.0246,
+   "frontier_rate": 0.0189,
+   "codemirage_rate": 0.0583,
+   "lr": 1.52
+  },
+  "emoji-output/js": {
+   "tier": "M",
+   "precision": [
+    0,
+    0
+   ],
+   "human_rate": 0.0,
+   "human_upper": 0.0038,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0,
+   "lr": 9.43
+  },
+  "catch-rethrow/js": {
+   "tier": "S",
+   "precision": [
+    8,
+    8
+   ],
+   "human_rate": 0.001,
+   "human_upper": 0.0056,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0,
+   "lr": 3.14
+  },
+  "swallowed-exception/js": {
+   "tier": "S",
+   "precision": [
+    8,
+    8
+   ],
+   "human_rate": 0.003,
+   "human_upper": 0.0088,
+   "frontier_rate": 0.0,
+   "codemirage_rate": 0.0017,
+   "lr": 1.35
+  },
+  "forwarding-wrapper/js": {
+   "tier": "W",
+   "precision": [
+    5,
+    8
+   ],
+   "human_rate": 0.004,
+   "human_upper": 0.0102,
+   "frontier_rate": 0.0189,
+   "codemirage_rate": 0.0083,
+   "lr": 5.24
+  }
+ }
+}

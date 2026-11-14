@@ -2,12 +2,12 @@
 """Release helper for supah-skills. Stdlib only.
 
   python scripts/release.py --check     run every repository check (CI runs this)
-  python scripts/release.py --sync      copy the prose scanner into plugins/slop-guard/scanner
+  python scripts/release.py --sync      copy the prose and code scanners into plugins/slop-guard
   python scripts/release.py 0.3.0       set the version everywhere, sync, then run the checks
 
 Checks: every skill folder is listed in plugin.json and has its own marketplace entry;
-every plugins/<name> folder has one too; all versions agree; the slop-guard scanner copy
-equals skills/ai-slop-prose/scripts; the test suite passes; every README passes the prose
+every plugins/<name> folder has one too; all versions agree; the slop-guard scanner copies
+equal their sources; the test suite passes; every README passes the prose
 scanner (exceptions in docs/readme-keep.tsv); `claude plugin validate` (errors only) when
 the claude CLI is installed.
 """
@@ -23,10 +23,12 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(ROOT, ".claude-plugin", "plugin.json")
 MARKET = os.path.join(ROOT, ".claude-plugin", "marketplace.json")
-SCANNER = os.path.join(ROOT, "skills", "ai-slop-prose", "scripts")
-SCAN = os.path.join(SCANNER, "scan.py")
-# installed plugins cannot reach files outside their folder, so slop-guard carries a copy
-SCANNER_COPY = os.path.join(ROOT, "plugins", "slop-guard", "scanner")
+SCAN = os.path.join(ROOT, "skills", "ai-slop-prose", "scripts", "scan.py")
+# installed plugins cannot reach files outside their folder, so slop-guard carries copies
+COPIES = [
+    ("skills/ai-slop-prose/scripts", "plugins/slop-guard/scanner"),
+    ("skills/ai-slop-audit/scripts", "plugins/slop-guard/codescan"),
+]
 KEEP = os.path.join(ROOT, "docs", "readme-keep.tsv")
 
 
@@ -72,19 +74,24 @@ def scanner_files(top):
 
 
 def sync_scanner():
-    shutil.rmtree(SCANNER_COPY, ignore_errors=True)
-    for rel in scanner_files(SCANNER):
-        os.makedirs(os.path.dirname(os.path.join(SCANNER_COPY, rel)), exist_ok=True)
-        shutil.copyfile(os.path.join(SCANNER, rel), os.path.join(SCANNER_COPY, rel))
-    print(f"scanner copied to {os.path.relpath(SCANNER_COPY, ROOT)}")
+    for src, dst in COPIES:
+        src, dst = os.path.join(ROOT, src), os.path.join(ROOT, dst)
+        shutil.rmtree(dst, ignore_errors=True)
+        for rel in scanner_files(src):
+            os.makedirs(os.path.dirname(os.path.join(dst, rel)), exist_ok=True)
+            shutil.copyfile(os.path.join(src, rel), os.path.join(dst, rel))
+        print(f"copied {os.path.relpath(src, ROOT)} to {os.path.relpath(dst, ROOT)}")
 
 
 def check_scanner_copy():
-    files = scanner_files(SCANNER)
-    if files != scanner_files(SCANNER_COPY) or any(
-            not filecmp.cmp(os.path.join(SCANNER, f), os.path.join(SCANNER_COPY, f), shallow=False) for f in files):
-        return ["plugins/slop-guard/scanner differs from skills/ai-slop-prose/scripts: run release.py --sync"]
-    return []
+    errors = []
+    for src_rel, dst_rel in COPIES:
+        src, dst = os.path.join(ROOT, src_rel), os.path.join(ROOT, dst_rel)
+        files = scanner_files(src)
+        if files != scanner_files(dst) or any(
+                not filecmp.cmp(os.path.join(src, f), os.path.join(dst, f), shallow=False) for f in files):
+            errors.append(f"{dst_rel} differs from {src_rel}: run release.py --sync")
+    return errors
 
 
 def check_manifests():

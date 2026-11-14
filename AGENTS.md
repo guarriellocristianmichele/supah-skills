@@ -6,7 +6,8 @@ Agent skills (Agent Skills format) for cleaning AI slop out of code and prose, p
 
 - A new skill lives in `skills/<name>/` and is listed in `.claude-plugin/plugin.json` and as its own entry (`source: ./skills/<name>`) in `.claude-plugin/marketplace.json`.
 - A plugin that is not a skill (hooks) lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json` and a marketplace entry `source: ./plugins/<name>`; never add `hooks/` at the repo root, it would attach to the bundle (ADR 0008).
-- `plugins/slop-guard/scanner/` is a copy of `skills/ai-slop-prose/scripts`: after changing the scanner, run `python scripts/release.py --sync` and commit both.
+- `plugins/slop-guard/scanner/` and `codescan/` are copies of `skills/ai-slop-prose/scripts` and `skills/ai-slop-audit/scripts`: after changing either, run `python scripts/release.py --sync` and commit both.
+- A change to a code scanner rule comes with a fixture in `tests/fixtures/code/` and a recalibration: `python scripts/calibrate_code.py fetch` and `frontier` (once, into `.calibration/code/`), then `run` and `report`; commit `codescan-calibration.json` and `docs/research/2026-11-code-calibration-results.md` (ADR 0010).
 - Release with `python scripts/release.py <x.y.z>`: it sets the version in every manifest and runs every check. Before any commit, `python scripts/release.py --check` must pass.
 - READMEs: English first, an `## Italiano` section last, sentence-case headings. They must pass the prose scanner; add a deliberate exception to `docs/readme-keep.tsv` with a reason, never silence a rule.
 - A change to a scanner rule or lexicon comes with a fixture or an assertion in `tests/`, and a recalibration: `python scripts/calibrate.py fetch` (once, into the ignored `.calibration/`), then `run` and `report`; commit the new `calibration.json` and `docs/research/2026-11-calibration-results.md` (ADR 0007).

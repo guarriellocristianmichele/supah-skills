@@ -104,7 +104,18 @@ Fix: one-line sketch.
 | medium | static paths closed; one indirect path stays open (reflection, external consumers) | yes, behind a protecting check |
 | low | a suspicion | no, until new evidence upgrades it |
 
-The twelve categories, each with the evidence it requires, are in [`AUDIT.md`](AUDIT.md): dead-code, unused-export / unused-file, unused-dependency, textual duplication, semantic duplication, reinvented, premature-abstraction, wrapper, defensive-check, tautological-test, redundant-test, incoherent-organization.
+The fourteen categories, each with the evidence it requires, are in [`AUDIT.md`](AUDIT.md): dead-code, unused-export / unused-file, unused-dependency, textual duplication, semantic duplication, reinvented, premature-abstraction, wrapper, defensive-check, comment-noise, residue, tautological-test, redundant-test, incoherent-organization.
+
+## The code scanner
+
+`scripts/codescan.py` lists the mechanical patterns in Python, JavaScript and TypeScript: placeholders, comments that restate the next line or narrate an edit, catch blocks that only rethrow, swallowed broad exceptions, runtime type checks that repeat an annotation, forwarding wrappers. The audit runs it in its tooling step and treats every hit as a candidate. Python is parsed with `ast`, so a file in syntax the interpreter can't read is reported as skipped.
+
+```sh
+python skills/ai-slop-audit/scripts/codescan.py src/**/*.py   # exit 1 when an S or M hit is open
+python skills/ai-slop-audit/scripts/codescan.py rules         # every rule with its tier
+```
+
+Tiers come from reading sampled hits, not from how AI-typical a pattern is (ADR 0010): a catch that only rethrows is useless whoever wrote it. The [calibration](../../docs/research/2026-11-code-calibration-results.md) ran on 1,000 human files per language from 2022, 1,200 files per language from ten 2025 models, and 212 files from Sonnet 5.5. Sonnet 5.5 wrote almost none of these patterns; its slop is in design, which the categories above judge through reach paths.
 
 ## Standalone or with the mattpocock skills
 
@@ -138,6 +149,7 @@ On both routes `publish` creates one map issue per audit (`AI slop audit @<sha>`
 - Dynamic reach (reflection, string-built names, external consumers of a published API) can be narrowed but not always closed; such findings stay at medium confidence.
 - The skill relies on the project's own checks. A codebase with no tests gets characterization tests written first, which take time and need your review.
 - Analyzers are used only when the project already has them; none are installed.
+- The code scanner reads Python, JavaScript and TypeScript only, and JavaScript with regexes, so its rules there are narrower.
 
 ## Italiano
 
@@ -152,6 +164,10 @@ Skill di Claude Code che trova e rimuove la complessità inutile in un'intera co
 | `/ai-slop-audit publish [lotti]` | una issue per lotto, con dipendenze e prove, dopo la tua approvazione |
 | `/ai-slop-audit fix <ID>` | corregge solo gli ID indicati (`SLOP-012`, `B3` o `#123`), con test prima e verifica dopo |
 | `/ai-slop-audit verify` | controllo finale: check, regressioni, superficie pubblica, dipendenze, test rimossi |
+
+### Scanner del codice
+
+`scripts/codescan.py` trova i pattern meccanici in Python, JavaScript e TypeScript: placeholder, commenti che ripetono la riga sotto o raccontano una modifica, catch che rilanciano e basta, eccezioni generiche ingoiate, controlli di tipo che ripetono l'annotazione, wrapper che inoltrano. L'audit lo usa come primo passo e tratta ogni risultato come un candidato. I livelli vengono dalla lettura di campioni di risultati, non da quanto un pattern sia tipico dell'AI: un catch che rilancia e basta è inutile chiunque l'abbia scritto. Sul codice di Sonnet 5.5 questi pattern quasi non compaiono; il suo slop sta nel design, che l'audit giudica con i percorsi di raggiungibilità.
 
 ### Stato tra sessioni
 

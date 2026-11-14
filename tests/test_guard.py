@@ -56,14 +56,36 @@ class Post(unittest.TestCase):
                                                                      {"old_string": "b", "new_string": SLOP}]}}
         self.assertEqual(run("post", event).returncode, 2)
 
-    def test_skips_code_and_agent_documents(self):
+    def test_skips_other_files_and_agent_documents(self):
         skill = os.path.join(HOME, "skill")
         os.makedirs(skill, exist_ok=True)
         open(os.path.join(skill, "SKILL.md"), "w").close()
-        for path in ("app.py", "SKILL.md", "AGENTS.md", os.path.join(".claude", "notes.md"),
+        for path in ("data.csv", "SKILL.md", "AGENTS.md", os.path.join(".claude", "notes.md"),
                      os.path.join("skill", "TELLS.md")):
             with self.subTest(path=path):
                 self.assertEqual(run("post", write(os.path.join(HOME, path), SLOP)).returncode, 0)
+
+    def test_code_reports_hits_on_the_new_lines_only(self):
+        path = os.path.join(HOME, "app.py")
+        old = "def parse(raw):\n    try:\n        return int(raw)\n    except ValueError as e:\n        raise e\n"
+        added = "\n\ndef double(x):\n    # Return the double\n    return x * 2\n"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(old + added)
+        edit = {"tool_name": "Edit", "tool_input": {"file_path": path, "old_string": "", "new_string": added}}
+        out = run("post", edit)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("restating-comment", out.stderr)
+        self.assertNotIn("catch-rethrow", out.stderr)  # written earlier, not by this edit
+        out = run("post", write(path, old + added))
+        self.assertIn("catch-rethrow", out.stderr)
+
+    def test_clean_code_is_silent(self):
+        path = os.path.join(HOME, "clean.ts")
+        text = "export function area(w: number, h: number) {\n  return w * h;\n}\n"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        out = run("post", write(path, text))
+        self.assertEqual((out.returncode, out.stderr), (0, ""))
 
     def test_readme_next_to_skill_is_scanned(self):
         os.makedirs(os.path.join(HOME, "skill"), exist_ok=True)

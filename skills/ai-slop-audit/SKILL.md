@@ -1,11 +1,11 @@
 ---
 name: ai-slop-audit
-description: Evidence-backed audit and cleanup of needless complexity across a codebase (dead code, duplication, wrappers, tautological tests). Modes audit, plan, publish (GitHub issues), fix <ID>, verify.
+description: Evidence-backed audit and cleanup of needless complexity across a codebase (dead code, duplication, wrappers, comment noise, tautological tests). Modes audit, plan, publish (GitHub issues), fix <ID>, verify.
 argument-hint: "audit [path] | plan | publish [B<n>…] | fix <SLOP-ID[,ID]|B<n>|#issue> | verify"
 arguments: [mode, target]
 disable-model-invocation: true
 effort: high
-allowed-tools: Read Grep Glob Bash(git rev-parse *) Bash(git status *) Bash(git ls-files *) Bash(git log *) Bash(git diff *)
+allowed-tools: Read Grep Glob Bash(python *codescan.py*) Bash(git rev-parse *) Bash(git status *) Bash(git ls-files *) Bash(git log *) Bash(git diff *)
 ---
 
 # AI slop audit

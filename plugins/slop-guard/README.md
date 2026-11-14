@@ -17,23 +17,23 @@ Use `--scope project` (after `claude plugin marketplace add guarriellocristianmi
 | Hook | When | Cost |
 |---|---|---|
 | `SessionStart` | new session, resume, `/clear`, after compaction | about 150 tokens of rules from [`hooks/rules.md`](hooks/rules.md) |
-| `PostToolUse` on `Write`, `Edit`, `MultiEdit` | Claude saves a `.md`, `.mdx`, `.markdown`, `.txt` or `.rst` file | nothing when the text is clean; one line otherwise |
+| `PostToolUse` on `Write`, `Edit`, `MultiEdit` | Claude saves prose (`.md`, `.mdx`, `.markdown`, `.txt`, `.rst`) or code (Python, JavaScript, TypeScript) | nothing when the new text is clean; one line otherwise |
 
 The rules cover code (the categories of [ai-slop-audit](../../skills/ai-slop-audit/AUDIT.md)) and prose (the strongest tells of [ai-slop-prose](../../skills/ai-slop-prose/TELLS.md)). They apply to code and files, never to chat replies.
 
-The second hook runs the ai-slop-prose scanner on the text just written, never on the rest of the file, so text a person wrote earlier is left alone. It reports only the hits the scanner counts as required fixes (S and M tiers after calibration and your recorded verdicts), grouped, at most six:
+The second hook checks only what Claude just wrote, so text and code a person wrote earlier are left alone. Prose goes through the ai-slop-prose scanner; code goes through the ai-slop-audit code scanner, which reads the saved file (an edit alone often does not parse) and keeps the hits on the new lines. Only required fixes are reported (S and M tiers after calibration, and for prose your recorded verdicts), grouped, at most six:
 
 ```text
 slop-guard notes.md: chat-residue "I hope this helps"; em-dash "—" x2. Rewrite them; leave a quote or a term as it is.
 ```
 
-It skips code files and documents written for agents: `SKILL.md`, `AGENTS.md`, `CLAUDE.md`, anything under `.claude/`, and reference files that sit next to a `SKILL.md`.
+It skips other file types and documents written for agents: `SKILL.md`, `AGENTS.md`, `CLAUDE.md`, anything under `.claude/`, and reference files that sit next to a `SKILL.md`.
 
 For a full sweep with voice matching and the fact check, use the [ai-slop-prose](../../skills/ai-slop-prose/README.md) skill.
 
 ## For maintainers
 
-`scanner/` is a copy of `skills/ai-slop-prose/scripts`, because an installed plugin can't read files outside its own folder. `python scripts/release.py --sync` refreshes it, and `--check` fails when the copy drifts.
+`scanner/` and `codescan/` are copies of `skills/ai-slop-prose/scripts` and `skills/ai-slop-audit/scripts`, because an installed plugin can't read files outside its own folder. `python scripts/release.py --sync` refreshes them, and `--check` fails when a copy drifts.
 
 ## Italiano
 
@@ -42,7 +42,7 @@ Plugin di Claude Code con due hook che tengono l'AI slop fuori da ciò che Claud
 Installazione: `claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`, oppure `--scope project` per condividerlo nel repo. skills.sh installa solo skill, quindi qui non serve. Richiede Python 3.10+ e bash (su Windows Git Bash, che Claude Code usa già).
 
 - A inizio sessione, dopo `/clear` e dopo una compattazione aggiunge circa 150 token di regole su codice e testi. Valgono per codice e file, mai per le risposte in chat.
-- Quando Claude salva un file Markdown o di testo, lo scanner di ai-slop-prose legge solo il testo appena scritto. Se è pulito non succede nulla; altrimenti Claude riceve una riga con i segnali da correggere, al massimo sei.
-- Salta il codice e i documenti per agenti (`SKILL.md`, `AGENTS.md`, `CLAUDE.md`, `.claude/`, i file accanto a un `SKILL.md`).
+- Quando Claude salva un testo (Markdown, txt, rst) o del codice (Python, JavaScript, TypeScript), lo scanner controlla solo la parte appena scritta. Se è pulita non succede nulla; altrimenti Claude riceve una riga con i segnali da correggere, al massimo sei.
+- Salta gli altri tipi di file e i documenti per agenti (`SKILL.md`, `AGENTS.md`, `CLAUDE.md`, `.claude/`, i file accanto a un `SKILL.md`).
 
 Per una revisione completa, con la voce dell'autore e il controllo dei dati, usa la skill ai-slop-prose.

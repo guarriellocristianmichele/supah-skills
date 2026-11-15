@@ -7,6 +7,7 @@ import dataclasses
 import datetime
 import json
 import os
+import re
 
 TEXT, NUMBER, ANY_TEXT = "text", "number", "any text"
 OFFER, NOTHING = "offer", "nothing"              # reserved option ids: the idea, and "buy nothing"
@@ -60,10 +61,16 @@ def is_tag(v):
                                                   for part in v.split("-"))
 
 
+YYYY_MM_DD = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")
+
+
 def iso_date(v):
-    """A date written YYYY-MM-DD, or None: the length guard keeps 3.11's wider fromisoformat out (ADR 0009)."""
+    """A date written YYYY-MM-DD, or None. The shape guard keeps out what 3.11's wider fromisoformat reads
+    (20261120, 2026-W47-5) and 3.10 rejects, so every supported Python agrees (ADR 0009)."""
+    if not (isinstance(v, str) and YYYY_MM_DD.fullmatch(v)):
+        return None
     try:
-        return datetime.date.fromisoformat(v) if isinstance(v, str) and len(v) == 10 else None
+        return datetime.date.fromisoformat(v)
     except ValueError:
         return None
 

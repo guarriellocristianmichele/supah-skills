@@ -42,6 +42,15 @@ class ValidateReal(unittest.TestCase):
         self.assertEqual(fields, [["test"], ["conversions"], ["visits"], ["conversions"], ["date"], ["commitments"]])
 
 
+    def test_dates_are_written_yyyy_mm_dd_on_every_python(self):
+        # Python 3.11 and later read 20261120 and 2026-W47-5 as dates; 3.10 and the schema do not
+        with tempfile.TemporaryDirectory() as d:
+            files = [real(d, "a", date="20261120"), real(d, "b", date="2026-W47-5")]
+            result, code = run_json("validate", *files)
+        self.assertEqual(code, 3)
+        self.assertEqual([[e["field"] for e in r["errors"]] for r in result], [["date"], ["date"]])
+
+
 def panel_with(d, *reals):
     """A writable copy of the normal panel with real-results files in its real/ folder; returns the panel."""
     panel = os.path.join(d, "panel")

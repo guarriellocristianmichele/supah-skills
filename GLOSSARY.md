@@ -77,11 +77,11 @@ A fixed set of synthetic buyers for one idea, built once from a segment plan and
 _Avoid_: survey, focus group, sample (they imply real people)
 
 **Buyer**:
-One synthetic respondent of a panel: segment, budget, habits, current solution, last spend and one honest objection, unchanged across rounds.
-_Avoid_: persona, respondent, customer
+One model-written person of a panel: segment, budget, habits, current solution, last spend and one honest objection, unchanged across rounds.
+_Avoid_: persona, respondent, customer (respondent stays only inside quoted research note headings)
 
 **Round**:
-One offer at one price shown to the panel's buyers in fresh contexts, with its answers, scores, numbers and report in `rounds/<label>/`.
+One offer at one price shown to the panel's buyers in fresh contexts, with its answers, scores, numbers and report in `rounds/<label>/`. Several rounds run together for one question form a series (the price series `p<n>`).
 _Avoid_: run, wave, iteration
 
 **Anchor**:
@@ -89,7 +89,7 @@ One of five fixed statements of purchase intent, from "definitely not" to "defin
 _Avoid_: rating, score label, Likert point
 
 **Grounding**:
-Comparing what real people did (interviews, a smoke test, pre-sales) with what the panel predicted for the same offer, and storing the ratio so later rounds show a corrected figure.
+Comparing what real people did (interviews, a smoke test, pre-sales) with what the panel predicted for the same offer, and storing the ratio in the project's `.buyer-panel/grounding.jsonl` so later rounds of every panel show a corrected figure.
 _Avoid_: validation, calibration (calibration means the scanners' corpora here)
 
 ### Orchestration

@@ -58,7 +58,7 @@ The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks 
 
 ## What it will not claim
 
-A synthetic panel is a hypothesis generator. It can tell you which objection to test first and who to talk to; it can't tell you that people will buy. Differences between buyer types are reported as descriptive only, since synthetic panels invent and flip them. The evidence behind every choice is in [the research note](../../docs/research/2026-11-synthetic-panels.md) and the design is recorded in [ADR 0014](../../docs/adr/0014-buyer-panel-counters-each-known-failure-of-synthetic-respondents.md).
+A synthetic panel is a hypothesis generator. It can tell you which objection to test first and who to talk to; it can't tell you that people will buy. Differences between buyer types are reported as descriptive only, since synthetic panels invent and flip them. The evidence behind every choice is in [the research note](../../docs/research/2026-11-synthetic-panels.md) and the design is recorded in [ADR 0014](../../docs/adr/0014-buyer-panel-counters-each-known-failure-of-synthetic-buyers.md).
 
 ## Italiano
 

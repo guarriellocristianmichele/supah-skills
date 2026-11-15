@@ -20,6 +20,8 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
     summary.json      panel.py aggregate --out
     diff.json         panel.py diff --out: this round against an earlier one (fix and later modes)
     report.md         the round's report
+    page.json         panel.py page: the page data
+    page.html         panel.py page: the private page, self-contained
 ```
 
 Round labels are short and unique within the panel: `r1` for the first round; later modes name theirs.

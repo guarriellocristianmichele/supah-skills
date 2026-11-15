@@ -178,6 +178,22 @@ class ReportOutput(unittest.TestCase):
                 self.assertEqual(json.load(f), result)
         self.assertEqual(code, 1)
 
+    def test_advisory_checks_on_a_subset_say_so_and_do_not_stop(self):
+        out = run("checks", fixture_round("uniform"), "--advisory")
+        result, code = run_json("checks", fixture_round("uniform"), "--advisory")
+        self.assertEqual((out.returncode, code), (0, 0))
+        self.assertTrue(result["advisory"])
+        self.assertEqual(result["failed"], ["spread", "similarity"])
+        self.assertEqual(result["verdict_line"], "Advisory, on 7 buyers of a screening or try-out round: intent spread, "
+                                                 "reason similarity failed. Read this round with care; it sets no "
+                                                 "verdict of its own.")
+        self.assertNotIn("Do not trust", out.stdout)
+        self.assertIn("Advisory, on 7 buyers", out.stdout)
+
+    def test_a_full_round_is_not_advisory(self):
+        result, _ = run_json("checks", NORMAL_R1)
+        self.assertFalse(result["advisory"])
+
     def test_invalid_records_are_not_checked(self):
         with tempfile.TemporaryDirectory() as d:
             r1 = copy_round(d)

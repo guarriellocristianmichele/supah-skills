@@ -1,10 +1,10 @@
 # Devil's advocate
 
-After the numbers and the checks, one separate voice argues the strongest case against the idea. Telling simulated respondents to play devil's advocate has no measured effect, and it would push every buyer the same way (research note, "Sycophancy and what reduces it"). So the critique runs once, after the panel, in a context that has seen no interview, and it stays out of every buyer's answer.
+After the numbers and the checks, one separate voice argues the strongest case against the idea. Telling simulated buyers to play devil's advocate has no measured effect, and it would push every buyer the same way (research note, "Sycophancy and what reduces it"). So the critique runs once per report, after the round, in a context that has seen no interview, and it stays out of every buyer's answer.
 
 ## What the critic reads
 
-`brief.json`, `research.md`, the round's `summary.json` and `checks.json`, this file's brief, and nothing else: no worker brief, no cards, no answers files, and nothing about who is asking or what they hope. It writes `P/rounds/<label>/critique.md` and nothing else.
+`brief.json`, `research.md`, the round's `summary.json` and `checks.json` (in `compare`, both halves'; in `fix`, the full round's and its `diff.json`; in `competitor`, its `diff.json` too), this file's brief, and nothing else: no worker brief, no cards, no answers files, and nothing about who is asking or what they hope. It writes `P/rounds/<label>/critique.md` and nothing else.
 
 ## Critic brief
 

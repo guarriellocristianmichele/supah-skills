@@ -7,7 +7,7 @@ Usage:
   panel.py [--json] deal --buyers FILE --options ID,ID,... [--batch-size N] [--seed N] --out FILE
   panel.py [--json] reactions ROUND_DIR [--seed N] --out FILE
   panel.py [--json] aggregate ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
-  panel.py [--json] checks ROUND_DIR [--buyers FILE] [--out FILE]
+  panel.py [--json] checks ROUND_DIR [--buyers FILE] [--advisory] [--out FILE]
   panel.py [--json] diff ROUND_A ROUND_B [--buyers FILE] [--out FILE]
   panel.py [--json] prices ROUND_DIR [--buyers FILE]
   panel.py [--json] revenue ROUND_DIR ROUND_DIR... [--buyers FILE]
@@ -37,7 +37,8 @@ aggregate  turns one round (round.json, answers, scores) into numbers: raw and d
 checks     flags a round that should not be trusted: intent spread too low, one reason tag given by too many
            buyers, reactions in the same words, praise too dense, BUY share above the plausible bound, the
            option shown first chosen too often (thresholds and sources in READING.md); prints the report's
-           Checks section and, on a failure, its verdict line.
+           Checks section and, on a failure, its verdict line. --advisory, for a screening or try-out
+           round (a subset of the panel), states the failures in an advisory line instead and exits 0.
 diff       compares two rounds of the same panel over the buyers answered and scored in both: PASS to BUY
            and back, every change of option (between competitors too), choices per option, BUY share,
            intent, new and gone top reasons, and the card price and price range moved.
@@ -358,13 +359,16 @@ def cmd_variety(args):
 
 
 @command("checks", "flag a round that is too uniform, too agreeable or order-biased", show_checks, [
-    (("round_dir",), {"metavar": "ROUND_DIR"}), BUYERS, OUT_JSON,
+    (("round_dir",), {"metavar": "ROUND_DIR"}), BUYERS,
+    (("--advisory",), {"action": "store_true",
+                       "help": "a screening or try-out round: state failures, set no verdict, exit 0"}),
+    OUT_JSON,
 ])
 def cmd_checks(args):
-    result = checks.run_checks(load_round(args.round_dir, args.buyers))
+    result = checks.run_checks(load_round(args.round_dir, args.buyers), args.advisory)
     if args.out:
         write_json(args.out, result)
-    return result, 1 if result["failed"] else 0
+    return result, 1 if result["failed"] and not args.advisory else 0
 
 
 # ---------------------------------------------------------------- diff

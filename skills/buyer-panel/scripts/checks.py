@@ -89,7 +89,9 @@ def check(name, what, value, threshold, passed):
             "passed": value is not None and passed(value)}
 
 
-def run_checks(rnd):
+def run_checks(rnd, advisory=False):
+    """The round's checks. `advisory` marks a screening or try-out round, a subset of the panel: a failure is
+    stated, but it sets no verdict, since the full round decides."""
     rows = rnd.rows()
     reactions = [rnd.answers[r["buyer_id"]]["reaction"] for r in rows]
     top_share, tag = top_reason(rows)
@@ -112,8 +114,16 @@ def run_checks(rnd):
                             f"< {MAX_FIRST_TIMES_CHANCE:g} x chance ({bound})", lambda v: v < bound),
                       chance=chance))
     failed = [c["name"] for c in found if not c["passed"]]
-    verdict = f"Do not trust this round: {', '.join(LABELS[n] for n in failed)} failed." if failed else None
-    return {"buyers": len(rows), "checks": found, "failed": failed, "verdict_line": verdict, "segments": SEGMENTS}
+    named = ", ".join(LABELS[n] for n in failed)
+    if not failed:
+        verdict = None
+    elif advisory:
+        verdict = (f"Advisory, on {len(rows)} buyers of a screening or try-out round: {named} failed. "
+                   "Read this round with care; it sets no verdict of its own.")
+    else:
+        verdict = f"Do not trust this round: {named} failed."
+    return {"buyers": len(rows), "advisory": advisory, "checks": found, "failed": failed, "verdict_line": verdict,
+            "segments": SEGMENTS}
 
 
 # ---------------------------------------------------------------- buyer variety

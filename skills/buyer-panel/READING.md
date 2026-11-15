@@ -27,6 +27,8 @@ How to turn `aggregate`'s numbers into a report that says what they can and cann
 
 A check with fewer than two judged buyers reads `n/a` and fails. The checks catch these failures in the text; they cannot prove a round that passes is right.
 
+**Advisory checks.** A screening round in `fix` and the try-out round in `pitch` hold a subset of the panel, chosen for a reason (the buyers who gave one pass reason, or one buyer type), so their spread and reasons are narrow by design. `checks --advisory` states their failures in an advisory line and exits 0: the report shows that line under `## Checks (advisory)`, and the full round's checks decide the verdict.
+
 **When a check fails.** The round's verdict is the line `checks` printed, `Do not trust this round: <checks> failed.`, unchanged: it replaces both verdicts below. Under it, name the likely cause and the change before running the round again:
 
 - `spread`, `similarity`, `overlap`: buyers too alike (rewrite them per BUYERS.md with more varied habits and objections), or batches that leaked (smaller batches, fresh contexts).

@@ -22,6 +22,7 @@ Interviews run through [orchestrate](../orchestrate/README.md) when it is instal
 ```text
 /buyer-panel a time tracker that starts itself when you open a client's files
 /buyer-panel
+/buyer-panel fix already-paid
 ```
 
 It is user-invoked, so it costs nothing in sessions where you don't call it.
@@ -35,7 +36,7 @@ It is user-invoked, so it costs nothing in sessions where you don't call it.
 - The report is a Markdown file with the full buyer table, a verdict, and the first real test for this week: five interviews, a smoke test or a pre-sale.
 - The script also writes the round as one HTML file you can open anywhere: the simulated-panel line on top, the summary, the price curves and the buyer table with filters by segment, decision and reason, in light and dark themes. After the report it asks whether to publish that page privately (with Claude's Artifact tool, when available), keep it as a local file, or skip it.
 
-The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks whether to commit it or keep it out of git. The modes that reuse the same buyers in later rounds (`fix`, `price`, `compare`, `competitor`, `ground`) are listed in the skill and arrive in later versions.
+The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks whether to commit it or keep it out of git. `/buyer-panel fix [reason]` reuses the same buyers: it takes the top reason they passed (or the one you name), writes three offer changes tied to the words of the buyers who gave it, tries each on those buyers, runs the best on the whole panel in fresh contexts and shows buyer by buyer who flipped, which option each one moved to, the new top reasons and what the change cost in buyers and price. The other follow-up modes (`price`, `compare`, `competitor`, `ground`) are listed in the skill and arrive in later versions.
 
 `/buyer-panel pitch [type]` writes a 30-second pitch (about 75 words) for the buyer type most likely to buy, or the one you name, from that type's own words: every borrowed phrase is quoted and traced to the buyer who said it. The script holds out half of that type's buyers before you see any quote, and the pitch is tried on them in fresh contexts; the report sets their answers to the pitch against their first-round answers. With ai-slop-prose installed, the pitch is swept with purpose `pitch`.
 
@@ -56,6 +57,7 @@ Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s 
 - Chiede 30, 100 o 200 acquirenti (100 di default), divisi in segmenti con quote e budget presi dalla ricerca; lo script scarta chi manca di un campo.
 - Ogni acquirente vede l'idea come il prodotto di un'altra azienda, accanto ai concorrenti veri e a "non compro niente", in un ordine casuale registrato. Prima reagisce a parole, poi sceglie, dice a cosa rinuncerebbe per pagare e risponde alle quattro domande di prezzo di Van Westendorp.
 - Un giudice separato, che legge solo le reazioni, le colloca su cinque frasi di riferimento fisse. Lo script calcola la quota di acquisto grezza e quella scontata, i motivi principali con i conteggi, i tre tipi di acquirente più propensi e la fascia di prezzo come limite superiore.
+- `/buyer-panel fix [motivo]` prende il motivo principale per cui gli acquirenti hanno rinunciato (o quello che indichi), scrive tre modifiche all'offerta legate alle loro parole, le prova su chi ha dato quel motivo, rifà il giro con la migliore su tutto il panel e mostra acquirente per acquirente chi ha cambiato idea e quanto è costata la modifica.
 - Il report in Markdown chiude con un verdetto e il primo test reale della settimana. Lo script scrive anche una pagina HTML del round, con la riga sul panel simulato in cima, le curve di prezzo e la tabella filtrabile; la skill ti chiede se pubblicarla in privato, tenerla come file locale o lasciar perdere. Il panel resta in `.buyer-panel/` nel progetto, e la skill ti chiede se metterlo nel commit.
 - `/buyer-panel pitch [tipo]` scrive una presentazione da 30 secondi (circa 75 parole) per il tipo di acquirente più propenso, o per quello che indichi, con le sue stesse parole: ogni frase presa in prestito è tra virgolette con l'acquirente che l'ha detta. Lo script tiene da parte metà degli acquirenti di quel tipo, e la presentazione viene provata su di loro in contesti nuovi, confrontando le risposte con quelle del primo giro.
 - `/buyer-panel test` prepara il primo test con persone vere: una traccia di intervista secondo il Mom Test, con domande su cosa hanno fatto l'ultima volta e quanto hanno speso e una richiesta di impegno alla fine; il brief di una landing di prova, passato a `/ai-slop-design craft` se installata; le soglie per andare avanti o fermarsi, scritte in `test/test.json` prima che il test parta.

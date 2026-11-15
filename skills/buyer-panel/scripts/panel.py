@@ -6,6 +6,7 @@ Usage:
   panel.py [--json] deal --buyers FILE --options ID,ID,... [--batch-size N] [--seed N] --out FILE
   panel.py [--json] reactions ROUND_DIR [--seed N] --out FILE
   panel.py [--json] aggregate ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
+  panel.py [--json] diff ROUND_A ROUND_B [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
   panel.py [--json] page ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--data FILE] [--out FILE]
   panel.py [--json] quotes ROUND_DIR [--buyers FILE] [--type SEGMENT] [--holdout N] [--seed N]
                    [--holdout-out FILE] [--out FILE]
@@ -20,6 +21,9 @@ reactions  writes what the judge may see: buyer id and free reaction only, in sh
 aggregate  turns one round (round.json, answers, scores) into numbers: raw and discounted BUY share with the
            weighting scheme named, reasons with counts, buyer types, and the Van Westendorp price range with
            out-of-order answers dropped and counted. Buyers default to ROUND_DIR/../../buyers.jsonl.
+diff       compares two rounds of the same panel over the buyers answered and scored in both: PASS to BUY
+           and back, every change of option (between competitors too), choices per option, BUY share,
+           intent, new and gone top reasons, and the card price and price range moved.
 page       writes the page data for a round (default ROUND_DIR/page.json) and a self-contained HTML page
            from it (default ROUND_DIR/page.html): the simulated-panel line, the summary, any checks found in
            ROUND_DIR/summary.json, the price curves as inline SVG and the buyer table with filters.
@@ -680,6 +684,174 @@ def cmd_aggregate(args):
             json.dump(result, f, ensure_ascii=False, indent=1)
             f.write("\n")
     return result, 0
+
+
+# --- diff ---
+
+def load_rows(round_dir, buyers_path, weights):
+    """One round's meta and rows by buyer id, or raise the round's record errors."""
+    meta, buyers, answers, scores, errors = load_round(round_dir, buyers_path)
+    if errors:
+        return None, None, errors
+    result = aggregate(meta, buyers, answers, scores, weights)
+    return meta, {r["buyer_id"]: r for r in result["rows"]}, []
+
+
+def points(x):
+    return "n/a" if x is None else f"{x * 100:+.1f} points"
+
+
+def ids(xs):
+    return ", ".join(xs) or "none"
+
+
+def decision_label(side):
+    return side["decision"] if side["choice"] in (OFFER, NOTHING) else f"PASS ({side['choice']})"
+
+
+def show_diff(result):
+    """Markdown for the report: what moved between the rounds, then every buyer compared."""
+    if "errors" in result:
+        return show_errors(result)
+    a, b = result["before"]["label"], result["after"]["label"]
+    s, i, p = result["buy_share"], result["intent"], result["price"]
+    print(f"{a} -> {b}: {result['buyers']['both']} buyers in both rounds")
+    for label, key in ((a, "only_before"), (b, "only_after")):
+        if result["buyers"][key]:
+            print(f"Only in {label} (not compared): {ids(result['buyers'][key])}")
+    print(f"BUY {s['before']['buy']} of {s['before']['buyers']} -> {s['after']['buy']} of {s['after']['buyers']}: "
+          f"raw {pct(s['before']['raw'])} -> {pct(s['after']['raw'])} ({points(s['raw_change'])}), "
+          f"discounted {pct(s['before']['discounted'])} -> {pct(s['after']['discounted'])} "
+          f"({points(s['discounted_change'])}), weights {s['scheme']}")
+    print(f"PASS to BUY: {ids(result['flips']['pass_to_buy'])}. BUY to PASS: {ids(result['flips']['buy_to_pass'])}.")
+    print("Switches: " + (", ".join(f"{x['buyer_id']} {x['from']} -> {x['to']}" for x in result["switches"])
+                          or "none"))
+    print("Choices: " + ", ".join(f"{c['option']} {c['before']} -> {c['after']}" for c in result["choices"]))
+    if i["before"] is not None:
+        print(f"Mean intent {i['before']:.2f} -> {i['after']:.2f} ({i['change']:+.2f}): up {ids(i['up'])}; "
+              f"down {ids(i['down'])}; {i['same']} the same")
+    for key, label in (("pass_reasons", "Top reasons to pass"), ("buy_reasons", "Top reasons to buy")):
+        r = result[key]
+        listed = [", ".join(f"{x['reason']} {x['count']}" for x in r[side]) or "none" for side in ("before", "after")]
+        print(f"{label}: {listed[0]} -> {listed[1]} (new: {ids(r['new'])}; gone: {ids(r['gone'])})")
+    card = p["card"]
+    ranges = [f"{x['range'][0]:g} to {x['range'][1]:g}" if x["range"] else "no crossing"
+              for x in (p["before"], p["after"])]
+    print(f"Card price {card['before']:g} -> {card['after']:g} {card['currency']}; "
+          f"price range (upper bound) {ranges[0]} -> {ranges[1]} {card['currency']}")
+    print()
+    print(f"| buyer | segment | change | {a} | {b} | intent | reason | in their words ({b}) |")
+    print("|---|---|---|---|---|---|---|---|")
+    names = {"pass-to-buy": "PASS to BUY", "buy-to-pass": "BUY to PASS", "switch": "switch", "same": "-"}
+    for r in result["rows"]:
+        x, y = r["before"], r["after"]
+        reason = x["reason"] if x["reason"] == y["reason"] else f"{x['reason']} -> {y['reason']}"
+        print(f"| {r['buyer_id']} {cell(r['name'])} | {cell(r['segment'])} | {names[r['change']]} | "
+              f"{decision_label(x)} | {decision_label(y)} | {x['intent']} -> {y['intent']} | {reason} | "
+              f"\"{cell(y['quote'])}\" |")
+
+
+@command("diff", "compare two rounds of the same buyers, buyer by buyer", show_diff, [
+    (("before",), {"metavar": "ROUND_A"}),
+    (("after",), {"metavar": "ROUND_B"}),
+    (("--buyers",), {"metavar": "FILE", "help": "buyers file for both (default ROUND_A/../../buyers.jsonl)"}),
+    (("--weights",), {"metavar": "W5,W4,W3,W2,W1", "help": "intent weights, default 0.75,0.25,0.1,0.05,0.02"}),
+    (("--out",), {"metavar": "FILE", "help": "also write the JSON result here"}),
+])
+def cmd_diff(args):
+    result, code = diff_rounds(args)
+    if args.out and code == 0:
+        with open(args.out, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(result, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+    return result, code
+
+
+def diff_rounds(args):
+    weights = parse_weights(args.weights)
+    if args.buyers is None:
+        panels = {os.path.realpath(os.path.join(d, os.pardir, os.pardir)) for d in (args.before, args.after)}
+        if len(panels) > 1:
+            raise UsageError("the two rounds belong to different panels; diff compares rounds of the same buyers")
+    meta_a, before, errors = load_rows(args.before, args.buyers, weights)
+    meta_b, after, more = load_rows(args.after, args.buyers, weights)
+    if errors or more:
+        return {"errors": errors + more}, 3
+    both = [bid for bid in before if bid in after]
+    flips = {"pass_to_buy": [b for b in both if before[b]["decision"] == "PASS" and after[b]["decision"] == "BUY"],
+             "buy_to_pass": [b for b in both if before[b]["decision"] == "BUY" and after[b]["decision"] == "PASS"]}
+    switches = [{"buyer_id": b, "from": before[b]["choice"], "to": after[b]["choice"]}
+                for b in both if before[b]["choice"] != after[b]["choice"]]
+    options = meta_a["options"] + [o for o in meta_b["options"] if o not in meta_a["options"]]
+    choices = [{"option": o, "before": sum(before[b]["choice"] == o for b in both),
+                "after": sum(after[b]["choice"] == o for b in both)} for o in options]
+    rows_a, rows_b = [before[b] for b in both], [after[b] for b in both]
+    keep = ("label", "offer", "price", "currency", "model", "interviews", "batch_size")
+    return {"before": {k: meta_a[k] for k in keep}, "after": {k: meta_b[k] for k in keep},
+            "buyers": {"both": len(both), "only_before": [b for b in before if b not in after],
+                       "only_after": [b for b in after if b not in before]},
+            "flips": flips, "switches": switches, "choices": choices,
+            "buy_share": share_shift(rows_a, rows_b, weights), "intent": intent_shift(both, before, after),
+            "pass_reasons": reason_shift(rows_a, rows_b, "PASS"), "buy_reasons": reason_shift(rows_a, rows_b, "BUY"),
+            "price": price_shift(meta_a, meta_b, rows_a, rows_b),
+            "rows": [buyer_change(before[b], after[b]) for b in both]}, 0
+
+
+def buyer_change(a, b):
+    if a["decision"] != b["decision"]:
+        kind = "pass-to-buy" if b["decision"] == "BUY" else "buy-to-pass"
+    else:
+        kind = "switch" if a["choice"] != b["choice"] else "same"
+    side = ("choice", "decision", "intent", "reason", "quote", "give_up", "price")
+    return {"buyer_id": a["buyer_id"], "name": a["name"], "segment": a["segment"], "change": kind,
+            "before": {k: a[k] for k in side}, "after": {k: b[k] for k in side}}
+
+
+def reason_shift(rows_a, rows_b, decision):
+    """Top reasons in both rounds; `new` are top reasons after that were not top before, `gone` the reverse."""
+    a = reasons([r for r in rows_a if r["decision"] == decision])
+    b = reasons([r for r in rows_b if r["decision"] == decision])
+    tags_a, tags_b = [x["reason"] for x in a], [x["reason"] for x in b]
+    return {"before": a, "after": b, "new": [t for t in tags_b if t not in tags_a],
+            "gone": [t for t in tags_a if t not in tags_b]}
+
+
+def change(a, b):
+    return None if a is None or b is None else round(b - a, 2)
+
+
+def price_shift(meta_a, meta_b, rows_a, rows_b):
+    a, b = price_range(rows_a), price_range(rows_b)
+    return {"card": {"before": meta_a["price"], "after": meta_b["price"], "change": change(meta_a["price"],
+                                                                                         meta_b["price"]),
+                     "currency": meta_b["currency"]},
+            "before": a, "after": b,
+            "range_change": [change(a["range"][0], b["range"][0]), change(a["range"][1], b["range"][1])]
+            if a["range"] and b["range"] else None,
+            "optimal_change": change(a["optimal"], b["optimal"]),
+            "indifference_change": change(a["indifference"], b["indifference"])}
+
+
+def share_shift(rows_a, rows_b, weights):
+    """BUY share in both rounds over the same buyers; changes from the counts, not the rounded shares."""
+    def likely(rows):
+        return sum(weights["by_intent"][str(r["intent"])] for r in rows if r["choice"] == OFFER)
+
+    n = len(rows_a)
+    a, b = buy_share(rows_a, weights), buy_share(rows_b, weights)
+    for s in (a, b):
+        del s["weights"]
+    return {"before": a, "after": b, "raw_change": share(b["buy"] - a["buy"], n),
+            "discounted_change": share(likely(rows_b) - likely(rows_a), n), "scheme": weights["scheme"]}
+
+
+def intent_shift(both, before, after):
+    n = len(both)
+    total_a, total_b = sum(before[b]["intent"] for b in both), sum(after[b]["intent"] for b in both)
+    return {"before": share(total_a, n), "after": share(total_b, n), "change": share(total_b - total_a, n),
+            "up": [b for b in both if after[b]["intent"] > before[b]["intent"]],
+            "down": [b for b in both if after[b]["intent"] < before[b]["intent"]],
+            "same": sum(after[b]["intent"] == before[b]["intent"] for b in both)}
 
 
 # --- page ---

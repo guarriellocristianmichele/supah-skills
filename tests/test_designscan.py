@@ -213,6 +213,10 @@ class Regressions(unittest.TestCase):
                                  ".btn { color: #fafafa; background: #ff6c36; }\n")
         self.assertEqual([r for r, _ in got], ["low-contrast"])
 
+    def test_arrows_drawing_a_flow_are_not_glued_to_a_label(self):
+        self.assertEqual(self.hits("a.html", '<div class="flow-arrow">→ observation →</div>\n'), [])
+        self.assertEqual([r for r, _ in self.hits("a.html", '<a href="/docs">Read the guide →</a>\n')], ["glued-arrow"])
+
     def test_custom_property_named_border_left_is_not_a_stripe(self):
         self.assertEqual(self.hits("a.css", ":root { --ifm-blockquote-border-left-width: 2px; border-radius: 4px; }\n"), [])
 

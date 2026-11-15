@@ -254,10 +254,14 @@ def cmd_sample(args):
 # - accent-stripe and low-contrast: the first sample found fps (a `--*-border-left-width` custom property;
 #   `color` on social icons and on <hr>); the rules were fixed and a fresh sample (seed 2) judged.
 # - placeholder-name and placeholder-phone: every hit in the corpus judged, too few for a tier.
+# - eyebrow: one fp, a `cva` badge string in a script bundle rather than an element.
+# - glued-arrow: the first sample found arrows drawing a flow ("→ observation →"); the rule was fixed
+#   and a fresh sample (seed 2) judged.
 PRECISION = {
     "purple-gradient": (7, 8), "gradient-text": (8, 8), "accent-stripe": (8, 8), "faux-chrome": (8, 8),
     "emoji-icon": (8, 8), "transition-all": (8, 8), "low-contrast": (8, 8), "dead-link": (8, 8),
     "missing-viewport": (8, 8), "placeholder-name": (4, 4), "placeholder-phone": (1, 1),
+    "eyebrow": (7, 8), "middot-meta": (8, 8), "glued-arrow": (8, 8),
 }
 S_PRECISION, M_PRECISION, MIN_JUDGED_S, MIN_JUDGED_M = 0.9, 0.7, 8, 8
 

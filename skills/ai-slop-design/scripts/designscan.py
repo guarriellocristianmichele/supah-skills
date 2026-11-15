@@ -629,7 +629,8 @@ def r_middot_meta(src):
 @rule("glyph", "W")
 def r_glued_arrow(src):
     for pos, t in src.texts:
-        if re.search(r"(?:→|↗|&rarr;)$", t) and len(t) > 1:
+        # a label that ends in an arrow; text that also starts with one draws a flow
+        if re.search(r"(?:→|↗|&rarr;)$", t) and len(t) > 1 and not re.match(r"(?:→|↗|&rarr;)", t):
             yield pos, t
 
 

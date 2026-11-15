@@ -217,6 +217,22 @@ class Aggregate(unittest.TestCase):
         self.assertIn("dropped 2 out-of-order answers (b05, b07)", out.stdout)
 
 
+class Options(unittest.TestCase):
+    def test_only_aggregate_takes_other_weights(self):
+        r1 = os.path.join(NORMAL, "rounds", "r1")
+        for args in (("diff", r1, r1), ("revenue", r1, r1), ("page", r1), ("compare", r1, r1),
+                     ("competitor", r1, r1), ("ground", r1)):
+            self.assertEqual(run(*args, "--weights", "1,0.5,0,0,0").returncode, 2, args)
+
+    def test_options_no_mode_uses_are_gone(self):
+        r1 = os.path.join(NORMAL, "rounds", "r1")
+        for args in (("page", r1, "--data", "x.json"), ("quotes", r1, "--holdout", "1"),
+                     ("objections", r1, "--top", "1")):
+            out = run(*args)
+            self.assertEqual(out.returncode, 2, args)
+            self.assertIn("unrecognized arguments", out.stderr)
+
+
 class Deal(unittest.TestCase):
     OPTIONS = "offer,Toggl,Harvest,nothing"
 

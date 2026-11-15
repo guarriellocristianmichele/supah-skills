@@ -7,17 +7,17 @@ Usage:
   panel.py [--json] reactions ROUND_DIR [--seed N] --out FILE
   panel.py [--json] aggregate ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
   panel.py [--json] checks ROUND_DIR [--buyers FILE] [--out FILE]
-  panel.py [--json] diff ROUND_A ROUND_B [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
+  panel.py [--json] diff ROUND_A ROUND_B [--buyers FILE] [--out FILE]
   panel.py [--json] prices ROUND_DIR [--buyers FILE]
-  panel.py [--json] revenue ROUND_DIR ROUND_DIR... [--buyers FILE] [--weights W5,W4,W3,W2,W1]
-  panel.py [--json] page ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--data FILE] [--out FILE]
-  panel.py [--json] quotes ROUND_DIR [--buyers FILE] [--type SEGMENT] [--holdout N] [--seed N]
-                   [--holdout-out FILE] [--out FILE]
-  panel.py [--json] objections ROUND_DIR [--buyers FILE] [--top N]
+  panel.py [--json] revenue ROUND_DIR ROUND_DIR... [--buyers FILE]
+  panel.py [--json] page ROUND_DIR [--buyers FILE] [--out FILE]
+  panel.py [--json] quotes ROUND_DIR [--buyers FILE] [--type SEGMENT] [--seed N] [--holdout-out FILE]
+                   [--out FILE]
+  panel.py [--json] objections ROUND_DIR [--buyers FILE]
   panel.py [--json] split --buyers FILE --options ID,ID,... [--batch-size N] [--seed N] --out-a FILE --out-b FILE
-  panel.py [--json] compare ROUND_A ROUND_B [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
-  panel.py [--json] competitor ROUND_A ROUND_B [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
-  panel.py [--json] ground FILE [--panel DIR] [--weights W5,W4,W3,W2,W1]
+  panel.py [--json] compare ROUND_A ROUND_B [--buyers FILE] [--out FILE]
+  panel.py [--json] competitor ROUND_A ROUND_B [--buyers FILE] [--out FILE]
+  panel.py [--json] ground FILE [--panel DIR]
 
 validate   checks records against the schemas in RECORDS.md; the kind comes from the file name
            (buyers.jsonl, answers.jsonl or answers/*.jsonl, scores.jsonl, brief.json, plan.json, round.json,
@@ -41,14 +41,14 @@ revenue    compares price rounds of one panel that differ only in price: raw and
            price, revenue as price times discounted buyers, revenue relative to the best, and the price that
            earns most (on a tie, the lower one), next to the one raw buyers alone would pick. Every price counts
            the same buyers: one missing an answer or a score in any round is left out of all, and listed.
-page       writes the page data for a round (default ROUND_DIR/page.json) and a self-contained HTML page
+page       writes the page data for a round (ROUND_DIR/page.json) and a self-contained HTML page
            from it (default ROUND_DIR/page.html): the simulated-panel line, the summary, any checks found in
            ROUND_DIR/summary.json or ROUND_DIR/checks.json, the price curves as inline SVG and the buyer
            table with filters.
 quotes     for the pitch: one buyer type's quotes and reactions with buyer ids (the type named, or the most
-           likely to buy), and the buyers held out to try the pitch on: half the type, dealt so both halves
+           likely to buy), and the buyers held out to try the pitch on: half the type (rounded down), dealt so both halves
            hold buyers and passers, with their first-round decisions; their own words are never printed.
-objections the round's top pass reasons for the real-test kit, each with the buyers who gave it, their words,
+objections the round's top three pass reasons for the real-test kit, each with the buyers who gave it, their words,
            current solution and last spend, plus the likely buyer type and the predicted BUY share.
 split      for compare: two halves of the panel balanced by segment (a segment's odd buyer to A, then B,
            in turn), each half's cards dealt as `deal` does, one cards file per variant.
@@ -377,13 +377,12 @@ def two_rounds(args, why):
 
 
 @command("diff", "compare two rounds of the same buyers, buyer by buyer", show_diff, [
-    (("before",), {"metavar": "ROUND_A"}), (("after",), {"metavar": "ROUND_B"}), BUYERS_BOTH, WEIGHTS_OPTION,
+    (("before",), {"metavar": "ROUND_A"}), (("after",), {"metavar": "ROUND_B"}), BUYERS_BOTH,
     OUT_JSON,
 ])
 def cmd_diff(args):
-    weights = parse_weights(args.weights)
     round_a, round_b = two_rounds(args, SAME_BUYERS)
-    result = diff.diff_rounds(round_a, round_b, weights)
+    result = diff.diff_rounds(round_a, round_b, WEIGHTS)
     if args.out:
         write_json(args.out, result)
     return result, 0
@@ -411,12 +410,11 @@ def show_competitor(result):
          show_competitor, [
              (("before",), {"metavar": "ROUND_A"}),
              (("after",), {"metavar": "ROUND_B", "help": "the round whose round.json names the competitor"}),
-             BUYERS_BOTH, WEIGHTS_OPTION, OUT_JSON,
+             BUYERS_BOTH, OUT_JSON,
          ])
 def cmd_competitor(args):
-    weights = parse_weights(args.weights)
     round_a, round_b = two_rounds(args, SAME_BUYERS)
-    result = diff.diff_rounds(round_a, round_b, weights)
+    result = diff.diff_rounds(round_a, round_b, WEIGHTS)
     result["competitor"] = diff.competitor_moves(round_a, round_b, result)
     if args.out:
         write_json(args.out, result)
@@ -463,10 +461,9 @@ def show_revenue(result):
 
 
 @command("revenue", "compare price rounds of one panel: buyers and revenue at each price", show_revenue, [
-    (("round_dirs",), {"nargs": "+", "metavar": "ROUND_DIR"}), BUYERS, WEIGHTS_OPTION,
+    (("round_dirs",), {"nargs": "+", "metavar": "ROUND_DIR"}), BUYERS,
 ])
 def cmd_revenue(args):
-    weights = parse_weights(args.weights)
     if len(args.round_dirs) < 2:
         raise UsageError("revenue compares two or more price rounds of one panel")
     if args.buyers is None:
@@ -490,12 +487,12 @@ def cmd_revenue(args):
         raise UsageError("each price round needs its own price")
     panel = loaded[0].buyers
     keep = {bid for bid in panel if all(bid in rnd.answers and bid in rnd.scores for rnd in loaded)}
-    rounds = sorted((price_round(rnd, weights, keep) for rnd in loaded), key=lambda r: r["price"])
+    rounds = sorted((price_round(rnd, WEIGHTS, keep) for rnd in loaded), key=lambda r: r["price"])
     best, best_raw = earns_most(rounds, "revenue"), earns_most(rounds, "raw_revenue")
     for r in rounds:
         r["relative"] = tally.share(r["revenue"], best["revenue"])
     return {"rounds": rounds, "best": best, "best_raw": best_raw, "buyers": len(keep),
-            "left_out": [bid for bid in panel if bid not in keep], "weights": weights, "upper_bound": True}, 0
+            "left_out": [bid for bid in panel if bid not in keep], "weights": WEIGHTS, "upper_bound": True}, 0
 
 
 def show_prices(result):
@@ -529,14 +526,12 @@ def show_page(result):
 
 
 @command("page", "write the page data for a round and a self-contained HTML page from it", show_page, [
-    (("round_dir",), {"metavar": "ROUND_DIR"}), BUYERS, WEIGHTS_OPTION,
-    (("--data",), {"metavar": "FILE", "help": "page data (default ROUND_DIR/page.json)"}),
+    (("round_dir",), {"metavar": "ROUND_DIR"}), BUYERS,
     (("--out",), {"metavar": "FILE", "help": "HTML page (default ROUND_DIR/page.html)"}),
 ])
 def cmd_page(args):
-    weights = parse_weights(args.weights)
-    data = page.page_data(load_round(args.round_dir, args.buyers), weights)
-    data_path = args.data or os.path.join(args.round_dir, "page.json")
+    data = page.page_data(load_round(args.round_dir, args.buyers), WEIGHTS)
+    data_path = os.path.join(args.round_dir, "page.json")
     page_path = args.out or os.path.join(args.round_dir, "page.html")
     write_json(data_path, data)
     with open(page_path, "w", encoding="utf-8", newline="\n") as f:
@@ -579,8 +574,6 @@ def show_quotes(result):
          show_quotes, [
              (("round_dir",), {"metavar": "ROUND_DIR"}), BUYERS,
              (("--type",), {"metavar": "SEGMENT", "help": "the buyer type to pitch (default: the most likely to buy)"}),
-             (("--holdout",), {"type": int, "metavar": "N",
-                               "help": "buyers of the type kept out of the quotes, up to half (default: half)"}),
              SEED,
              (("--holdout-out",), {"metavar": "FILE", "help": "write the held-out buyers' records here (buyers.jsonl)"}),
              OUT_JSON,
@@ -594,11 +587,8 @@ def cmd_quotes(args):
         raise UsageError(f"--type {args.type!r} is not a buyer type of this round: {', '.join(names)}")
     chosen = args.type if args.type is not None else names[0]
     rows = [r for r in all_rows if r["segment"] == chosen]
-    holdout = len(rows) // 2 if args.holdout is None else args.holdout
-    if not 0 <= holdout <= len(rows) // 2:
-        raise UsageError(f"--holdout must be from 0 to {len(rows) // 2}, half the {len(rows)} {chosen} buyers")
     seed = fresh_seed(args.seed)
-    sources, held = split_type(rows, holdout, random.Random(seed))
+    sources, held = split_type(rows, len(rows) // 2, random.Random(seed))
     result = {
         "round": rnd.label, "type": chosen, "picked": "most likely" if args.type is None else "named",
         "seed": seed, "types": ranked,
@@ -632,16 +622,13 @@ def show_objections(result):
 @command("objections", "the round's top pass reasons, with each buyer's words, solution and last spend",
          show_objections, [
              (("round_dir",), {"metavar": "ROUND_DIR"}), BUYERS,
-             (("--top",), {"type": int, "default": 3, "metavar": "N", "help": "how many reasons (3)"}),
          ])
 def cmd_objections(args):
-    if args.top < 1:
-        raise UsageError("--top must be 1 or more")
     rnd = load_round(args.round_dir, args.buyers)
     result = tally.summary(rnd, WEIGHTS)
     passed = [r for r in result["rows"] if r["decision"] == "PASS"]
     objections = []
-    for top in tally.reasons(passed, args.top):
+    for top in tally.reasons(passed, 3):
         objections.append(dict(top, buyers=[
             {"buyer_id": r["buyer_id"], "segment": r["segment"], "quote": r["quote"],
              "current_solution": rnd.buyers[r["buyer_id"]]["current_solution"],
@@ -724,14 +711,13 @@ def show_compare(result):
 
 
 @command("compare", "compare two variants each shown to one half of the panel", show_compare, [
-    (("before",), {"metavar": "ROUND_A"}), (("after",), {"metavar": "ROUND_B"}), BUYERS_BOTH, WEIGHTS_OPTION,
+    (("before",), {"metavar": "ROUND_A"}), (("after",), {"metavar": "ROUND_B"}), BUYERS_BOTH,
     OUT_JSON,
 ])
 def cmd_compare(args):
-    weights = parse_weights(args.weights)
     round_a, round_b = two_rounds(args, "the two rounds belong to different panels; split one panel's buyers "
                                         "between them")
-    result = diff.compare_halves(round_a, round_b, weights)
+    result = diff.compare_halves(round_a, round_b, WEIGHTS)
     result["a"]["missing"], result["b"]["missing"] = dealt_without_row(round_a), dealt_without_row(round_b)
     if args.out:
         write_json(args.out, result)
@@ -751,20 +737,20 @@ def show_ground(result):
 @command("ground", "compare real results with the round they test, and store the ratio", show_ground, [
     (("file",), {"metavar": "FILE", "help": "real results, PANEL/real/<label>.json"}),
     (("--panel",), {"metavar": "DIR", "help": "panel folder (default FILE/../..)"}),
-    WEIGHTS_OPTION,
 ])
 def cmd_ground(args):
-    return ground.ground(args.file, args.panel, parse_weights(args.weights)), 0
+    return ground.ground(args.file, args.panel, WEIGHTS), 0
 
 
 # ---------------------------------------------------------------- main
 
 def parser():
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
+                                allow_abbrev=False)
     p.add_argument("--json", action="store_true", help="print JSON instead of a short table")
     sub = p.add_subparsers(dest="cmd", required=True)
     for name, (_, summary, _, arguments) in COMMANDS.items():
-        cp = sub.add_parser(name, help=summary)
+        cp = sub.add_parser(name, help=summary, allow_abbrev=False)
         for flags, options in arguments:
             cp.add_argument(*flags, **options)
     return p

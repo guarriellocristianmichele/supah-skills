@@ -94,10 +94,6 @@ class Objections(unittest.TestCase):
         self.assertEqual(result["predicted"], {"buyers": 7, "buy": 3, "raw": 0.4286, "discounted": 0.1571})
         self.assertEqual((result["round"], result["price"], result["currency"]), ("r1", 9, "EUR"))
 
-    def test_top_limits_the_objections(self):
-        result, _ = run_json("objections", R1, "--top", "1")
-        self.assertEqual([o["reason"] for o in result["objections"]], ["already-paid"])
-
     def test_text_output_traces_every_quote_to_a_buyer(self):
         out = run("objections", R1)
         self.assertEqual(out.returncode, 0)

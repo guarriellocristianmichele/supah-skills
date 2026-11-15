@@ -93,13 +93,6 @@ class Holdout(unittest.TestCase):
         self.assertEqual(first["holdout"], again["holdout"])
         self.assertEqual(first["seed"], 7)
 
-    def test_holdout_size_can_be_set_up_to_half_the_type(self):
-        result, code = tp.run_json("quotes", PITCH_R1, "--holdout", "1", "--seed", "1")
-        self.assertEqual(code, 0)
-        self.assertEqual(len(result["holdout"]), 1)
-        self.assertEqual(len(result["quotes"]), 3)
-        self.assertEqual(tp.run("quotes", PITCH_R1, "--holdout", "3").returncode, 2)
-
     def test_the_held_out_buyers_are_written_as_a_buyers_file_for_the_try_out(self):
         with tp.tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "buyers.jsonl")

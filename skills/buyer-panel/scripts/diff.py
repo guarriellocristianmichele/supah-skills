@@ -187,6 +187,4 @@ def compare_halves(round_a, round_b, weights):
     return {"a": a, "b": b, "scheme": weights["scheme"],
             "difference": {"raw": raw, "discounted": discounted},
             "noise": {"standard_error": se, "one_buyer": share(1, min(na, nb))},
-            "within_noise": abs(raw) <= 2 * se,
-            "higher": None if raw == 0 else (b["label"] if raw > 0 else a["label"]),
             "segments": segments, "balanced": all(abs(s["a"] - s["b"]) <= 1 for s in segments)}

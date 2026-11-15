@@ -125,9 +125,9 @@ class Compare(unittest.TestCase):
         self.assertEqual((diff["raw"], diff["discounted"]), (0.4167, 0.1458))
         # pooled 3 of 7: sqrt(3/7 * 4/7 * (1/4 + 1/3)) = sqrt(1/7); one buyer moves the smaller side by 1/3
         self.assertEqual((noise["standard_error"], noise["one_buyer"]), (0.378, 0.3333))
-        # 0.4167 is less than twice 0.378: no side wins on this panel
-        self.assertTrue(self.result["within_noise"])
-        self.assertEqual(self.result["higher"], "r2-B")
+        # noise is shown, not tested: no verdict on which side converts more
+        self.assertNotIn("within_noise", self.result)
+        self.assertNotIn("higher", self.result)
 
     def test_halves_balanced_by_segment(self):
         self.assertEqual(self.result["segments"], [{"segment": "solo", "a": 1, "b": 1},
@@ -142,8 +142,9 @@ class Compare(unittest.TestCase):
         self.assertIn("A r2-A: BUY 1 of 4, raw 25.0%, discounted 18.8%", out.stdout)
         self.assertIn("B r2-B: BUY 2 of 3, raw 66.7%, discounted 33.3%", out.stdout)
         self.assertIn("B minus A: raw +41.7 points, discounted +14.6 points. Noise: one standard error is 37.8 points, "
-                      "and one buyer moves the smaller side by 33.3 points. The difference is within twice the noise: "
-                      "read it as no difference.", out.stdout)
+                      "and one buyer moves the smaller side by 33.3 points. Noise is shown, not tested: a difference "
+                      "near the noise or the one-buyer swing may be no difference.", out.stdout)
+        self.assertNotIn("twice", out.stdout)
         self.assertIn("Segments (A/B): solo 1/1, studio 1/1, agency 1/1, school 1/0", out.stdout)
         self.assertIn("Top reasons to pass: A no-need 2, already-paid 1; B already-paid 1", out.stdout)
 

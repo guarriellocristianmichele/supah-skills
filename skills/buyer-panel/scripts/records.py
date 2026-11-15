@@ -186,6 +186,8 @@ def round_errors(rec):
         errors.append(("interviews", f"must be one of {', '.join(INTERVIEWS)}"))
     if not is_count(rec.get("batch_size")):
         errors.append(("batch_size", "must be a whole number of buyers per context (1 when inline)"))
+    elif rec.get("interviews") == "inline" and rec["batch_size"] != 1:
+        errors.append(("batch_size", "must be 1 when interviews are inline: one buyer at a time"))
     return errors + competitor_errors(rec)
 
 

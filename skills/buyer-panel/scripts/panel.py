@@ -53,8 +53,9 @@ objections the round's top pass reasons for the real-test kit, each with the buy
 split      for compare: two halves of the panel balanced by segment (a segment's odd buyer to A, then B,
            in turn), each half's cards dealt as `deal` does, one cards file per variant.
 compare    two variants, each shown to one half: BUY share raw and discounted on each side, B minus A, the
-           noise beside it (one standard error of the difference, and what one buyer moves), reasons and
-           choices per side, and the segments on each side. A buyer in both rounds is refused.
+           noise beside it (one standard error of the difference, and what one buyer moves), shown and never
+           tested, reasons and choices per side, and the segments on each side. A buyer in both rounds is
+           refused.
 competitor the round diff after ROUND_B added or repriced the competitor its round.json names, plus who
            switched to it, who left it, and who stayed on each option with the reasons that held them.
 ground     compares real results (PANEL/real/<label>.json: a smoke test, interviews or a pre-sale) with the
@@ -707,10 +708,8 @@ def show_compare(result):
             print(f"Missing in {key} {x['label']} (dealt a card, no scored answer): {id_list(x['missing'])}")
     print(f"B minus A: raw {signed_points(d['raw'])}, discounted {signed_points(d['discounted'])}. Noise: one "
           f"standard error is {n['standard_error'] * 100:.1f} points, and one buyer moves the smaller side by "
-          f"{n['one_buyer'] * 100:.1f} points. " + (
-              "The difference is within twice the noise: read it as no difference." if result["within_noise"] else
-              f"The difference is more than twice the noise: {result['higher']} converts more on this panel, "
-              "a hypothesis to test on people."))
+          f"{n['one_buyer'] * 100:.1f} points. Noise is shown, not tested: a difference near the noise or the "
+          "one-buyer swing may be no difference.")
     print(f"Weights {result['scheme']}")
     print("Segments (A/B): " + ", ".join(f"{s['segment']} {s['a']}/{s['b']}" for s in result["segments"])
           + ("" if result["balanced"] else ". Not balanced: a segment differs by more than one buyer"))

@@ -113,6 +113,17 @@ class Validate(unittest.TestCase):
         self.assertEqual(code, 3)
         self.assertEqual({e["field"] for e in result[0]["errors"]}, {"options", "interviews", "batch_size"})
 
+    def test_inline_interviews_have_a_batch_of_one(self):
+        with open(os.path.join(NORMAL, "rounds", "r1", "round.json"), encoding="utf-8") as f:
+            good = json.load(f)
+        with tempfile.TemporaryDirectory() as d:
+            inline_four = run_json("validate", write(d, "a/round.json", json.dumps(dict(good, interviews="inline"))))
+            inline_one = run_json("validate", write(d, "b/round.json",
+                                                    json.dumps(dict(good, interviews="inline", batch_size=1))))
+        self.assertEqual(inline_four[1], 3)
+        self.assertEqual([e["field"] for e in inline_four[0][0]["errors"]], ["batch_size"])
+        self.assertEqual(inline_one, ([dict(inline_one[0][0], errors=[])], 0))
+
     def test_buyers_are_checked_against_the_plan_beside_them(self):
         good = lines(os.path.join(NORMAL, "buyers.jsonl"))
         stray = dict(good[0], id="b08", segment="enterprise")

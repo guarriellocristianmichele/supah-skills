@@ -163,9 +163,7 @@ Written by `panel.py compare ROUND_A ROUND_B --out FILE`, never by hand. The two
 | `a`, `b` | each half: label, variant, offer, price, currency, `buyers`, `buy`, `raw`, `discounted`, `choices` (each `{option, count}`), `pass_reasons`, `buy_reasons`, `price_range`, `segments` (buyers per segment), `missing` (dealt a card in its `cards.jsonl` with no scored answer; null without that file) |
 | `scheme` | the intent weights' name |
 | `difference` | B minus A: `raw` and `discounted`, from the counts |
-| `noise` | `standard_error`: of the raw difference, from the two halves pooled; `one_buyer`: what one buyer moves the smaller half |
-| `within_noise` | true when the raw difference is at most twice the standard error: read it as no difference |
-| `higher` | the label with the higher raw share, or null on a tie; never a winner by itself |
+| `noise` | `standard_error`: of the raw difference, from the two halves pooled; `one_buyer`: what one buyer moves the smaller half. Shown beside the difference, never tested against it |
 | `segments`, `balanced` | buyers per segment in each half; `balanced` is false when a segment differs by more than one buyer |
 
 ## Real results

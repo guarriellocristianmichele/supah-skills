@@ -6,20 +6,25 @@ Usage:
   panel.py [--json] deal --buyers FILE --options ID,ID,... [--batch-size N] [--seed N] --out FILE
   panel.py [--json] reactions ROUND_DIR [--seed N] --out FILE
   panel.py [--json] aggregate ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
+  panel.py [--json] objections ROUND_DIR [--buyers FILE] [--top N]
 
 validate   checks records against the schemas in RECORDS.md; the kind comes from the file name
-           (buyers.jsonl, answers.jsonl or answers/*.jsonl, scores.jsonl, brief.json, plan.json, round.json).
+           (buyers.jsonl, answers.jsonl or answers/*.jsonl, scores.jsonl, brief.json, plan.json, round.json,
+           test.json).
 deal       gives every buyer the options in its own random order and puts buyers in batches mixed across
            segments, for the interviews; writes one card line per buyer to --out.
 reactions  writes what the judge may see: buyer id and free reaction only, in shuffled order.
 aggregate  turns one round (round.json, answers, scores) into numbers: raw and discounted BUY share with the
            weighting scheme named, reasons with counts, buyer types, and the Van Westendorp price range with
            out-of-order answers dropped and counted. Buyers default to ROUND_DIR/../../buyers.jsonl.
+objections the round's top pass reasons for the real-test kit, each with the buyers who gave it, their words,
+           current solution and last spend, plus the likely buyer type and the predicted BUY share.
 
 Exit codes: 0 done; 1 a check failed (reserved for checks); 2 bad usage; 3 invalid records (nothing is
 aggregated from them). Stdlib only.
 """
 import argparse
+import datetime
 import json
 import os
 import random
@@ -182,6 +187,71 @@ def round_errors(rec):
 
 EXTRA = {"answers": answer_errors, "scores": score_errors, "brief": brief_errors, "plan": plan_errors,
          "round": round_errors}
+
+
+# --- test ---
+# test.json: the real test's go and stop thresholds, written before the test runs (TEST.md, RECORDS.md).
+
+OBJECTS["test"] = {"round": TEXT, "written": TEXT, "ends": TEXT, "offer": TEXT, "price": NUMBER, "currency": TEXT}
+# each metric, and what its share is taken of
+METRICS = {"signups": "visits", "preorders": "visits", "commitments": "interviews"}
+
+
+def is_share(v):
+    return is_number(v) and 0 <= v <= 1
+
+
+def threshold_errors(thresholds):
+    if not (isinstance(thresholds, dict) and thresholds):
+        return [("thresholds", f"must set go and stop for one or more of {', '.join(METRICS)}")]
+    errors = []
+    for metric, t in thresholds.items():
+        where = f"thresholds.{metric}"
+        if metric not in METRICS:
+            errors.append((where, f"unknown metric; use {', '.join(METRICS)}"))
+            continue
+        if not isinstance(t, dict):
+            errors.append((where, "must be {go, stop}"))
+            continue
+        bad = [k for k in ("go", "stop") if not is_share(t.get(k))]
+        errors += [(f"{where}.{k}", "missing" if k not in t else "must be a share from 0 to 1") for k in bad]
+        if not bad and t["stop"] >= t["go"]:
+            errors.append((where, f"stop {t['stop']:g} must be below go {t['go']:g}"))
+    return errors
+
+
+def iso_date(v):
+    try:
+        return datetime.date.fromisoformat(v) if isinstance(v, str) and len(v) == 10 else None
+    except ValueError:
+        return None
+
+
+def test_errors(rec):
+    errors = threshold_errors(rec.get("thresholds"))
+    thresholds = rec.get("thresholds") if isinstance(rec.get("thresholds"), dict) else {}
+    sample = rec.get("sample")
+    if not isinstance(sample, dict):
+        errors.append(("sample", "must give the visits and interviews the test plans"))
+        sample = {}
+    for base in sorted({METRICS[m] for m in thresholds if m in METRICS}):
+        if not is_count(sample.get(base)):
+            errors.append((f"sample.{base}", "missing" if base not in sample else "must be a whole number above 0"))
+    dates = {}
+    for field in ("written", "ends"):
+        if isinstance(rec.get(field), str) and rec[field].strip():
+            dates[field] = iso_date(rec[field])
+            if dates[field] is None:
+                errors.append((field, "must be a date as YYYY-MM-DD"))
+    if dates.get("written") and dates.get("ends") and dates["ends"] < dates["written"]:
+        errors.append(("ends", "the test cannot end before its thresholds were written"))
+    objections = rec.get("objections")
+    if not (isinstance(objections, list) and objections and all(is_tag(o) for o in objections)):
+        errors.append(("objections", "must list the reason tags the test probes, such as already-paid"))
+    return errors
+
+
+EXTRA["test"] = test_errors
 
 
 def record_errors(kind, rec):
@@ -600,6 +670,48 @@ def cmd_aggregate(args):
             json.dump(result, f, ensure_ascii=False, indent=1)
             f.write("\n")
     return result, 0
+
+
+# --- test ---
+
+def show_objections(result):
+    if "errors" in result:
+        return show_errors(result)
+    p = result["predicted"]
+    print(f"Round {result['round']} at {result['price']:g} {result['currency']}: BUY {p['buy']} of {p['buyers']}, "
+          f"raw {pct(p['raw'])}, discounted {pct(p['discounted'])}; likely buyer type: {result['likely_type']}")
+    for o in result["objections"]:
+        print(f"\n{o['reason']} ({o['count']})")
+        for b in o["buyers"]:
+            print(f"- {b['buyer_id']} ({b['segment']}; uses {b['current_solution']}, last spent "
+                  f"{b['last_spend']:g} {result['currency']}): \"{b['quote']}\"")
+
+
+@command("objections", "the round's top pass reasons, with each buyer's words, solution and last spend", show_objections, [
+    (("round_dir",), {"metavar": "ROUND_DIR"}),
+    (("--buyers",), {"metavar": "FILE", "help": "buyers file (default ROUND_DIR/../../buyers.jsonl)"}),
+    (("--top",), {"type": int, "default": 3, "metavar": "N", "help": "how many reasons (3)"}),
+])
+def cmd_objections(args):
+    if args.top < 1:
+        raise UsageError("--top must be 1 or more")
+    meta, buyers, answers, scores, errors = load_round(args.round_dir, args.buyers)
+    if errors:
+        return {"errors": errors}, 3
+    result = aggregate(meta, buyers, answers, scores, WEIGHTS)
+    passed = [r for r in result["rows"] if r["decision"] == "PASS"]
+    objections = []
+    for top in reasons(passed, args.top):
+        objections.append(dict(top, buyers=[
+            {"buyer_id": r["buyer_id"], "segment": r["segment"], "quote": r["quote"],
+             "current_solution": buyers[r["buyer_id"]]["current_solution"],
+             "last_spend": buyers[r["buyer_id"]]["last_spend"]}
+            for r in sorted(passed, key=lambda r: r["buyer_id"]) if r["reason"] == top["reason"]]))
+    s = result["buy_share"]
+    return {"round": meta["label"], "offer": meta["offer"], "price": meta["price"], "currency": meta["currency"],
+            "predicted": {k: s[k] for k in ("buyers", "buy", "raw", "discounted")},
+            "likely_type": result["buyer_types"][0]["segment"] if result["buyer_types"] else None,
+            "objections": objections}, 0
 
 
 # ---------------------------------------------------------------- main

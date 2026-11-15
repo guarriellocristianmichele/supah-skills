@@ -34,7 +34,9 @@ It is user-invoked, so it costs nothing in sessions where you don't call it.
 - The script turns the round into the raw BUY share next to a discounted one (the weighting scheme is named), the top five reasons with counts, the three buyer types most likely to buy, and the price range as an upper bound with out-of-order answers dropped and counted.
 - The report is a Markdown file with the full buyer table, a verdict, and the first real test for this week: five interviews, a smoke test or a pre-sale.
 
-The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks whether to commit it or keep it out of git. The modes that reuse the same buyers in later rounds (`fix`, `price`, `pitch`, `compare`, `competitor`, `test`, `ground`) are listed in the skill and arrive in later versions.
+The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks whether to commit it or keep it out of git. The modes that reuse the same buyers in later rounds (`fix`, `price`, `pitch`, `compare`, `competitor`, `ground`) are listed in the skill and arrive in later versions.
+
+`/buyer-panel test` turns the last round into the kit for the first test on people. It writes a Mom Test interview script from the top reasons buyers passed: questions about what people did last time and what they paid, nothing about your idea until the end, and a closing that asks for a commitment of time, an introduction or a pre-order. For a smoke test it writes a landing brief (the offer, the price, the one action to count) and hands it to `/ai-slop-design craft` when installed. Before anything goes live it writes the go and stop thresholds (sign-ups or pre-orders per visit, interviews that end in a commitment) to `test/test.json`, which the script validates and the kit never edits afterwards.
 
 ## What it will not claim
 
@@ -52,3 +54,4 @@ Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s 
 - Ogni acquirente vede l'idea come il prodotto di un'altra azienda, accanto ai concorrenti veri e a "non compro niente", in un ordine casuale registrato. Prima reagisce a parole, poi sceglie, dice a cosa rinuncerebbe per pagare e risponde alle quattro domande di prezzo di Van Westendorp.
 - Un giudice separato, che legge solo le reazioni, le colloca su cinque frasi di riferimento fisse. Lo script calcola la quota di acquisto grezza e quella scontata, i motivi principali con i conteggi, i tre tipi di acquirente più propensi e la fascia di prezzo come limite superiore.
 - Il report in Markdown chiude con un verdetto e il primo test reale della settimana. Il panel resta in `.buyer-panel/` nel progetto, e la skill ti chiede se metterlo nel commit.
+- `/buyer-panel test` prepara il primo test con persone vere: una traccia di intervista secondo il Mom Test, con domande su cosa hanno fatto l'ultima volta e quanto hanno speso e una richiesta di impegno alla fine; il brief di una landing di prova, passato a `/ai-slop-design craft` se installata; le soglie per andare avanti o fermarsi, scritte in `test/test.json` prima che il test parta.

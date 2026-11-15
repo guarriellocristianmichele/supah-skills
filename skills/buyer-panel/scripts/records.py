@@ -381,6 +381,8 @@ def validate_object(path, kind):
 
 def load(path, kind, what):
     """The data of one file that must be of `kind` and valid, or raise its errors."""
+    if not os.path.exists(path):
+        raise RecordErrors([problem(path, 0, None, "missing")])
     checked = validate_file(path)
     if checked["kind"] != kind or checked["errors"]:
         raise RecordErrors(checked["errors"] or [problem(path, 0, None, f"not {what}")])

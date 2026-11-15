@@ -18,6 +18,20 @@ Buyers are written once per panel and never edited after the first round, so rou
 - `last_spend`: what they last paid in the category, consistent with the budget and the current solution (0 is common and honest).
 - `objection`: one honest reason this buyer might not buy anything new, specific to their situation ("IT will not approve a new vendor"), never a generic "too expensive". No two buyers share an objection word for word.
 
+## The variety check
+
+`panel.py variety P` runs before any interview and exits 1 when a check fails; its last line then reads `Rewrite the buyers before any interview: <checks> failed.` Synthetic samples come out too alike (research note, "What LLM respondents get right and wrong"), and a panel that is alike before the card is shown cannot disagree after it. The research gives no cutoffs; these are this skill's judgement, and changing one is a reviewed change (ADR 0014).
+
+| check | fails when | why this threshold |
+|---|---|---|
+| `count` | the buyers are not as many as `plan.json`'s `size` | the size was chosen for reasons to repeat (RUN.md, size); a short panel was cut, a long one padded |
+| `shares` | a segment's share of the buyers misses the plan's by more than 0.05, or by more than one buyer when one buyer is more | rounding to whole buyers moves a share by up to one buyer; more than that means a segment was over- or under-written |
+| `budget_spread` | in a segment of three or more buyers, the budgets cover less than half of the segment's planned range | budgets bunched in the middle are the flattening Bisbee et al. measured; this file asks for the low end, the high end and between |
+| `names` | two buyers share a name, case and spacing aside | one name twice is one buyer written twice |
+| `objections` | two buyers share an objection word for word, case and spacing aside | each objection is specific to one buyer's situation (above) |
+
+Segments of one or two buyers are not measured for spread, and the check reads `n/a` when no segment has three.
+
 ## What not to write
 
 - Any hint of who is asking, that the idea is the user's, or that the panel is about this idea: buyers describe a market, not an audience for one product.

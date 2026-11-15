@@ -3,6 +3,7 @@
 
 Usage:
   panel.py [--json] validate FILE...
+  panel.py [--json] variety PANEL_DIR
   panel.py [--json] deal --buyers FILE --options ID,ID,... [--batch-size N] [--seed N] --out FILE
   panel.py [--json] reactions ROUND_DIR [--seed N] --out FILE
   panel.py [--json] aggregate ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
@@ -22,6 +23,9 @@ Usage:
 validate   checks records against the schemas in RECORDS.md; the kind comes from the file name
            (buyers.jsonl, answers.jsonl or answers/*.jsonl, scores.jsonl, brief.json, plan.json, round.json,
            test.json).
+variety    checks the panel's buyers before any interview: their count against the plan's size, each
+           segment's share against the plan's, budgets spread across each segment's range, and no name or
+           objection written twice (thresholds and reasons in BUYERS.md); exits 1 on a failure.
 deal       gives every buyer the options in its own random order and puts buyers in batches mixed across
            segments, for the interviews; writes one card line per buyer to --out.
 reactions  writes what the judge may see: buyer id and free reaction only, in shuffled order.
@@ -63,7 +67,7 @@ ground     compares real results (PANEL/real/<label>.json: a smoke test, intervi
            discounted BUY share of the round they tested, at the same price, and stores the ratio of real to
            predicted in PANEL/grounding.jsonl (one line per label; importing a label again replaces it).
 
-Exit codes: 0 done; 1 a check failed; 2 bad usage; 3 invalid records (nothing is aggregated or checked
+Exit codes: 0 done; 1 a check failed (checks, variety); 2 bad usage; 3 invalid records (nothing is aggregated or checked
 from them). This file is the command line and its Markdown; the modules beside it hold the records
 (records.py), the numbers (tally.py), the checks (checks.py), two rounds side by side (diff.py), the
 grounding (ground.py) and the page (page.py). Stdlib only.
@@ -302,8 +306,7 @@ def cmd_aggregate(args):
 
 # ---------------------------------------------------------------- checks
 
-def show_checks(result):
-    """Markdown for the report's Checks section."""
+def show_check_table(result):
     print("| check | what it measures | value | threshold | result |")
     print("|---|---|---|---|---|")
     for c in result["checks"]:
@@ -312,7 +315,32 @@ def show_checks(result):
     print()
     if result["verdict_line"]:
         print(result["verdict_line"])
+
+
+def show_checks(result):
+    """Markdown for the report's Checks section."""
+    show_check_table(result)
     print(result["segments"]["why"])
+
+
+def show_variety(result):
+    show_check_table(result)
+    for c in result["checks"]:
+        if c.get("buyers"):
+            print(f"{c['what'].capitalize()}: {id_list(c['buyers'])}")
+
+
+@command("variety", "check the panel's buyers for variety against the plan, before any interview", show_variety, [
+    (("panel",), {"metavar": "PANEL_DIR", "help": "the panel folder, holding buyers.jsonl and plan.json"}),
+])
+def cmd_variety(args):
+    buyers = load(os.path.join(args.panel, "buyers.jsonl"), "buyers", "a buyers.jsonl file")
+    plan = load(os.path.join(args.panel, "plan.json"), "plan", "a plan.json file")["data"]
+    outside = plan_fit_errors(buyers["file"], buyers["data"], buyers["lines"], plan)
+    if outside:
+        raise RecordErrors(outside)
+    result = checks.run_variety(buyers["data"], plan)
+    return result, 1 if result["failed"] else 0
 
 
 @command("checks", "flag a round that is too uniform, too agreeable or order-biased", show_checks, [

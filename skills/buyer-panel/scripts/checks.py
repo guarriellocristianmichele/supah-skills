@@ -1,8 +1,8 @@
-"""Checks that flag a round not to be trusted. Each threshold, its source and its reason: READING.md, "The checks".
-Stdlib only."""
+"""Checks that flag a round not to be trusted (READING.md, "The checks"), and buyers too alike to interview
+(BUYERS.md, "The variety check"): each threshold with its source and its reason. Stdlib only."""
 import re
 
-from records import OFFER
+from records import OFFER, normalise
 
 MIN_SPREAD = 0.8
 MAX_TOP_REASON = 0.6      # share of buyers giving the most common reason tag
@@ -114,3 +114,58 @@ def run_checks(rnd):
     failed = [c["name"] for c in found if not c["passed"]]
     verdict = f"Do not trust this round: {', '.join(LABELS[n] for n in failed)} failed." if failed else None
     return {"buyers": len(rows), "checks": found, "failed": failed, "verdict_line": verdict, "segments": SEGMENTS}
+
+
+# ---------------------------------------------------------------- buyer variety
+
+SHARE_TOLERANCE = 0.05    # a segment's share may miss the plan by this much, or by one buyer when that is more
+MIN_BUDGET_SPAN = 0.5     # a segment's budgets cover at least this part of its planned range
+MIN_SPAN_BUYERS = 3       # segments smaller than this are not measured for spread
+VARIETY_LABELS = {"count": "buyer count", "shares": "segment shares", "budget_spread": "budget spread",
+                  "names": "duplicate names", "objections": "duplicate objections"}
+
+
+def repeated(buyers, field):
+    """Ids of the buyers whose `field` another buyer repeats, case and spacing aside."""
+    seen = {}
+    for b in buyers:
+        seen.setdefault(normalise(b[field]), []).append(b["id"])
+    return sorted(i for ids in seen.values() if len(ids) > 1 for i in ids)
+
+
+def narrowest_span(buyers, plan):
+    """The smallest part of a segment's planned budget range its buyers cover; None when no segment is measured."""
+    spans = []
+    for seg in plan["segments"]:
+        budgets = [b["budget"] for b in buyers if b["segment"] == seg["name"]]
+        low, high = seg["budget"]
+        if len(budgets) >= MIN_SPAN_BUYERS and high > low:
+            spans.append((max(budgets) - min(budgets)) / (high - low))
+    return round(min(spans), 3) if spans else None
+
+
+def run_variety(buyers, plan):
+    """The buyers before any interview: the count and shares the plan set, budgets spread across each segment's
+    range, and no name or objection written twice."""
+    n, size = len(buyers), plan["size"]
+    tolerance = max(SHARE_TOLERANCE, 1 / size)
+    gap = max(abs(sum(b["segment"] == seg["name"] for b in buyers) / n - seg["share"])
+              for seg in plan["segments"]) if n else None
+    span = narrowest_span(buyers, plan)
+    names, objections = repeated(buyers, "name"), repeated(buyers, "objection")
+    spread_check = check("budget_spread", f"narrowest part of a segment's budget range its buyers cover "
+                                          f"(segments of {MIN_SPAN_BUYERS} or more buyers)",
+                         span, f">= {MIN_BUDGET_SPAN:g}", lambda v: v >= MIN_BUDGET_SPAN)
+    found = [
+        check("count", "buyers against the plan's size", n, f"= {size}", lambda v: v == size),
+        check("shares", "widest gap between a segment's share and the plan's", None if gap is None else round(gap, 3),
+              f"<= {round(tolerance, 3):g}", lambda v: v <= tolerance + 1e-9),
+        dict(spread_check, passed=span is None or spread_check["passed"]),     # no segment large enough: not measured
+        dict(check("names", "buyers sharing a name", len(names), "= 0", lambda v: v == 0), buyers=names),
+        dict(check("objections", "buyers sharing an objection word for word", len(objections), "= 0",
+                   lambda v: v == 0), buyers=objections),
+    ]
+    failed = [c["name"] for c in found if not c["passed"]]
+    verdict = (f"Rewrite the buyers before any interview: {', '.join(VARIETY_LABELS[x] for x in failed)} failed."
+               if failed else None)
+    return {"buyers": n, "checks": found, "failed": failed, "verdict_line": verdict}

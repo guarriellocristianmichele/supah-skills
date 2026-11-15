@@ -204,4 +204,4 @@ Written by `panel.py ground`, one line per real test, read by `aggregate`. Do no
 
 ## Exit codes
 
-`0` done; `1` a panel check failed (`checks`; READING.md); `2` bad arguments; `3` invalid records: the output lists file, line, field and problem, and nothing is computed from them.
+`0` done; `1` a check failed (`checks`, READING.md; `variety`, BUYERS.md); `2` bad arguments; `3` invalid records: the output lists file, line, field and problem, and nothing is computed from them.

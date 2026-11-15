@@ -48,7 +48,7 @@ A mode marked not yet available is not built in this version: say so, and offer 
 
 ## Panel ledger
 
-`.buyer-panel/<slug>/` at the project root, one folder per panel, `<slug>` from the idea in lowercase words joined by hyphens: `brief.json`, `research.md`, `plan.json`, `buyers.jsonl`, `history.md` and `rounds/<label>/` (`round.json`, `cards.jsonl`, `answers/`, `scores.jsonl`, `summary.json`, `checks.json`, `critique.md`, `report.md`). `RECORDS.md` holds every schema. On first use ask with options: **keep it out of git** (recommended; append `.buyer-panel/` to `.git/info/exclude`) or **commit it** (rounds are shared with the team; nothing to add). Skip the question when `git check-ignore -q .buyer-panel` already answers it, or the folder is tracked.
+`.buyer-panel/<slug>/` at the project root, one folder per panel, `<slug>` from the idea in lowercase words joined by hyphens: `brief.json`, `research.md`, `plan.json`, `buyers.jsonl`, `history.md` and `rounds/<label>/` (`round.json`, `cards.jsonl`, `answers/`, `scores.jsonl`, `summary.json`, `checks.json`, `critique.md`, `report.md`, `page.json`, `page.html`). `RECORDS.md` holds every schema. On first use ask with options: **keep it out of git** (recommended; append `.buyer-panel/` to `.git/info/exclude`) or **commit it** (rounds are shared with the team; nothing to add). Skip the question when `git check-ignore -q .buyer-panel` already answers it, or the folder is tracked.
 
 ## Companions
 
@@ -58,6 +58,7 @@ Each companion is optional; the steps say what to do without it.
 - **ai-slop-prose**: sweeps the report (RUN.md step 13) with purpose `panel report`. Without it, the report goes out unswept and says so in its method section.
 - **ai-slop-design**: the smoke-test landing page in `test` goes to its `craft` mode.
 - **A subagent tool** (Claude Code's Agent tool): the judge (RUN.md step 10) and the devil's advocate (step 12) each run in their own context. Without one, judge after every interview is written, reading only `judge-input.jsonl`, and write the critique reading only the files CRITIQUE.md lists; the method section says so.
+- **The Artifact tool**: publishes a round's page (RUN.md step 15) as a private page the user can share. Without it, the page stays a local HTML file that opens in any browser.
 - **A browser tool**: market research (competitors' pricing pages, category spend, reviews). Open it only after the user allows it on screen, once per session, asking with options:
   - **Playwright MCP** (recommended): an isolated browser with no sign-ins;
   - **Claude in Chrome**: the user's own Chrome, with their sign-ins; follow its skill (new tab, no dialogs);

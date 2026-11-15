@@ -1,6 +1,7 @@
 """Tests for skills/buyer-panel/scripts/panel.py checks. Run: python -m unittest discover -s tests"""
 import json
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -99,6 +100,23 @@ class OrderBiasedRound(unittest.TestCase):
     def test_a_normal_round_chose_the_first_option_never(self):
         result, _ = run_json("checks", NORMAL_R1)
         self.assertEqual(by_name(result)["order"]["value"], 0)
+
+
+class Page(unittest.TestCase):
+    def test_the_page_shows_the_checks_the_round_wrote(self):
+        with tempfile.TemporaryDirectory() as d:
+            panel = os.path.join(d, "panel")
+            shutil.copytree(CHECKS, panel)
+            uniform = os.path.join(panel, "rounds", "uniform")
+            run_json("checks", uniform, "--out", os.path.join(uniform, "checks.json"))
+            _, code = run_json("page", uniform)
+            with open(os.path.join(uniform, "page.json"), encoding="utf-8") as f:
+                data = json.load(f)
+            with open(os.path.join(uniform, "page.html"), encoding="utf-8") as f:
+                html = f.read()
+        self.assertEqual(code, 0)
+        self.assertEqual([c["name"] for c in data["checks"] if not c["passed"]], ["spread", "similarity"])
+        self.assertIn('id="checks"', html)
 
 
 class ReportOutput(unittest.TestCase):

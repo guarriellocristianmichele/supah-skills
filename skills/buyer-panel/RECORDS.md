@@ -21,6 +21,8 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
     checks.json       panel.py checks --out
     critique.md       the devil's advocate (CRITIQUE.md)
     report.md         the round's report
+    page.json         panel.py page: the page data
+    page.html         panel.py page: the private page, self-contained
 ```
 
 Round labels are short and unique within the panel: `r1` for the first round; later modes name theirs.

@@ -18,6 +18,7 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
     judge-input.jsonl panel.py reactions: what the judge may see
     scores.jsonl      the judge's output
     summary.json      panel.py aggregate --out
+    diff.json         panel.py diff --out: this round against an earlier one (fix and later modes)
     report.md         the round's report
 ```
 
@@ -70,6 +71,11 @@ With `plan.json` in the same folder (or in the same `validate` call), each buyer
 | `interviews` | `orchestrate` or `inline` | fresh contexts in batches, or one buyer at a time in one context |
 | `batch_size` | whole number | buyers per interview context; 1 inline |
 | `seed` | whole number | optional: `deal`'s seed, so the option orders can be dealt again |
+| `base` | text | optional: the round this one is compared with (`fix`) |
+| `fix` | tag | optional: the pass reason this round's change answers |
+| `change` | text | optional: the change to the base offer, in one line |
+| `screen` | `true` | optional: shown only to the buyers who gave the reason |
+| `screened_in` | text | optional: the screening round the change won |
 
 ## answers
 
@@ -96,6 +102,23 @@ Price answers out of order (each must be below the next) are kept in the file, t
 | `intent` | 1 to 5 | the anchor statement closest to the reaction (SCORING.md) |
 | `reason` | tag | the main reason, lowercase words joined by hyphens: `already-paid` |
 | `quote` | text | the words that carry the reason, copied from the reaction (case and spacing aside) |
+
+## diff.json
+
+Written by `panel.py diff ROUND_A ROUND_B --out FILE`, never by hand. Both rounds must use the same `buyers.jsonl`; only buyers answered and scored in both are compared.
+
+| field | what |
+|---|---|
+| `before`, `after` | each round's label, offer, price, currency, model, interviews, batch size |
+| `buyers` | `both` (how many compared), `only_before`, `only_after` (ids left out) |
+| `flips` | `pass_to_buy`, `buy_to_pass`: buyer ids |
+| `switches` | each `{buyer_id, from, to}`: every change of option, between competitors too |
+| `choices` | each `{option, before, after}`: buyers per option, ROUND_A's options first, then any new in ROUND_B |
+| `buy_share` | `before` and `after` (buyers, buy, raw, discounted), `raw_change`, `discounted_change`, `scheme` |
+| `intent` | mean `before`, `after` and `change`; `up` and `down` (ids), `same` (a count) |
+| `pass_reasons`, `buy_reasons` | `before` and `after` top five with counts; `new` and `gone` tags |
+| `price` | `card` (before, after, change, currency), each round's price range, `range_change`, `optimal_change`, `indifference_change` |
+| `rows` | per buyer: id, name, segment, `change` (`pass-to-buy`, `buy-to-pass`, `switch`, `same`) and `before`, `after` (choice, decision, intent, reason, quote, give-up, price answers) |
 
 ## Exit codes
 

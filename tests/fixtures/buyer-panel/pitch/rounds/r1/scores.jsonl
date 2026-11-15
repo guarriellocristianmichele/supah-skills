@@ -1,0 +1,6 @@
+{"buyer_id": "b01", "round": "r1", "intent": 5, "reason": "saves-time", "quote": "If it starts when they open the files, the Friday chase is over"}
+{"buyer_id": "b02", "round": "r1", "intent": 4, "reason": "better-quotes", "quote": "real numbers per client would make my quotes less of a guess"}
+{"buyer_id": "b03", "round": "r1", "intent": 2, "reason": "already-paid", "quote": "Six people already know Toggl and it is paid for the year"}
+{"buyer_id": "b04", "round": "r1", "intent": 1, "reason": "no-need", "quote": "hours never reach the invoice"}
+{"buyer_id": "b05", "round": "r1", "intent": 3, "reason": "too-expensive", "quote": "nine a month is a lot for one person"}
+{"buyer_id": "b06", "round": "r1", "intent": 2, "reason": "no-need", "quote": "I do not need a tracker at all"}

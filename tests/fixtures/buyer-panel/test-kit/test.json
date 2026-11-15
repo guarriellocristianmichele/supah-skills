@@ -1,0 +1,15 @@
+{
+ "round": "r1",
+ "written": "2026-11-15",
+ "ends": "2026-11-29",
+ "offer": "Tickr: a time tracker that starts itself when you open a client's files.",
+ "price": 9,
+ "currency": "EUR",
+ "objections": ["already-paid", "no-need"],
+ "sample": {"visits": 300, "interviews": 5},
+ "thresholds": {
+  "signups": {"go": 0.05, "stop": 0.02},
+  "preorders": {"go": 0.01, "stop": 0},
+  "commitments": {"go": 0.4, "stop": 0.2}
+ }
+}

@@ -1,0 +1,10 @@
+{
+ "idea": "A time tracker that starts itself when you open a client's files.",
+ "audience": "freelance and small-studio designers who bill by the hour",
+ "price": 9,
+ "currency": "EUR",
+ "alternatives": [
+  {"name": "Toggl", "price": 10, "note": "Starter plan, per user per month"},
+  {"name": "Harvest", "price": 11, "note": "Pro plan, per seat per month"}
+ ]
+}

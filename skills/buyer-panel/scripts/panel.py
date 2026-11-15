@@ -8,6 +8,8 @@ Usage:
   panel.py [--json] aggregate ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
   panel.py [--json] checks ROUND_DIR [--buyers FILE] [--out FILE]
   panel.py [--json] diff ROUND_A ROUND_B [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
+  panel.py [--json] prices ROUND_DIR [--buyers FILE]
+  panel.py [--json] revenue ROUND_DIR ROUND_DIR... [--buyers FILE] [--weights W5,W4,W3,W2,W1]
   panel.py [--json] page ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--data FILE] [--out FILE]
   panel.py [--json] quotes ROUND_DIR [--buyers FILE] [--type SEGMENT] [--holdout N] [--seed N]
                    [--holdout-out FILE] [--out FILE]
@@ -30,6 +32,12 @@ checks     flags a round that should not be trusted: intent spread too low, reac
 diff       compares two rounds of the same panel over the buyers answered and scored in both: PASS to BUY
            and back, every change of option (between competitors too), choices per option, BUY share,
            intent, new and gone top reasons, and the card price and price range moved.
+prices     proposes three prices from a round's price range: its low end, the indifference point (the
+           middle of the range when that point falls outside it) and its high end; none when there is no range.
+revenue    compares price rounds of one panel that differ only in price: raw and discounted buyers at each
+           price, revenue as price times discounted buyers, revenue relative to the best, and the price that
+           earns most (on a tie, the lower one), next to the one raw buyers alone would pick. Every price counts
+           the same buyers: one missing an answer or a score in any round is left out of all, and listed.
 page       writes the page data for a round (default ROUND_DIR/page.json) and a self-contained HTML page
            from it (default ROUND_DIR/page.html): the simulated-panel line, the summary, any checks found in
            ROUND_DIR/summary.json or ROUND_DIR/checks.json, the price curves as inline SVG and the buyer
@@ -1005,6 +1013,114 @@ def intent_shift(both, before, after):
             "up": [b for b in both if after[b]["intent"] > before[b]["intent"]],
             "down": [b for b in both if after[b]["intent"] < before[b]["intent"]],
             "same": sum(after[b]["intent"] == before[b]["intent"] for b in both)}
+
+
+# --- price ---
+
+def price_round(meta, buyers, answers, scores, weights, keep):
+    """One price round's numbers over the buyers in `keep`: raw and discounted buyers, and revenue."""
+    rows = [r for r in aggregate(meta, buyers, answers, scores, weights)["rows"] if r["buyer_id"] in keep]
+    s = buy_share(rows, weights)
+    likely = sum(weights["by_intent"][str(r["intent"])] for r in rows if r["choice"] == OFFER)
+    return {"label": meta["label"], "price": meta["price"], "currency": meta["currency"], "buyers": s["buyers"],
+            "buy": s["buy"], "raw": s["raw"], "discounted": s["discounted"],
+            "discounted_buyers": round(likely, 4), "revenue": round(meta["price"] * likely, 2),
+            "raw_revenue": round(meta["price"] * s["buy"], 2)}
+
+
+def show_revenue(result):
+    """Markdown for the price report: the pick, the caveats, then one row per price."""
+    if "errors" in result:
+        return show_errors(result)
+    best, raw, cur = result["best"], result["best_raw"], result["best"]["currency"]
+    print(f"Earns most: {best['price']:g} {cur} ({best['label']}), revenue {best['revenue']:g} {cur} "
+          f"(price times discounted buyers, of {result['buyers']} buyers; {result['weights']['scheme']})")
+    if raw["price"] != best["price"]:
+        print(f"The raw buyers alone would pick {raw['price']:g} {cur}; stated intent overstates purchase, "
+              f"so the pick rests on discounted buyers")
+    print("Prices are an upper bound: synthetic buyers state willingness to pay two to three times too high")
+    if result["left_out"]:
+        print(f"Left out of every price (missing an answer or a score in some round): {', '.join(result['left_out'])}")
+    print()
+    print("| price | round | BUY raw | BUY discounted | discounted buyers | revenue | relative revenue |")
+    print("|---|---|---|---|---|---|---|")
+    for r in result["rounds"]:
+        print(f"| {r['price']:g} {cur} | {r['label']} | {r['buy']} of {r['buyers']} ({pct(r['raw'])}) | "
+              f"{pct(r['discounted'])} | {r['discounted_buyers']:g} | {r['revenue']:g} {cur} | {pct(r['relative'])} |")
+
+
+@command("revenue", "compare price rounds of one panel: buyers and revenue at each price", show_revenue, [
+    (("round_dirs",), {"nargs": "+", "metavar": "ROUND_DIR"}),
+    (("--buyers",), {"metavar": "FILE", "help": "buyers file (default ROUND_DIR/../../buyers.jsonl)"}),
+    (("--weights",), {"metavar": "W5,W4,W3,W2,W1", "help": "intent weights, default 0.75,0.25,0.1,0.05,0.02"}),
+])
+def cmd_revenue(args):
+    weights = parse_weights(args.weights)
+    if len(args.round_dirs) < 2:
+        raise UsageError("revenue compares two or more price rounds of one panel")
+    panels = {os.path.realpath(os.path.join(d, os.pardir, os.pardir)) for d in args.round_dirs}
+    if args.buyers is None and len(panels) > 1:
+        raise UsageError("price rounds must belong to one panel (the same buyers)")
+    loaded, errors = [], []
+    for d in args.round_dirs:
+        meta, buyers, answers, scores, problems = load_round(d, args.buyers)
+        errors += problems
+        loaded.append((meta, buyers, answers, scores))
+    if errors:
+        return {"errors": errors}, 3
+    first = loaded[0][0]
+    for meta, *_ in loaded[1:]:
+        for field in ("offer", "currency", "options"):
+            if meta[field] != first[field]:
+                raise UsageError(f"price rounds differ only in price: {meta['label']} has another {field} "
+                                 f"than {first['label']}")
+    prices = [meta["price"] for meta, *_ in loaded]
+    if len(set(prices)) != len(prices):
+        raise UsageError("each price round needs its own price")
+    panel = loaded[0][1]
+    keep = {bid for bid in panel if all(bid in answers and bid in scores for _, _, answers, scores in loaded)}
+    rounds = [price_round(*one, weights, keep) for one in loaded]
+    rounds.sort(key=lambda r: r["price"])
+    best, best_raw = earns_most(rounds, "revenue"), earns_most(rounds, "raw_revenue")
+    for r in rounds:
+        r["relative"] = share(r["revenue"], best["revenue"])
+    return {"rounds": rounds, "best": best, "best_raw": best_raw, "buyers": len(keep),
+            "left_out": [bid for bid in panel if bid not in keep], "weights": weights, "upper_bound": True}, 0
+
+
+def show_prices(result):
+    if "errors" in result:
+        return show_errors(result)
+    if result["prices"] is None:
+        print(f"{result['from']} has no price range ({result['dropped']} out-of-order answers dropped): "
+              f"ask for three prices")
+    else:
+        print(f"From {result['from']}'s price range (an upper bound): "
+              + " / ".join(f"{p:g}" for p in result["prices"]) + f" {result['currency']}")
+
+
+@command("prices", "propose three prices (low, mid, high) from a round's price range", show_prices, [
+    (("round_dir",), {"metavar": "ROUND_DIR"}),
+    (("--buyers",), {"metavar": "FILE", "help": "buyers file (default ROUND_DIR/../../buyers.jsonl)"}),
+])
+def cmd_prices(args):
+    meta, buyers, answers, scores, errors = load_round(args.round_dir, args.buyers)
+    if errors:
+        return {"errors": errors}, 3
+    p = aggregate(meta, buyers, answers, scores, WEIGHTS)["price"]
+    out = {"from": meta["label"], "currency": meta["currency"], "prices": None, "dropped": len(p["dropped"]),
+           "upper_bound": True}
+    if p["range"]:
+        low, high = p["range"]
+        inside = p["indifference"] is not None and low < p["indifference"] < high
+        out["prices"] = [low, p["indifference"] if inside else round((low + high) / 2, 2), high]
+    return out, 0
+
+
+def earns_most(rounds, key):
+    """The round with the highest `key`; on a tie the lower price, which reaches more buyers for the same money."""
+    top = max(rounds, key=lambda r: (r[key], -r["price"]))
+    return {"label": top["label"], "price": top["price"], "currency": top["currency"], "revenue": top[key]}
 
 
 # --- page ---

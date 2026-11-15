@@ -5,10 +5,10 @@ import shutil
 import tempfile
 import unittest
 
-from test_panel import FIX, NORMAL, copy_round, jsonl, lines, run, run_json, write
+from test_panel import FIXTURES, NORMAL, copy_round, jsonl, lines, run, run_json, write
 
 NORMAL_R1 = os.path.join(NORMAL, "rounds", "r1")
-CHECKS = os.path.join(FIX, "checks")
+CHECKS = os.path.join(FIXTURES, "checks")
 
 
 def by_name(result):

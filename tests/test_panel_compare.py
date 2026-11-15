@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unittest
 
-from test_panel import FIX, NORMAL, jsonl, lines, run, run_json, write
+from test_panel import FIXTURES, NORMAL, jsonl, lines, run, run_json, write
 
 OPTIONS = "offer,Toggl,Harvest,nothing"
 
@@ -85,7 +85,7 @@ def two_halves(d):
     the offer positioned for studios that quote by project); returns the two round folders."""
     panel = os.path.join(d, "panel")
     shutil.copytree(NORMAL, panel)
-    shutil.copytree(os.path.join(FIX, "compare"), panel, dirs_exist_ok=True)
+    shutil.copytree(os.path.join(FIXTURES, "compare"), panel, dirs_exist_ok=True)
     return os.path.join(panel, "rounds", "r2-A"), os.path.join(panel, "rounds", "r2-B")
 
 
@@ -197,7 +197,7 @@ def with_competitor(d):
     """The normal panel with the competitor fixture's r2: the same seven buyers, Clockify added at 4 EUR."""
     panel = os.path.join(d, "panel")
     shutil.copytree(NORMAL, panel)
-    shutil.copytree(os.path.join(FIX, "competitor"), panel, dirs_exist_ok=True)
+    shutil.copytree(os.path.join(FIXTURES, "competitor"), panel, dirs_exist_ok=True)
     return os.path.join(panel, "rounds", "r1"), os.path.join(panel, "rounds", "r2")
 
 

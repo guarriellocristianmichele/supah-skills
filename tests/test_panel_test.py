@@ -4,9 +4,9 @@ import os
 import tempfile
 import unittest
 
-from test_panel import FIX, NORMAL, copy_round, run, run_json, write
+from test_panel import FIXTURES, NORMAL, copy_round, run, run_json, write
 
-KIT = os.path.join(FIX, "test-kit", "test.json")
+KIT = os.path.join(FIXTURES, "test-kit", "test.json")
 
 
 def kit(**changes):

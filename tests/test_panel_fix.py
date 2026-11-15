@@ -5,16 +5,16 @@ import shutil
 import tempfile
 import unittest
 
-from test_panel import FIX, NORMAL, jsonl, lines, run, run_json, write
+from test_panel import FIXTURES, NORMAL, jsonl, lines, run, run_json, write
 
-FIX_R2 = os.path.join(FIX, "fix")
+FIX_MODE = os.path.join(FIXTURES, "fix")
 
 
 def two_rounds(d):
     """The normal panel with round r2 of the fix fixture beside r1; returns (r1, r2) round folders."""
     panel = os.path.join(d, "panel")
     shutil.copytree(NORMAL, panel)
-    shutil.copytree(FIX_R2, panel, dirs_exist_ok=True)
+    shutil.copytree(FIX_MODE, panel, dirs_exist_ok=True)
     return os.path.join(panel, "rounds", "r1"), os.path.join(panel, "rounds", "r2")
 
 

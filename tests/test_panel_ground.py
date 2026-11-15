@@ -5,9 +5,9 @@ import shutil
 import tempfile
 import unittest
 
-from test_panel import FIX, NORMAL, jsonl, lines, run, run_json, write
+from test_panel import FIXTURES, NORMAL, jsonl, lines, run, run_json, write
 
-GROUND = os.path.join(FIX, "ground")
+GROUND = os.path.join(FIXTURES, "ground")
 SMOKE = os.path.join(GROUND, "real", "smoke-1.json")
 
 

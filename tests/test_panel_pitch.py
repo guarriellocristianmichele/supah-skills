@@ -53,7 +53,7 @@ class NamedType(unittest.TestCase):
         self.assertIn("solo", out.stderr)
 
 
-PITCH_R1 = os.path.join(tp.FIX, "pitch", "rounds", "r1")
+PITCH_R1 = os.path.join(tp.FIXTURES, "pitch", "rounds", "r1")
 STUDIO_BUY, STUDIO_PASS = {"b01", "b02"}, {"b03", "b04"}
 
 

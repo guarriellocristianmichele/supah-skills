@@ -7,9 +7,9 @@ import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from test_panel import FIX, NORMAL, jsonl, lines, run, run_json, write  # noqa: E402
+from test_panel import FIXTURES, NORMAL, jsonl, lines, run, run_json, write  # noqa: E402
 
-PRICE = os.path.join(FIX, "price")
+PRICE = os.path.join(FIXTURES, "price")
 ROUNDS = [os.path.join(PRICE, "rounds", label) for label in ("p1-9", "p1-14", "p1-24")]
 
 

@@ -9,8 +9,8 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT = os.path.join(ROOT, "skills", "buyer-panel", "scripts", "panel.py")
-FIX = os.path.join(ROOT, "tests", "fixtures", "buyer-panel")
-NORMAL = os.path.join(FIX, "normal")
+FIXTURES = os.path.join(ROOT, "tests", "fixtures", "buyer-panel")
+NORMAL = os.path.join(FIXTURES, "normal")
 
 
 def run(*args):

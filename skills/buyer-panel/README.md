@@ -22,6 +22,7 @@ Interviews run through [orchestrate](../orchestrate/README.md) when it is instal
 ```text
 /buyer-panel a time tracker that starts itself when you open a client's files
 /buyer-panel
+/buyer-panel ground
 ```
 
 It is user-invoked, so it costs nothing in sessions where you don't call it.
@@ -34,7 +35,9 @@ It is user-invoked, so it costs nothing in sessions where you don't call it.
 - The script turns the round into the raw BUY share next to a discounted one (the weighting scheme is named), the top five reasons with counts, the three buyer types most likely to buy, and the price range as an upper bound with out-of-order answers dropped and counted.
 - The report is a Markdown file with the full buyer table, a verdict, and the first real test for this week: five interviews, a smoke test or a pre-sale.
 
-The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks whether to commit it or keep it out of git. The modes that reuse the same buyers in later rounds (`fix`, `price`, `pitch`, `compare`, `competitor`, `test`, `ground`) are listed in the skill and arrive in later versions.
+The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks whether to commit it or keep it out of git. The modes that reuse the same buyers in later rounds (`fix`, `price`, `pitch`, `compare`, `competitor`, `test`) are listed in the skill and arrive in later versions.
+
+`/buyer-panel ground` takes what real people did after a panel: a smoke test's visits and conversions, interviews that ended with a commitment, or a pre-sale. The script checks the counts, compares them with the round that showed the same offer at the same price, and stores the ratio in the panel. From then on every round's summary shows a corrected figure under the raw and discounted shares, naming the real test it came from and its counts.
 
 ## What it will not claim
 
@@ -52,3 +55,4 @@ Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s 
 - Ogni acquirente vede l'idea come il prodotto di un'altra azienda, accanto ai concorrenti veri e a "non compro niente", in un ordine casuale registrato. Prima reagisce a parole, poi sceglie, dice a cosa rinuncerebbe per pagare e risponde alle quattro domande di prezzo di Van Westendorp.
 - Un giudice separato, che legge solo le reazioni, le colloca su cinque frasi di riferimento fisse. Lo script calcola la quota di acquisto grezza e quella scontata, i motivi principali con i conteggi, i tre tipi di acquirente più propensi e la fascia di prezzo come limite superiore.
 - Il report in Markdown chiude con un verdetto e il primo test reale della settimana. Il panel resta in `.buyer-panel/` nel progetto, e la skill ti chiede se metterlo nel commit.
+- `/buyer-panel ground` importa i risultati veri (visite e conversioni di uno smoke test, colloqui finiti con un impegno, prevendite), li confronta con il round che mostrava la stessa offerta allo stesso prezzo e salva il rapporto: da lì ogni report mostra anche la cifra corretta, con il test da cui viene.

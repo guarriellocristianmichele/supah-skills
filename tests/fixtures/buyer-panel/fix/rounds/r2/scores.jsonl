@@ -1,0 +1,7 @@
+{"buyer_id": "b01", "round": "r2", "intent": 5, "reason": "saves-time", "quote": "I stop losing Friday afternoons to my sheet"}
+{"buyer_id": "b02", "round": "r2", "intent": 2, "reason": "no-need", "quote": "I have no history to bring over"}
+{"buyer_id": "b03", "round": "r2", "intent": 5, "reason": "free-switch", "quote": "we pay nothing until the plan ends, the switch costs us little"}
+{"buyer_id": "b04", "round": "r2", "intent": 3, "reason": "better-quotes", "quote": "knowing where hours go would help me quote better"}
+{"buyer_id": "b05", "round": "r2", "intent": 1, "reason": "vendor-approval", "quote": "IT still has to approve every new vendor"}
+{"buyer_id": "b06", "round": "r2", "intent": 2, "reason": "retraining", "quote": "retraining twenty people is the real cost"}
+{"buyer_id": "b07", "round": "r2", "intent": 2, "reason": "no-need", "quote": "Nobody pays me by the hour"}

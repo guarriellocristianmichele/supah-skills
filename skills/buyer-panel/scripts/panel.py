@@ -4,12 +4,14 @@
 Usage:
   panel.py [--json] validate FILE...
   panel.py [--json] deal --buyers FILE --options ID,ID,... [--batch-size N] [--seed N] --out FILE
+  panel.py [--json] reactions ROUND_DIR [--seed N] --out FILE
   panel.py [--json] aggregate ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
 
 validate   checks records against the schemas in RECORDS.md; the kind comes from the file name
            (buyers.jsonl, answers.jsonl or answers/*.jsonl, scores.jsonl, brief.json, plan.json, round.json).
 deal       gives every buyer the options in its own random order and puts buyers in batches mixed across
            segments, for the interviews; writes one card line per buyer to --out.
+reactions  writes what the judge may see: buyer id and free reaction only, in shuffled order.
 aggregate  turns one round (round.json, answers, scores) into numbers: raw and discounted BUY share with the
            weighting scheme named, reasons with counts, buyer types, and the Van Westendorp price range with
            out-of-order answers dropped and counted. Buyers default to ROUND_DIR/../../buyers.jsonl.
@@ -511,6 +513,30 @@ def aggregate(meta, buyers, answers, scores, weights):
         "price": price_range(rows),
         "rows": rows,
     }
+
+
+def show_reactions(result):
+    if "errors" in result:
+        return show_errors(result)
+    print(f"{result['reactions']} reactions for the judge, seed {result['seed']}: {result['out']}")
+
+
+@command("reactions", "write the judge's input: buyer id and reaction only, shuffled", show_reactions, [
+    (("round_dir",), {"metavar": "ROUND_DIR"}),
+    (("--buyers",), {"metavar": "FILE", "help": "buyers file (default ROUND_DIR/../../buyers.jsonl)"}),
+    (("--seed",), {"type": int, "metavar": "N", "help": "random seed, recorded (default: a fresh one)"}),
+    (("--out",), {"required": True, "metavar": "FILE"}),
+])
+def cmd_reactions(args):
+    _, _, answers, _, errors = load_round(args.round_dir, args.buyers)
+    if errors:
+        return {"errors": errors}, 3
+    seed = args.seed if args.seed is not None else random.SystemRandom().randrange(10 ** 6)
+    shown = [{"buyer_id": bid, "reaction": a["reaction"]} for bid, a in answers.items()]
+    random.Random(seed).shuffle(shown)
+    with open(args.out, "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(json.dumps(x, ensure_ascii=False) + "\n" for x in shown)
+    return {"out": args.out, "reactions": len(shown), "seed": seed}, 0
 
 
 def show_errors(result):

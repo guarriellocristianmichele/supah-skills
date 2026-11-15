@@ -1,7 +1,7 @@
 {
   "name": "supah-skills",
   "version": "0.7.0",
-  "description": "Evidence-backed cleanup of AI slop in code, prose, docs and design, mutation checks for tests, a RAM-aware orchestrator for parallel agents, and an audit of what every session loads.",
+  "description": "Evidence-backed cleanup of AI slop in code, prose, docs and design, a synthetic buyer panel for ideas, mutation checks for tests, a RAM-aware orchestrator for parallel agents, and an audit of what every session loads.",
   "author": {
     "name": "Cristian Michele Guarriello",
     "url": "https://github.com/guarriellocristianmichele"
@@ -21,6 +21,7 @@
     "./skills/ai-slop-audit",
     "./skills/ai-slop-design",
     "./skills/ai-slop-prose",
+    "./skills/buyer-panel",
     "./skills/context-audit",
     "./skills/doc-truth",
     "./skills/mutation-check",

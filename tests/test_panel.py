@@ -245,6 +245,22 @@ class Deal(unittest.TestCase):
         self.assertIn("nothing", proc.stderr)
 
 
+class Reactions(unittest.TestCase):
+    def test_judge_sees_only_buyer_and_reaction_in_shuffled_order(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = os.path.join(d, "judge-input.jsonl")
+            result, code = run_json("reactions", os.path.join(NORMAL, "rounds", "r1"), "--seed", "3", "--out", out)
+            shown = lines(out)
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["reactions"], 7)
+        for line in shown:
+            self.assertEqual(set(line), {"buyer_id", "reaction"})
+        self.assertEqual(sorted(x["buyer_id"] for x in shown), ["b01", "b02", "b03", "b04", "b05", "b06", "b07"])
+        self.assertNotEqual([x["buyer_id"] for x in shown], ["b01", "b02", "b03", "b04", "b05", "b06", "b07"])
+        b03 = next(x for x in shown if x["buyer_id"] == "b03")
+        self.assertTrue(b03["reaction"].startswith("We already pay for Toggl"))
+
+
 def copy_round(d):
     """A writable copy of the normal panel; returns the r1 round folder."""
     panel = os.path.join(d, "panel")

@@ -9,7 +9,7 @@
     {
       "name": "supah-skills",
       "source": "./",
-      "description": "All eight skills: ai-slop-audit, ai-slop-design, ai-slop-prose, context-audit, doc-truth, mutation-check, orchestrate and supah-help.",
+      "description": "All nine skills: ai-slop-audit, ai-slop-design, ai-slop-prose, buyer-panel, context-audit, doc-truth, mutation-check, orchestrate and supah-help.",
       "category": "productivity",
       "keywords": [
         "skills",
@@ -55,6 +55,19 @@
         "editing",
         "punctuation",
         "style"
+      ]
+    },
+    {
+      "name": "buyer-panel",
+      "source": "./skills/buyer-panel",
+      "version": "0.7.0",
+      "description": "Test a business idea on a synthetic buyer panel built against agreeable, uniform and over-stated answers, ending with the first real test to run.",
+      "category": "productivity",
+      "keywords": [
+        "market-research",
+        "pricing",
+        "validation",
+        "personas"
       ]
     },
     {

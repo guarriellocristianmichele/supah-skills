@@ -70,6 +70,28 @@ _Avoid_: theme, style, moodboard
 A saturated aesthetic family a page can fall into even when it avoids every catalogued reflex (cream + serif + clay; near-black + one neon accent; broadsheet hairlines; neo-brutalist offset shadows; the SaaS card kit).
 _Avoid_: trend, aesthetic, vibe
 
+### Buyer panel
+
+**Panel**:
+A fixed set of synthetic buyers for one idea, built once from a segment plan and kept in `.buyer-panel/<slug>/`; a generator of hypotheses, never market evidence.
+_Avoid_: survey, focus group, sample (they imply real people)
+
+**Buyer**:
+One synthetic respondent of a panel: segment, budget, habits, current solution, last spend and one honest objection, unchanged across rounds.
+_Avoid_: persona, respondent, customer
+
+**Round**:
+One offer at one price shown to the panel's buyers in fresh contexts, with its answers, scores, numbers and report in `rounds/<label>/`.
+_Avoid_: run, wave, iteration
+
+**Anchor**:
+One of five fixed statements of purchase intent, from "definitely not" to "definitely", that the judge matches a buyer's free reaction to; intent is never asked as a number.
+_Avoid_: rating, score label, Likert point
+
+**Grounding**:
+Comparing what real people did (interviews, a smoke test, pre-sales) with what the panel predicted for the same offer, and storing the ratio so later rounds show a corrected figure.
+_Avoid_: validation, calibration (calibration means the scanners' corpora here)
+
 ### Orchestration
 
 **Job**:

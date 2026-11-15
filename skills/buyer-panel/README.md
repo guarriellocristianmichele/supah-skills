@@ -1,0 +1,54 @@
+# buyer-panel
+
+The popular shortcut for testing an idea is a prompt that asks a model to invent 100 buyers, pitch them and count BUY or PASS. The answers come back warm, alike and expensive: a model judging an idea it knows is yours turns agreeable, synthetic buyers spread about half as much as people do, they never walk away unless told they may, they pick whatever is listed first, and they state prices two to three times too high. This skill runs the same kind of panel built against each of those failures, says on its first line that the panel is simulated, and ends with the first real test to run.
+
+*Versione italiana in fondo: [Italiano](#italiano).*
+
+## Install
+
+```sh
+npx skills@latest add guarriellocristianmichele/supah-skills -s buyer-panel
+claude plugin install buyer-panel --marketplace guarriellocristianmichele/supah-skills --scope user
+```
+
+Every route and scope is in the [repository README](../../README.md#installation-1-minute-setup). Requirements: Python 3.10 or newer on `PATH`, standard library only.
+
+### Works best with orchestrate
+
+Interviews run through [orchestrate](../orchestrate/README.md) when it is installed: small batches of buyers, mixed across segments, each in a fresh context that never sees another batch. Without it the skill interviews one buyer at a time and the report says that independence was partial. Prices of competitors come from a web search, and from their pricing pages once you allow a browser on screen (an isolated Playwright browser, your own Chrome, or none).
+
+## Use
+
+```text
+/buyer-panel a time tracker that starts itself when you open a client's files
+/buyer-panel
+```
+
+It is user-invoked, so it costs nothing in sessions where you don't call it.
+
+- With an idea, it builds the brief from it: the idea in one line, the audience, the price, the alternatives. With none, it drafts the brief from the project you are in (README, product and design notes, pricing and landing copy) and asks you to confirm it, with ready answers.
+- It researches competitors, their prices and what the audience spends in the category before inventing anyone, and keeps every source in `research.md`.
+- It asks for 30, 100 or 200 buyers (100 by default), plans segments with shares and budget ranges from the research, and writes each buyer with habits, a current solution, a last spend and one honest objection. The script rejects a buyer that misses a field or falls outside the plan.
+- Each buyer sees your idea as another company's product on a plain card, next to the real competitors at their real prices and "buy nothing", in an order shuffled per buyer and recorded. They react in their own words first, then choose, say what they would give up to pay, and answer the four Van Westendorp price questions.
+- A separate judge, who sees only the reactions, places each one on five fixed anchor statements and tags the reason.
+- The script turns the round into the raw BUY share next to a discounted one (the weighting scheme is named), the top five reasons with counts, the three buyer types most likely to buy, and the price range as an upper bound with out-of-order answers dropped and counted.
+- The report is a Markdown file with the full buyer table, a verdict, and the first real test for this week: five interviews, a smoke test or a pre-sale.
+
+The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks whether to commit it or keep it out of git. The modes that reuse the same buyers in later rounds (`fix`, `price`, `pitch`, `compare`, `competitor`, `test`, `ground`) are listed in the skill and arrive in later versions.
+
+## What it will not claim
+
+A synthetic panel is a hypothesis generator. It can tell you which objection to test first and who to talk to; it can't tell you that people will buy. Differences between buyer types are reported as descriptive only, since synthetic panels invent and flip them. The evidence behind every choice is in [the research note](../../docs/research/2026-11-synthetic-panels.md) and the design is recorded in [ADR 0014](../../docs/adr/0014-buyer-panel-counters-each-known-failure-of-synthetic-respondents.md).
+
+## Italiano
+
+Il modo più diffuso per provare un'idea è chiedere a un modello di inventare 100 acquirenti, presentargliela e contare chi compra. Le risposte tornano gentili, tutte simili e con prezzi troppo alti: un modello che sa che l'idea è tua diventa accomodante, gli acquirenti sintetici variano la metà delle persone vere, non se ne vanno mai se nessuno glielo permette, scelgono la prima opzione e dichiarano prezzi due o tre volte più alti. Questa skill costruisce lo stesso tipo di panel contro ognuno di questi difetti, dice nella prima riga che è simulato e chiude con il primo test reale da fare.
+
+Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s buyer-panel`, oppure come plugin di Claude Code con `claude plugin install buyer-panel --marketplace guarriellocristianmichele/supah-skills --scope user`. Si avvia a mano, quindi non occupa contesto nelle altre sessioni.
+
+- `/buyer-panel <idea>` parte dall'idea; senza argomenti scrive il brief dal progetto in cui lavori e te lo fa confermare con risposte pronte.
+- Prima di inventare acquirenti cerca i concorrenti, i loro prezzi e quanto spende il pubblico nella categoria, con le fonti in `research.md`. Apre un browser solo dopo il tuo permesso a schermo.
+- Chiede 30, 100 o 200 acquirenti (100 di default), divisi in segmenti con quote e budget presi dalla ricerca; lo script scarta chi manca di un campo.
+- Ogni acquirente vede l'idea come il prodotto di un'altra azienda, accanto ai concorrenti veri e a "non compro niente", in un ordine casuale registrato. Prima reagisce a parole, poi sceglie, dice a cosa rinuncerebbe per pagare e risponde alle quattro domande di prezzo di Van Westendorp.
+- Un giudice separato, che legge solo le reazioni, le colloca su cinque frasi di riferimento fisse. Lo script calcola la quota di acquisto grezza e quella scontata, i motivi principali con i conteggi, i tre tipi di acquirente più propensi e la fascia di prezzo come limite superiore.
+- Il report in Markdown chiude con un verdetto e il primo test reale della settimana. Il panel resta in `.buyer-panel/` nel progetto, e la skill ti chiede se metterlo nel commit.

@@ -13,6 +13,7 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
   history.md          one line per round
   real/<label>.json   what real people did in one real test (ground)
   grounding.jsonl     panel.py ground: real against predicted, one line per real test
+  price-p<n>.md       a price run's report (PRICE.md)
   rounds/<label>/
     round.json        what this round showed and how it was run
     cards.jsonl       panel.py deal: each buyer's batch and option order
@@ -30,7 +31,7 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
     landing.md        the smoke-test landing brief
 ```
 
-Round labels are short and unique within the panel: `r1` for the first round; later modes name theirs.
+Round labels are short and unique within the panel: `r1` for the first round; later modes name theirs (`price` uses `p<n>-<price>`, such as `p1-14`).
 
 ## brief.json
 

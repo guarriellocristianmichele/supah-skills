@@ -43,11 +43,12 @@ A mode marked not yet available is not built in this version: say so, and offer 
 4. **Walking away is always open.** Every card set holds the real alternatives at their real prices and `nothing`, in the order `deal` recorded for that buyer.
 5. **Words before numbers.** Buyers react in free text before choosing; a separate judge places the reaction on the five anchors (`SCORING.md`); intent is never asked as a number.
 6. **Numbers from the script.** Raw BUY share always sits next to the discounted one with the scheme named; prices are an upper bound; differences between buyer types are descriptive, never findings (`READING.md`).
-7. **Ends in the world.** A report ends with a verdict and the first real test to run this week.
+7. **Checked, then critiqued.** Every round goes through `panel.py checks`; a failed check makes the verdict `Do not trust this round`. A devil's advocate in its own context then argues the case against the idea (`CRITIQUE.md`), as a report section of its own, never mixed into a buyer's answer.
+8. **Ends in the world.** A report ends with a verdict and the first real test to run this week.
 
 ## Panel ledger
 
-`.buyer-panel/<slug>/` at the project root, one folder per panel, `<slug>` from the idea in lowercase words joined by hyphens: `brief.json`, `research.md`, `plan.json`, `buyers.jsonl`, `history.md` and `rounds/<label>/` (`round.json`, `cards.jsonl`, `answers/`, `scores.jsonl`, `summary.json`, `report.md`). `RECORDS.md` holds every schema. On first use ask with options: **keep it out of git** (recommended; append `.buyer-panel/` to `.git/info/exclude`) or **commit it** (rounds are shared with the team; nothing to add). Skip the question when `git check-ignore -q .buyer-panel` already answers it, or the folder is tracked.
+`.buyer-panel/<slug>/` at the project root, one folder per panel, `<slug>` from the idea in lowercase words joined by hyphens: `brief.json`, `research.md`, `plan.json`, `buyers.jsonl`, `history.md` and `rounds/<label>/` (`round.json`, `cards.jsonl`, `answers/`, `scores.jsonl`, `summary.json`, `checks.json`, `critique.md`, `report.md`). `RECORDS.md` holds every schema. On first use ask with options: **keep it out of git** (recommended; append `.buyer-panel/` to `.git/info/exclude`) or **commit it** (rounds are shared with the team; nothing to add). Skip the question when `git check-ignore -q .buyer-panel` already answers it, or the folder is tracked.
 
 ## Companions
 
@@ -56,7 +57,7 @@ Each companion is optional; the steps say what to do without it.
 - **orchestrate**: interviews fan out through it (RUN.md step 9) in small batches mixed across segments, each worker in a fresh context writing only its batch's answers. Without it, interview one buyer at a time and write each answer before reading the next buyer; the round records `interviews: inline`, and the report states that independence was partial.
 - **ai-slop-prose**: sweeps the report (RUN.md step 13) with purpose `panel report`. Without it, the report goes out unswept and says so in its method section.
 - **ai-slop-design**: the smoke-test landing page in `test` goes to its `craft` mode.
-- **A subagent tool** (Claude Code's Agent tool): the judge (RUN.md step 10) runs in its own context. Without one, judge after every interview is written, reading only `judge-input.jsonl`.
+- **A subagent tool** (Claude Code's Agent tool): the judge (RUN.md step 10) and the devil's advocate (step 12) each run in their own context. Without one, judge after every interview is written, reading only `judge-input.jsonl`, and write the critique reading only the files CRITIQUE.md lists; the method section says so.
 - **A browser tool**: market research (competitors' pricing pages, category spend, reviews). Open it only after the user allows it on screen, once per session, asking with options:
   - **Playwright MCP** (recommended): an isolated browser with no sign-ins;
   - **Claude in Chrome**: the user's own Chrome, with their sign-ins; follow its skill (new tab, no dialogs);

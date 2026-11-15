@@ -18,6 +18,8 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
     judge-input.jsonl panel.py reactions: what the judge may see
     scores.jsonl      the judge's output
     summary.json      panel.py aggregate --out
+    checks.json       panel.py checks --out
+    critique.md       the devil's advocate (CRITIQUE.md)
     report.md         the round's report
 ```
 
@@ -99,4 +101,4 @@ Price answers out of order (each must be below the next) are kept in the file, t
 
 ## Exit codes
 
-`0` done; `1` reserved for a failed panel check; `2` bad arguments; `3` invalid records: the output lists file, line, field and problem, and nothing is computed from them.
+`0` done; `1` a panel check failed (`checks`; READING.md); `2` bad arguments; `3` invalid records: the output lists file, line, field and problem, and nothing is computed from them.

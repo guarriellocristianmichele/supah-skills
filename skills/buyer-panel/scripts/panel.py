@@ -6,6 +6,7 @@ Usage:
   panel.py [--json] deal --buyers FILE --options ID,ID,... [--batch-size N] [--seed N] --out FILE
   panel.py [--json] reactions ROUND_DIR [--seed N] --out FILE
   panel.py [--json] aggregate ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
+  panel.py [--json] checks ROUND_DIR [--buyers FILE] [--out FILE]
 
 validate   checks records against the schemas in RECORDS.md; the kind comes from the file name
            (buyers.jsonl, answers.jsonl or answers/*.jsonl, scores.jsonl, brief.json, plan.json, round.json).
@@ -15,14 +16,18 @@ reactions  writes what the judge may see: buyer id and free reaction only, in sh
 aggregate  turns one round (round.json, answers, scores) into numbers: raw and discounted BUY share with the
            weighting scheme named, reasons with counts, buyer types, and the Van Westendorp price range with
            out-of-order answers dropped and counted. Buyers default to ROUND_DIR/../../buyers.jsonl.
+checks     flags a round that should not be trusted: intent spread too low, reactions too alike, praise too
+           dense, BUY share above the plausible bound, the option shown first chosen too often (thresholds and
+           sources in READING.md); prints the report's Checks section and, on a failure, its verdict line.
 
-Exit codes: 0 done; 1 a check failed (reserved for checks); 2 bad usage; 3 invalid records (nothing is
-aggregated from them). Stdlib only.
+Exit codes: 0 done; 1 a check failed; 2 bad usage; 3 invalid records (nothing is aggregated or checked
+from them). Stdlib only.
 """
 import argparse
 import json
 import os
 import random
+import re
 import sys
 
 COMMANDS = {}
@@ -600,6 +605,141 @@ def cmd_aggregate(args):
             json.dump(result, f, ensure_ascii=False, indent=1)
             f.write("\n")
     return result, 0
+
+
+# --- checks ---
+# Each threshold, its source and its reason: READING.md, "The checks".
+
+MIN_SPREAD = 0.8
+MAX_SIMILARITY = 0.5
+WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")
+# function words left out of the overlap, so two reactions are alike for what they say, not for "the" and "I"
+STOP_WORDS = frozenset("""
+a an and are as at be but by do for from had has have i i'm i'd i'll if in is it it's its me my no not of on or
+our so than that the their them then there they this to too was we were what when which who will with would you
+your il lo la i gli le un una e o ma di da in con su per che non mi ci si è
+""".split())
+
+
+MAX_PRAISE = 2.0          # praise words per 100 words of reaction
+MAX_BUY_SHARE = 0.5       # raw share choosing the offer
+MAX_FIRST_TIMES_CHANCE = 2  # the option shown first, chosen this many times as often as chance gives
+# praise that says how good the product is, not what it does; English and Italian forms
+PRAISE_WORDS = frozenset("""
+amazing awesome beautiful brilliant delightful excellent exceptional fabulous fantastic flawless game-changer
+genius gorgeous great impressive incredible love loved lovely loving magnificent marvellous marvelous must-have
+outstanding perfect perfectly phenomenal remarkable revolutionary spectacular stunning superb terrific wonderful
+bellissimo bellissima eccezionale fantastico fantastica fantastici geniale incredibile magnifico magnifica
+meraviglioso meravigliosa ottimo ottima perfetto perfetta perfetti stupendo stupenda
+""".split())
+
+
+def words(text):
+    return WORD.findall(text.lower())
+
+
+def similarity(texts):
+    """Mean overlap (Jaccard) of the content words of every pair of reactions."""
+    sets = [set(words(t)) - STOP_WORDS for t in texts]
+    pairs = [(a, b) for i, a in enumerate(sets) for b in sets[i + 1:]]
+    if not pairs:
+        return None
+    return round(sum(len(a & b) / len(a | b) if a | b else 1 for a, b in pairs) / len(pairs), 3)
+
+
+def praise(texts):
+    """Praise words per 100 words of reaction, across the round."""
+    found = [w for t in texts for w in words(t)]
+    if not found:
+        return None
+    return round(sum(w in PRAISE_WORDS for w in found) / len(found) * 100, 1)
+
+
+def order(rows):
+    """(share of buyers choosing the option shown first, the share chance alone gives)."""
+    if not rows:
+        return None, None
+    first = sum(r["options"][0] == r["choice"] for r in rows) / len(rows)
+    chance = sum(1 / len(r["options"]) for r in rows) / len(rows)
+    return round(first, 3), round(chance, 3)
+
+
+LABELS = {"spread": "intent spread", "similarity": "reason similarity", "praise": "praise words",
+          "buy_share": "BUY share", "order": "first-option choice"}
+SEGMENTS = {"descriptive_only": True,
+            "why": "Buyer types are descriptive, not findings: synthetic panels flatten and misportray groups "
+                   "(Wang, Morgenstern and Dickerson), and in Bisbee et al. 32% of the coefficients that differed "
+                   "from humans flipped sign."}
+
+
+def check(name, what, value, threshold, passed):
+    return {"name": name, "what": what, "value": value, "threshold": threshold,
+            "passed": value is not None and passed(value)}
+
+
+def spread(rows):
+    """Population standard deviation of the judged intent."""
+    intents = [r["intent"] for r in rows]
+    if len(intents) < 2:
+        return None
+    mean = sum(intents) / len(intents)
+    return round((sum((x - mean) ** 2 for x in intents) / len(intents)) ** 0.5, 3)
+
+
+def run_checks(rows, answers):
+    reactions = [answers[r["buyer_id"]]["reaction"] for r in rows]
+    checks = [
+        check("spread", "standard deviation of intent", spread(rows), f">= {MIN_SPREAD:g}",
+              lambda v: v >= MIN_SPREAD),
+        check("similarity", "mean word overlap between two reactions", similarity(reactions),
+              f"<= {MAX_SIMILARITY:g}", lambda v: v <= MAX_SIMILARITY),
+        check("praise", "praise words per 100 words of reaction", praise(reactions), f"<= {MAX_PRAISE:g}",
+              lambda v: v <= MAX_PRAISE),
+        check("buy_share", "raw share choosing the offer",
+              round(sum(r["choice"] == OFFER for r in rows) / len(rows), 3) if rows else None,
+              f"<= {MAX_BUY_SHARE:g}", lambda v: v <= MAX_BUY_SHARE),
+    ]
+    first, chance = order(rows)
+    bound = None if chance is None else round(MAX_FIRST_TIMES_CHANCE * chance, 3)
+    checks.append(dict(check("order", "share choosing the option shown first", first,
+                             f"< {MAX_FIRST_TIMES_CHANCE:g} x chance ({bound})", lambda v: v < bound),
+                       chance=chance))
+    failed = [c["name"] for c in checks if not c["passed"]]
+    verdict = f"Do not trust this round: {', '.join(LABELS[n] for n in failed)} failed." if failed else None
+    return {"buyers": len(rows), "checks": checks, "failed": failed, "verdict_line": verdict, "segments": SEGMENTS}
+
+
+def show_checks(result):
+    """Markdown for the report's Checks section."""
+    if "errors" in result:
+        return show_errors(result)
+    print("| check | what it measures | value | threshold | result |")
+    print("|---|---|---|---|---|")
+    for c in result["checks"]:
+        value = "n/a" if c["value"] is None else f"{c['value']:g}"
+        print(f"| {c['name']} | {c['what']} | {value} | {c['threshold']} | {'pass' if c['passed'] else 'FAIL'} |")
+    print()
+    if result["verdict_line"]:
+        print(result["verdict_line"])
+    print(result["segments"]["why"])
+
+
+@command("checks", "flag a round that is too uniform, too agreeable or order-biased", show_checks, [
+    (("round_dir",), {"metavar": "ROUND_DIR"}),
+    (("--buyers",), {"metavar": "FILE", "help": "buyers file (default ROUND_DIR/../../buyers.jsonl)"}),
+    (("--out",), {"metavar": "FILE", "help": "also write the JSON result here"}),
+])
+def cmd_checks(args):
+    meta, buyers, answers, scores, errors = load_round(args.round_dir, args.buyers)
+    if errors:
+        return {"errors": errors}, 3
+    rows = aggregate(meta, buyers, answers, scores, WEIGHTS)["rows"]
+    result = run_checks(rows, answers)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(result, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+    return result, 1 if result["failed"] else 0
 
 
 # ---------------------------------------------------------------- main

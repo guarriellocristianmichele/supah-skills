@@ -27,7 +27,7 @@ Read the mode's file and follow it to its completion criterion. The first word o
 | `run [idea]` (default) | `${CLAUDE_SKILL_DIR}/RUN.md` | the panel (brief, plan, buyers), round `r1` and its report |
 | `fix [reason]` | `${CLAUDE_SKILL_DIR}/FIX.md` (not yet available) | screening rounds, a full round, the diff |
 | `price [low mid high]` | `${CLAUDE_SKILL_DIR}/PRICE.md` (not yet available) | three price rounds, revenue per price |
-| `pitch [type]` | `${CLAUDE_SKILL_DIR}/PITCH.md` (not yet available) | a pitch with traced quotes, its try-out round |
+| `pitch [type]` | `${CLAUDE_SKILL_DIR}/PITCH.md` | a pitch with traced quotes, its try-out round |
 | `compare A B` | `${CLAUDE_SKILL_DIR}/COMPARE.md` (not yet available) | two half-panel rounds |
 | `competitor` | `${CLAUDE_SKILL_DIR}/COMPETITOR.md` (not yet available) | a round with a competitor added or repriced |
 | `test` | `${CLAUDE_SKILL_DIR}/TEST.md` (not yet available) | the real-test kit and its thresholds |
@@ -54,7 +54,7 @@ A mode marked not yet available is not built in this version: say so, and offer 
 Each companion is optional; the steps say what to do without it.
 
 - **orchestrate**: interviews fan out through it (RUN.md step 9) in small batches mixed across segments, each worker in a fresh context writing only its batch's answers. Without it, interview one buyer at a time and write each answer before reading the next buyer; the round records `interviews: inline`, and the report states that independence was partial.
-- **ai-slop-prose**: sweeps the report (RUN.md step 13) with purpose `panel report`. Without it, the report goes out unswept and says so in its method section.
+- **ai-slop-prose**: sweeps the report (RUN.md step 13) with purpose `panel report`, and the pitch (PITCH.md step 4) with purpose `pitch`. Without it, the report goes out unswept and says so in its method section.
 - **ai-slop-design**: the smoke-test landing page in `test` goes to its `craft` mode.
 - **A subagent tool** (Claude Code's Agent tool): the judge (RUN.md step 10) runs in its own context. Without one, judge after every interview is written, reading only `judge-input.jsonl`.
 - **A browser tool**: market research (competitors' pricing pages, category spend, reviews). Open it only after the user allows it on screen, once per session, asking with options:

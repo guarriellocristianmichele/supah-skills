@@ -28,6 +28,7 @@ On microcopy (`button`, `link`, `label`, `placeholder`, `alt`, `tooltip`, `hint`
 | Purpose | Its job | Rewrite to |
 |---|---|---|
 | landing page, product page | show what it does and for whom, then the next step | concrete outcomes, numbers, one call to action; cut stakes inflation and "revolutionary" |
+| pitch | win a listener's next step in about 30 seconds, spoken | who it is for, their problem in their words, what it does, the price, one ask; about 75 words; keep quoted phrases verbatim; cut "imagine", rhetorical questions and superlatives |
 | docs, README | let the reader do the task | the task first, commands and expected output, then reference; cut meta-text about the document |
 | blog post, article | argue one point well | the point early, evidence, the author's voice; cut signposted endings |
 | email, newsletter | one action or one piece of news per message | the point in the first sentence, the ask stated once |

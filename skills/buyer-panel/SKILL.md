@@ -31,7 +31,7 @@ Read the mode's file and follow it to its completion criterion. The first word o
 | `compare A B` | `${CLAUDE_SKILL_DIR}/COMPARE.md` (not yet available) | two half-panel rounds |
 | `competitor` | `${CLAUDE_SKILL_DIR}/COMPETITOR.md` (not yet available) | a round with a competitor added or repriced |
 | `test` | `${CLAUDE_SKILL_DIR}/TEST.md` | the real-test kit in `test/`: interview script, landing brief, `test.json` thresholds |
-| `ground` | `${CLAUDE_SKILL_DIR}/GROUND.md` (not yet available) | real results and the grounding ratio |
+| `ground` | `${CLAUDE_SKILL_DIR}/GROUND.md` | real results and the grounding ratio |
 
 A mode marked not yet available is not built in this version: say so, and offer `run` or a mode that is. No arguments: with no panel in the ledger, `run` drafts the brief from the project; with one or more, show each panel's last history line and this table, and ask which panel and mode.
 
@@ -47,7 +47,7 @@ A mode marked not yet available is not built in this version: say so, and offer 
 
 ## Panel ledger
 
-`.buyer-panel/<slug>/` at the project root, one folder per panel, `<slug>` from the idea in lowercase words joined by hyphens: `brief.json`, `research.md`, `plan.json`, `buyers.jsonl`, `history.md` and `rounds/<label>/` (`round.json`, `cards.jsonl`, `answers/`, `scores.jsonl`, `summary.json`, `report.md`, `page.json`, `page.html`) and `test/` for the real-test kit. `RECORDS.md` holds every schema. On first use ask with options: **keep it out of git** (recommended; append `.buyer-panel/` to `.git/info/exclude`) or **commit it** (rounds are shared with the team; nothing to add). Skip the question when `git check-ignore -q .buyer-panel` already answers it, or the folder is tracked.
+`.buyer-panel/<slug>/` at the project root, one folder per panel, `<slug>` from the idea in lowercase words joined by hyphens: `brief.json`, `research.md`, `plan.json`, `buyers.jsonl`, `history.md`, `rounds/<label>/` (`round.json`, `cards.jsonl`, `answers/`, `scores.jsonl`, `summary.json`, `report.md`, `page.json`, `page.html`), `test/` for the real-test kit, and once `ground` has run, `real/<label>.json` and `grounding.jsonl`. `RECORDS.md` holds every schema. On first use ask with options: **keep it out of git** (recommended; append `.buyer-panel/` to `.git/info/exclude`) or **commit it** (rounds are shared with the team; nothing to add). Skip the question when `git check-ignore -q .buyer-panel` already answers it, or the folder is tracked.
 
 ## Companions
 

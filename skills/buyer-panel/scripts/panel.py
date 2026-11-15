@@ -12,6 +12,7 @@ Usage:
   panel.py [--json] quotes ROUND_DIR [--buyers FILE] [--type SEGMENT] [--holdout N] [--seed N]
                    [--holdout-out FILE] [--out FILE]
   panel.py [--json] objections ROUND_DIR [--buyers FILE] [--top N]
+  panel.py [--json] ground FILE [--panel DIR] [--weights W5,W4,W3,W2,W1]
 
 validate   checks records against the schemas in RECORDS.md; the kind comes from the file name
            (buyers.jsonl, answers.jsonl or answers/*.jsonl, scores.jsonl, brief.json, plan.json, round.json,
@@ -21,7 +22,8 @@ deal       gives every buyer the options in its own random order and puts buyers
 reactions  writes what the judge may see: buyer id and free reaction only, in shuffled order.
 aggregate  turns one round (round.json, answers, scores) into numbers: raw and discounted BUY share with the
            weighting scheme named, reasons with counts, buyer types, and the Van Westendorp price range with
-           out-of-order answers dropped and counted. Buyers default to ROUND_DIR/../../buyers.jsonl.
+           out-of-order answers dropped and counted. Buyers default to ROUND_DIR/../../buyers.jsonl. With a
+           grounding.jsonl in the panel, it adds the corrected figure from the latest grounding.
 checks     flags a round that should not be trusted: intent spread too low, reactions too alike, praise too
            dense, BUY share above the plausible bound, the option shown first chosen too often (thresholds and
            sources in READING.md); prints the report's Checks section and, on a failure, its verdict line.
@@ -37,6 +39,9 @@ quotes     for the pitch: one buyer type's quotes and reactions with buyer ids (
            hold buyers and passers, with their first-round decisions; their own words are never printed.
 objections the round's top pass reasons for the real-test kit, each with the buyers who gave it, their words,
            current solution and last spend, plus the likely buyer type and the predicted BUY share.
+ground     compares real results (PANEL/real/<label>.json: a smoke test, interviews or a pre-sale) with the
+           discounted BUY share of the round they tested, at the same price, and stores the ratio of real to
+           predicted in PANEL/grounding.jsonl (one line per label; importing a label again replaces it).
 
 Exit codes: 0 done; 1 a check failed; 2 bad usage; 3 invalid records (nothing is aggregated or checked
 from them). Stdlib only.
@@ -92,6 +97,8 @@ def kind_of(path):
     base = os.path.basename(path)
     if os.path.basename(os.path.dirname(path)) == "answers" and base.endswith(".jsonl"):
         return "answers"
+    if os.path.basename(os.path.dirname(path)) == "real" and base.endswith(".json"):
+        return "real"
     stem = base.split(".")[0]
     return stem if stem in SCHEMAS or stem in OBJECTS else None
 
@@ -650,6 +657,8 @@ def show_aggregate(result):
     cur = rnd["currency"]
     print(f"BUY {s['buy']} of {s['buyers']}: raw {pct(s['raw'])}, discounted {pct(s['discounted'])} "
           f"({s['weights']['scheme']})")
+    if "corrected" in result:
+        show_corrected(result["corrected"])
     for key, label in (("pass_reasons", "Top reasons to pass"), ("buy_reasons", "Top reasons to buy")):
         print(f"{label}: " + (", ".join(f"{r['reason']} {r['count']}" for r in result[key]) or "none"))
     print("Buyer types most likely to buy: " + ", ".join(
@@ -685,6 +694,11 @@ def cmd_aggregate(args):
     if errors:
         return {"errors": errors}, 3
     result = aggregate(meta, buyers, answers, scores, weights)
+    corrected, errors = corrected_figure(args.round_dir, result, weights)   # ground: only with a grounding
+    if errors:
+        return {"errors": errors}, 3
+    if corrected:
+        result["corrected"] = corrected
     if args.out:
         with open(args.out, "w", encoding="utf-8", newline="\n") as f:
             json.dump(result, f, ensure_ascii=False, indent=1)
@@ -1500,6 +1514,172 @@ def cmd_objections(args):
             "predicted": {k: s[k] for k in ("buyers", "buy", "raw", "discounted")},
             "likely_type": result["buyer_types"][0]["segment"] if result["buyer_types"] else None,
             "objections": objections}, 0
+
+
+# --- ground ---
+
+# What each real test counts: (people reached, people who acted, what the rate measures).
+REAL_TESTS = {
+    "smoke-test": ("visits", "conversions", "conversions per visit"),
+    "interviews": ("interviews", "commitments", "commitments per interview"),
+    "pre-sale": ("asked", "paid", "payments per person asked"),
+}
+OBJECTS["real"] = {"label": TEXT, "test": TEXT, "round": TEXT, "date": TEXT, "source": TEXT, "price": NUMBER,
+                   "currency": TEXT}
+
+
+def date_errors(rec, field="date"):
+    try:
+        datetime.date.fromisoformat(rec.get(field))
+    except (TypeError, ValueError):
+        return [(field, "must be a date as YYYY-MM-DD")]
+    return []
+
+
+def real_errors(rec):
+    errors = date_errors(rec) if "date" in rec else []
+    if rec.get("test") not in REAL_TESTS:
+        return errors + [("test", f"must be one of {', '.join(REAL_TESTS)}")]
+    reached, acted, _ = REAL_TESTS[rec["test"]]
+    if not is_count(rec.get(reached)):
+        errors.append((reached, "must be a whole number of 1 or more"))
+    if not is_count(rec.get(acted), 0):
+        errors.append((acted, "must be a whole number of 0 or more"))
+    elif is_count(rec.get(reached)) and rec[acted] > rec[reached]:
+        errors.append((acted, f"is more than {reached}"))
+    return errors
+
+
+EXTRA["real"] = real_errors
+
+# grounding.jsonl: one line per real test compared, written by `ground`, read by `aggregate`.
+SCHEMAS["grounding"] = {"label": TEXT, "test": TEXT, "round": TEXT, "date": TEXT, "ratio": NUMBER}
+KEY["grounding"] = "label"
+
+
+def grounding_errors(rec):
+    errors = date_errors(rec) if "date" in rec else []
+    measured = rec.get("real")
+    if not (isinstance(measured, dict) and is_count(measured.get("reached")) and is_count(measured.get("acted"), 0)
+            and isinstance(measured.get("measure"), str)):
+        errors.append(("real", "must hold reached, acted and measure"))
+    predicted = rec.get("predicted")
+    by_intent = predicted.get("weights", {}).get("by_intent") if isinstance(predicted, dict) else None
+    if not (isinstance(by_intent, dict) and sorted(by_intent) == ["1", "2", "3", "4", "5"]):
+        errors.append(("predicted", "must hold the weights the ratio was computed with"))
+    return errors
+
+
+EXTRA["grounding"] = grounding_errors
+
+
+def likely(rows, weights):
+    """Buyers who chose the offer, each at the weight of their intent: the discounted count, unrounded."""
+    return sum(weights["by_intent"][str(r["intent"])] for r in rows if r["choice"] == OFFER)
+
+
+def show_ground(result):
+    if "errors" in result:
+        return show_errors(result)
+    m, p = result["real"], result["predicted"]
+    print(f"Grounding {result['label']} ({result['test']}, {result['date']}): {m['acted']} of {m['reached']}, "
+          f"{pct(m['rate'])} {m['measure']}, against round {result['round']}'s discounted {pct(p['discounted'])} "
+          f"(raw {pct(p['raw'])}). Ratio {result['ratio']:g}: later rounds show discounted x {result['ratio']:g} "
+          f"as the corrected figure.")
+
+
+@command("ground", "compare real results with the round they test, and store the ratio", show_ground, [
+    (("file",), {"metavar": "FILE", "help": "real results, PANEL/real/<label>.json"}),
+    (("--panel",), {"metavar": "DIR", "help": "panel folder (default FILE/../..)"}),
+    (("--weights",), {"metavar": "W5,W4,W3,W2,W1", "help": "intent weights, default 0.75,0.25,0.1,0.05,0.02"}),
+])
+def cmd_ground(args):
+    weights = parse_weights(args.weights)
+    checked = validate_file(args.file)
+    if checked["kind"] != "real" or checked["errors"]:
+        return {"errors": [dict(e, file=args.file) for e in checked["errors"]]
+                or [{"file": args.file, "line": 0, "field": None, "problem": "not a real/<label>.json file"}]}, 3
+    rec = checked["data"]
+    panel = args.panel or os.path.join(os.path.dirname(os.path.abspath(args.file)), os.pardir)
+    round_dir = os.path.join(panel, "rounds", rec["round"])
+    where = {"file": args.file, "line": 0}
+    if not os.path.isdir(round_dir):
+        return {"errors": [dict(where, field="round", problem=f"no round {rec['round']} in {panel}")]}, 3
+    meta, buyers, answers, scores, errors = load_round(round_dir)
+    if errors:
+        return {"errors": errors}, 3
+    for field in ("price", "currency"):
+        if rec[field] != meta[field]:
+            return {"errors": [dict(where, field=field, problem=(
+                f"the real test used {rec[field]}, round {rec['round']} showed {meta[field]}: "
+                "ground against a round with the offer and price tested"))]}, 3
+    summary = aggregate(meta, buyers, answers, scores, weights)
+    expected = likely(summary["rows"], weights)
+    if not expected:
+        return {"errors": [dict(where, field="round", problem=(
+            f"round {rec['round']} predicts no buyer, so there is nothing to compare the real result with"))]}, 3
+    reached_field, acted_field, measure = REAL_TESTS[rec["test"]]
+    reached, acted = rec[reached_field], rec[acted_field]
+    s = summary["buy_share"]
+    grounding = {
+        "label": rec["label"], "test": rec["test"], "round": rec["round"], "date": rec["date"],
+        "source": rec["source"], "offer": meta["offer"], "price": meta["price"], "currency": meta["currency"],
+        "real": {"reached": reached, "acted": acted, "rate": round(acted / reached, 4), "measure": measure},
+        "predicted": {"buyers": s["buyers"], "buy": s["buy"], "raw": s["raw"], "discounted": s["discounted"],
+                      "weights": weights},
+        "ratio": round((acted / reached) / (expected / s["buyers"]), 4),
+    }
+    ledger = os.path.join(panel, "grounding.jsonl")
+    kept = []
+    if os.path.exists(ledger):
+        old = validate_file(ledger)
+        if old["errors"]:
+            return {"errors": [dict(e, file=ledger) for e in old["errors"]]}, 3
+        kept = old["data"]
+    if any(g["label"] == grounding["label"] for g in kept):
+        kept = [grounding if g["label"] == grounding["label"] else g for g in kept]
+    else:
+        kept.append(grounding)
+    with open(ledger, "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(json.dumps(g, ensure_ascii=False) + "\n" for g in kept)
+    return grounding, 0
+
+
+def corrected_figure(round_dir, summary, weights):
+    """The latest grounding in the panel applied to this round: (corrected or None, errors)."""
+    ledger = os.path.join(round_dir, os.pardir, os.pardir, "grounding.jsonl")
+    if not os.path.exists(ledger):
+        return None, []
+    checked = validate_file(os.path.normpath(ledger))
+    if checked["errors"]:
+        return None, [dict(e, file=checked["file"]) for e in checked["errors"]]
+    latest = None
+    for g in checked["data"]:                       # latest test date; a tie goes to the line written later
+        if latest is None or g["date"] >= latest["date"]:
+            latest = g
+    if latest is None:
+        return None, []
+    m = latest["real"]
+    out = {"figure": None, "ratio": latest["ratio"], "grounding": latest["label"], "test": latest["test"],
+           "round": latest["round"], "date": latest["date"], "reached": m["reached"], "acted": m["acted"],
+           "measure": m["measure"]}
+    grounded_on = latest["predicted"]["weights"]
+    n = summary["buy_share"]["buyers"]
+    if grounded_on["by_intent"] != weights["by_intent"]:
+        out["problem"] = (f"the ratio was computed on {grounded_on.get('scheme', 'other weights')}, "
+                          f"this round uses {weights['scheme']}")
+    elif n:
+        out["figure"] = round(latest["ratio"] * likely(summary["rows"], weights) / n, 4)
+    return out, []
+
+
+def show_corrected(c):
+    source = (f"grounding {c['grounding']} ({c['test']} on round {c['round']}, {c['acted']} of {c['reached']}, "
+              f"{c['date']})")
+    if c["figure"] is None:
+        print(f"Corrected: n/a, {c.get('problem', 'no buyers in this round')}; {source}")
+    else:
+        print(f"Corrected: {pct(c['figure'])} {c['measure']}, discounted x {c['ratio']:g} from {source}")
 
 
 # ---------------------------------------------------------------- main

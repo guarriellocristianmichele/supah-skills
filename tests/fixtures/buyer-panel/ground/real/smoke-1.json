@@ -1,0 +1,11 @@
+{
+ "label": "smoke-1",
+ "test": "smoke-test",
+ "round": "r1",
+ "date": "2026-11-20",
+ "source": "landing page analytics, 13 to 20 November, shared in two designer forums",
+ "price": 9,
+ "currency": "EUR",
+ "visits": 400,
+ "conversions": 22
+}

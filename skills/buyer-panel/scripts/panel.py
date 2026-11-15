@@ -6,7 +6,10 @@ Usage:
   panel.py [--json] deal --buyers FILE --options ID,ID,... [--batch-size N] [--seed N] --out FILE
   panel.py [--json] reactions ROUND_DIR [--seed N] --out FILE
   panel.py [--json] aggregate ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
+  panel.py [--json] checks ROUND_DIR [--buyers FILE] [--out FILE]
   panel.py [--json] diff ROUND_A ROUND_B [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
+  panel.py [--json] prices ROUND_DIR [--buyers FILE]
+  panel.py [--json] revenue ROUND_DIR ROUND_DIR... [--buyers FILE] [--weights W5,W4,W3,W2,W1]
   panel.py [--json] page ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--data FILE] [--out FILE]
   panel.py [--json] quotes ROUND_DIR [--buyers FILE] [--type SEGMENT] [--holdout N] [--seed N]
                    [--holdout-out FILE] [--out FILE]
@@ -14,6 +17,7 @@ Usage:
   panel.py [--json] split --buyers FILE --options ID,ID,... [--batch-size N] [--seed N] --out-a FILE --out-b FILE
   panel.py [--json] compare ROUND_A ROUND_B [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
   panel.py [--json] competitor ROUND_A ROUND_B [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
+  panel.py [--json] ground FILE [--panel DIR] [--weights W5,W4,W3,W2,W1]
 
 validate   checks records against the schemas in RECORDS.md; the kind comes from the file name
            (buyers.jsonl, answers.jsonl or answers/*.jsonl, scores.jsonl, brief.json, plan.json, round.json,
@@ -23,13 +27,24 @@ deal       gives every buyer the options in its own random order and puts buyers
 reactions  writes what the judge may see: buyer id and free reaction only, in shuffled order.
 aggregate  turns one round (round.json, answers, scores) into numbers: raw and discounted BUY share with the
            weighting scheme named, reasons with counts, buyer types, and the Van Westendorp price range with
-           out-of-order answers dropped and counted. Buyers default to ROUND_DIR/../../buyers.jsonl.
+           out-of-order answers dropped and counted. Buyers default to ROUND_DIR/../../buyers.jsonl. With a
+           grounding.jsonl in the panel, it adds the corrected figure from the latest grounding.
+checks     flags a round that should not be trusted: intent spread too low, reactions too alike, praise too
+           dense, BUY share above the plausible bound, the option shown first chosen too often (thresholds and
+           sources in READING.md); prints the report's Checks section and, on a failure, its verdict line.
 diff       compares two rounds of the same panel over the buyers answered and scored in both: PASS to BUY
            and back, every change of option (between competitors too), choices per option, BUY share,
            intent, new and gone top reasons, and the card price and price range moved.
+prices     proposes three prices from a round's price range: its low end, the indifference point (the
+           middle of the range when that point falls outside it) and its high end; none when there is no range.
+revenue    compares price rounds of one panel that differ only in price: raw and discounted buyers at each
+           price, revenue as price times discounted buyers, revenue relative to the best, and the price that
+           earns most (on a tie, the lower one), next to the one raw buyers alone would pick. Every price counts
+           the same buyers: one missing an answer or a score in any round is left out of all, and listed.
 page       writes the page data for a round (default ROUND_DIR/page.json) and a self-contained HTML page
            from it (default ROUND_DIR/page.html): the simulated-panel line, the summary, any checks found in
-           ROUND_DIR/summary.json, the price curves as inline SVG and the buyer table with filters.
+           ROUND_DIR/summary.json or ROUND_DIR/checks.json, the price curves as inline SVG and the buyer
+           table with filters.
 quotes     for the pitch: one buyer type's quotes and reactions with buyer ids (the type named, or the most
            likely to buy), and the buyers held out to try the pitch on: half the type, dealt so both halves
            hold buyers and passers, with their first-round decisions; their own words are never printed.
@@ -42,9 +57,12 @@ compare    two variants, each shown to one half: BUY share raw and discounted on
            choices per side, and the segments on each side. A buyer in both rounds is refused.
 competitor the round diff after ROUND_B added or repriced the competitor its round.json names, plus who
            switched to it, who left it, and who stayed on each option with the reasons that held them.
+ground     compares real results (PANEL/real/<label>.json: a smoke test, interviews or a pre-sale) with the
+           discounted BUY share of the round they tested, at the same price, and stores the ratio of real to
+           predicted in PANEL/grounding.jsonl (one line per label; importing a label again replaces it).
 
-Exit codes: 0 done; 1 a check failed (reserved for checks); 2 bad usage; 3 invalid records (nothing is
-aggregated from them). Stdlib only.
+Exit codes: 0 done; 1 a check failed; 2 bad usage; 3 invalid records (nothing is aggregated or checked
+from them). Stdlib only.
 """
 import argparse
 import datetime
@@ -52,6 +70,7 @@ import html
 import json
 import os
 import random
+import re
 import sys
 
 COMMANDS = {}
@@ -96,6 +115,8 @@ def kind_of(path):
     base = os.path.basename(path)
     if os.path.basename(os.path.dirname(path)) == "answers" and base.endswith(".jsonl"):
         return "answers"
+    if os.path.basename(os.path.dirname(path)) == "real" and base.endswith(".json"):
+        return "real"
     stem = base.split(".")[0]
     return stem if stem in SCHEMAS or stem in OBJECTS else None
 
@@ -654,6 +675,8 @@ def show_aggregate(result):
     cur = rnd["currency"]
     print(f"BUY {s['buy']} of {s['buyers']}: raw {pct(s['raw'])}, discounted {pct(s['discounted'])} "
           f"({s['weights']['scheme']})")
+    if "corrected" in result:
+        show_corrected(result["corrected"])
     for key, label in (("pass_reasons", "Top reasons to pass"), ("buy_reasons", "Top reasons to buy")):
         print(f"{label}: " + (", ".join(f"{r['reason']} {r['count']}" for r in result[key]) or "none"))
     print("Buyer types most likely to buy: " + ", ".join(
@@ -689,6 +712,11 @@ def cmd_aggregate(args):
     if errors:
         return {"errors": errors}, 3
     result = aggregate(meta, buyers, answers, scores, weights)
+    corrected, errors = corrected_figure(args.round_dir, result, weights)   # ground: only with a grounding
+    if errors:
+        return {"errors": errors}, 3
+    if corrected:
+        result["corrected"] = corrected
     if args.out:
         with open(args.out, "w", encoding="utf-8", newline="\n") as f:
             json.dump(result, f, ensure_ascii=False, indent=1)
@@ -696,6 +724,139 @@ def cmd_aggregate(args):
     return result, 0
 
 
+# --- checks ---
+# Each threshold, its source and its reason: READING.md, "The checks".
+
+MIN_SPREAD = 0.8
+MAX_SIMILARITY = 0.5
+WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")
+# function words left out of the overlap, so two reactions are alike for what they say, not for "the" and "I"
+STOP_WORDS = frozenset("""
+a an and are as at be but by do for from had has have i i'm i'd i'll if in is it it's its me my no not of on or
+our so than that the their them then there they this to too was we were what when which who will with would you
+your il lo la i gli le un una e o ma di da in con su per che non mi ci si è
+""".split())
+
+
+MAX_PRAISE = 2.0          # praise words per 100 words of reaction
+MAX_BUY_SHARE = 0.5       # raw share choosing the offer
+MAX_FIRST_TIMES_CHANCE = 2  # the option shown first, chosen this many times as often as chance gives
+# praise that says how good the product is, not what it does; English and Italian forms
+PRAISE_WORDS = frozenset("""
+amazing awesome beautiful brilliant delightful excellent exceptional fabulous fantastic flawless game-changer
+genius gorgeous great impressive incredible love loved lovely loving magnificent marvellous marvelous must-have
+outstanding perfect perfectly phenomenal remarkable revolutionary spectacular stunning superb terrific wonderful
+bellissimo bellissima eccezionale fantastico fantastica fantastici geniale incredibile magnifico magnifica
+meraviglioso meravigliosa ottimo ottima perfetto perfetta perfetti stupendo stupenda
+""".split())
+
+
+def words(text):
+    return WORD.findall(text.lower())
+
+
+def similarity(texts):
+    """Mean overlap (Jaccard) of the content words of every pair of reactions."""
+    sets = [set(words(t)) - STOP_WORDS for t in texts]
+    pairs = [(a, b) for i, a in enumerate(sets) for b in sets[i + 1:]]
+    if not pairs:
+        return None
+    return round(sum(len(a & b) / len(a | b) if a | b else 1 for a, b in pairs) / len(pairs), 3)
+
+
+def praise(texts):
+    """Praise words per 100 words of reaction, across the round."""
+    found = [w for t in texts for w in words(t)]
+    if not found:
+        return None
+    return round(sum(w in PRAISE_WORDS for w in found) / len(found) * 100, 1)
+
+
+def order(rows):
+    """(share of buyers choosing the option shown first, the share chance alone gives)."""
+    if not rows:
+        return None, None
+    first = sum(r["options"][0] == r["choice"] for r in rows) / len(rows)
+    chance = sum(1 / len(r["options"]) for r in rows) / len(rows)
+    return round(first, 3), round(chance, 3)
+
+
+LABELS = {"spread": "intent spread", "similarity": "reason similarity", "praise": "praise words",
+          "buy_share": "BUY share", "order": "first-option choice"}
+SEGMENTS = {"descriptive_only": True,
+            "why": "Buyer types are descriptive, not findings: synthetic panels flatten and misportray groups "
+                   "(Wang, Morgenstern and Dickerson), and in Bisbee et al. 32% of the coefficients that differed "
+                   "from humans flipped sign."}
+
+
+def check(name, what, value, threshold, passed):
+    return {"name": name, "what": what, "value": value, "threshold": threshold,
+            "passed": value is not None and passed(value)}
+
+
+def spread(rows):
+    """Population standard deviation of the judged intent."""
+    intents = [r["intent"] for r in rows]
+    if len(intents) < 2:
+        return None
+    mean = sum(intents) / len(intents)
+    return round((sum((x - mean) ** 2 for x in intents) / len(intents)) ** 0.5, 3)
+
+
+def run_checks(rows, answers):
+    reactions = [answers[r["buyer_id"]]["reaction"] for r in rows]
+    checks = [
+        check("spread", "standard deviation of intent", spread(rows), f">= {MIN_SPREAD:g}",
+              lambda v: v >= MIN_SPREAD),
+        check("similarity", "mean word overlap between two reactions", similarity(reactions),
+              f"<= {MAX_SIMILARITY:g}", lambda v: v <= MAX_SIMILARITY),
+        check("praise", "praise words per 100 words of reaction", praise(reactions), f"<= {MAX_PRAISE:g}",
+              lambda v: v <= MAX_PRAISE),
+        check("buy_share", "raw share choosing the offer",
+              round(sum(r["choice"] == OFFER for r in rows) / len(rows), 3) if rows else None,
+              f"<= {MAX_BUY_SHARE:g}", lambda v: v <= MAX_BUY_SHARE),
+    ]
+    first, chance = order(rows)
+    bound = None if chance is None else round(MAX_FIRST_TIMES_CHANCE * chance, 3)
+    checks.append(dict(check("order", "share choosing the option shown first", first,
+                             f"< {MAX_FIRST_TIMES_CHANCE:g} x chance ({bound})", lambda v: v < bound),
+                       chance=chance))
+    failed = [c["name"] for c in checks if not c["passed"]]
+    verdict = f"Do not trust this round: {', '.join(LABELS[n] for n in failed)} failed." if failed else None
+    return {"buyers": len(rows), "checks": checks, "failed": failed, "verdict_line": verdict, "segments": SEGMENTS}
+
+
+def show_checks(result):
+    """Markdown for the report's Checks section."""
+    if "errors" in result:
+        return show_errors(result)
+    print("| check | what it measures | value | threshold | result |")
+    print("|---|---|---|---|---|")
+    for c in result["checks"]:
+        value = "n/a" if c["value"] is None else f"{c['value']:g}"
+        print(f"| {c['name']} | {c['what']} | {value} | {c['threshold']} | {'pass' if c['passed'] else 'FAIL'} |")
+    print()
+    if result["verdict_line"]:
+        print(result["verdict_line"])
+    print(result["segments"]["why"])
+
+
+@command("checks", "flag a round that is too uniform, too agreeable or order-biased", show_checks, [
+    (("round_dir",), {"metavar": "ROUND_DIR"}),
+    (("--buyers",), {"metavar": "FILE", "help": "buyers file (default ROUND_DIR/../../buyers.jsonl)"}),
+    (("--out",), {"metavar": "FILE", "help": "also write the JSON result here"}),
+])
+def cmd_checks(args):
+    meta, buyers, answers, scores, errors = load_round(args.round_dir, args.buyers)
+    if errors:
+        return {"errors": errors}, 3
+    rows = aggregate(meta, buyers, answers, scores, WEIGHTS)["rows"]
+    result = run_checks(rows, answers)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(result, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+    return result, 1 if result["failed"] else 0
 # --- diff ---
 
 def load_rows(round_dir, buyers_path, weights):
@@ -864,6 +1025,114 @@ def intent_shift(both, before, after):
             "same": sum(after[b]["intent"] == before[b]["intent"] for b in both)}
 
 
+# --- price ---
+
+def price_round(meta, buyers, answers, scores, weights, keep):
+    """One price round's numbers over the buyers in `keep`: raw and discounted buyers, and revenue."""
+    rows = [r for r in aggregate(meta, buyers, answers, scores, weights)["rows"] if r["buyer_id"] in keep]
+    s = buy_share(rows, weights)
+    likely = sum(weights["by_intent"][str(r["intent"])] for r in rows if r["choice"] == OFFER)
+    return {"label": meta["label"], "price": meta["price"], "currency": meta["currency"], "buyers": s["buyers"],
+            "buy": s["buy"], "raw": s["raw"], "discounted": s["discounted"],
+            "discounted_buyers": round(likely, 4), "revenue": round(meta["price"] * likely, 2),
+            "raw_revenue": round(meta["price"] * s["buy"], 2)}
+
+
+def show_revenue(result):
+    """Markdown for the price report: the pick, the caveats, then one row per price."""
+    if "errors" in result:
+        return show_errors(result)
+    best, raw, cur = result["best"], result["best_raw"], result["best"]["currency"]
+    print(f"Earns most: {best['price']:g} {cur} ({best['label']}), revenue {best['revenue']:g} {cur} "
+          f"(price times discounted buyers, of {result['buyers']} buyers; {result['weights']['scheme']})")
+    if raw["price"] != best["price"]:
+        print(f"The raw buyers alone would pick {raw['price']:g} {cur}; stated intent overstates purchase, "
+              f"so the pick rests on discounted buyers")
+    print("Prices are an upper bound: synthetic buyers state willingness to pay two to three times too high")
+    if result["left_out"]:
+        print(f"Left out of every price (missing an answer or a score in some round): {', '.join(result['left_out'])}")
+    print()
+    print("| price | round | BUY raw | BUY discounted | discounted buyers | revenue | relative revenue |")
+    print("|---|---|---|---|---|---|---|")
+    for r in result["rounds"]:
+        print(f"| {r['price']:g} {cur} | {r['label']} | {r['buy']} of {r['buyers']} ({pct(r['raw'])}) | "
+              f"{pct(r['discounted'])} | {r['discounted_buyers']:g} | {r['revenue']:g} {cur} | {pct(r['relative'])} |")
+
+
+@command("revenue", "compare price rounds of one panel: buyers and revenue at each price", show_revenue, [
+    (("round_dirs",), {"nargs": "+", "metavar": "ROUND_DIR"}),
+    (("--buyers",), {"metavar": "FILE", "help": "buyers file (default ROUND_DIR/../../buyers.jsonl)"}),
+    (("--weights",), {"metavar": "W5,W4,W3,W2,W1", "help": "intent weights, default 0.75,0.25,0.1,0.05,0.02"}),
+])
+def cmd_revenue(args):
+    weights = parse_weights(args.weights)
+    if len(args.round_dirs) < 2:
+        raise UsageError("revenue compares two or more price rounds of one panel")
+    panels = {os.path.realpath(os.path.join(d, os.pardir, os.pardir)) for d in args.round_dirs}
+    if args.buyers is None and len(panels) > 1:
+        raise UsageError("price rounds must belong to one panel (the same buyers)")
+    loaded, errors = [], []
+    for d in args.round_dirs:
+        meta, buyers, answers, scores, problems = load_round(d, args.buyers)
+        errors += problems
+        loaded.append((meta, buyers, answers, scores))
+    if errors:
+        return {"errors": errors}, 3
+    first = loaded[0][0]
+    for meta, *_ in loaded[1:]:
+        for field in ("offer", "currency", "options"):
+            if meta[field] != first[field]:
+                raise UsageError(f"price rounds differ only in price: {meta['label']} has another {field} "
+                                 f"than {first['label']}")
+    prices = [meta["price"] for meta, *_ in loaded]
+    if len(set(prices)) != len(prices):
+        raise UsageError("each price round needs its own price")
+    panel = loaded[0][1]
+    keep = {bid for bid in panel if all(bid in answers and bid in scores for _, _, answers, scores in loaded)}
+    rounds = [price_round(*one, weights, keep) for one in loaded]
+    rounds.sort(key=lambda r: r["price"])
+    best, best_raw = earns_most(rounds, "revenue"), earns_most(rounds, "raw_revenue")
+    for r in rounds:
+        r["relative"] = share(r["revenue"], best["revenue"])
+    return {"rounds": rounds, "best": best, "best_raw": best_raw, "buyers": len(keep),
+            "left_out": [bid for bid in panel if bid not in keep], "weights": weights, "upper_bound": True}, 0
+
+
+def show_prices(result):
+    if "errors" in result:
+        return show_errors(result)
+    if result["prices"] is None:
+        print(f"{result['from']} has no price range ({result['dropped']} out-of-order answers dropped): "
+              f"ask for three prices")
+    else:
+        print(f"From {result['from']}'s price range (an upper bound): "
+              + " / ".join(f"{p:g}" for p in result["prices"]) + f" {result['currency']}")
+
+
+@command("prices", "propose three prices (low, mid, high) from a round's price range", show_prices, [
+    (("round_dir",), {"metavar": "ROUND_DIR"}),
+    (("--buyers",), {"metavar": "FILE", "help": "buyers file (default ROUND_DIR/../../buyers.jsonl)"}),
+])
+def cmd_prices(args):
+    meta, buyers, answers, scores, errors = load_round(args.round_dir, args.buyers)
+    if errors:
+        return {"errors": errors}, 3
+    p = aggregate(meta, buyers, answers, scores, WEIGHTS)["price"]
+    out = {"from": meta["label"], "currency": meta["currency"], "prices": None, "dropped": len(p["dropped"]),
+           "upper_bound": True}
+    if p["range"]:
+        low, high = p["range"]
+        inside = p["indifference"] is not None and low < p["indifference"] < high
+        out["prices"] = [low, p["indifference"] if inside else round((low + high) / 2, 2), high]
+    return out, 0
+
+
+def earns_most(rounds, key):
+    """The round with the highest `key`; on a tie the lower price, which reaches more buyers for the same money."""
+    top = max(rounds, key=lambda r: (r[key], -r["price"]))
+    return {"label": top["label"], "price": top["price"], "currency": top["currency"], "revenue": top[key]}
+
+
 # --- page ---
 
 def simulated_line(buyers, model):
@@ -902,6 +1171,8 @@ def page_data(round_dir, meta, buyers, answers, scores, weights):
     checks = summary.pop("checks", None)
     if checks is None:
         checks = (read_json(os.path.join(round_dir, "summary.json")) or {}).get("checks")
+    if checks is None:   # panel.py checks --out
+        checks = (read_json(os.path.join(round_dir, "checks.json")) or {}).get("checks")
     brief = read_json(os.path.join(round_dir, os.pardir, os.pardir, "brief.json")) or {}
     segments = []
     for r in rows:
@@ -1652,6 +1923,172 @@ def cmd_competitor(args):
             json.dump(result, f, ensure_ascii=False, indent=1)
             f.write("\n")
     return result, 0
+
+
+# --- ground ---
+
+# What each real test counts: (people reached, people who acted, what the rate measures).
+REAL_TESTS = {
+    "smoke-test": ("visits", "conversions", "conversions per visit"),
+    "interviews": ("interviews", "commitments", "commitments per interview"),
+    "pre-sale": ("asked", "paid", "payments per person asked"),
+}
+OBJECTS["real"] = {"label": TEXT, "test": TEXT, "round": TEXT, "date": TEXT, "source": TEXT, "price": NUMBER,
+                   "currency": TEXT}
+
+
+def date_errors(rec, field="date"):
+    try:
+        datetime.date.fromisoformat(rec.get(field))
+    except (TypeError, ValueError):
+        return [(field, "must be a date as YYYY-MM-DD")]
+    return []
+
+
+def real_errors(rec):
+    errors = date_errors(rec) if "date" in rec else []
+    if rec.get("test") not in REAL_TESTS:
+        return errors + [("test", f"must be one of {', '.join(REAL_TESTS)}")]
+    reached, acted, _ = REAL_TESTS[rec["test"]]
+    if not is_count(rec.get(reached)):
+        errors.append((reached, "must be a whole number of 1 or more"))
+    if not is_count(rec.get(acted), 0):
+        errors.append((acted, "must be a whole number of 0 or more"))
+    elif is_count(rec.get(reached)) and rec[acted] > rec[reached]:
+        errors.append((acted, f"is more than {reached}"))
+    return errors
+
+
+EXTRA["real"] = real_errors
+
+# grounding.jsonl: one line per real test compared, written by `ground`, read by `aggregate`.
+SCHEMAS["grounding"] = {"label": TEXT, "test": TEXT, "round": TEXT, "date": TEXT, "ratio": NUMBER}
+KEY["grounding"] = "label"
+
+
+def grounding_errors(rec):
+    errors = date_errors(rec) if "date" in rec else []
+    measured = rec.get("real")
+    if not (isinstance(measured, dict) and is_count(measured.get("reached")) and is_count(measured.get("acted"), 0)
+            and isinstance(measured.get("measure"), str)):
+        errors.append(("real", "must hold reached, acted and measure"))
+    predicted = rec.get("predicted")
+    by_intent = predicted.get("weights", {}).get("by_intent") if isinstance(predicted, dict) else None
+    if not (isinstance(by_intent, dict) and sorted(by_intent) == ["1", "2", "3", "4", "5"]):
+        errors.append(("predicted", "must hold the weights the ratio was computed with"))
+    return errors
+
+
+EXTRA["grounding"] = grounding_errors
+
+
+def likely(rows, weights):
+    """Buyers who chose the offer, each at the weight of their intent: the discounted count, unrounded."""
+    return sum(weights["by_intent"][str(r["intent"])] for r in rows if r["choice"] == OFFER)
+
+
+def show_ground(result):
+    if "errors" in result:
+        return show_errors(result)
+    m, p = result["real"], result["predicted"]
+    print(f"Grounding {result['label']} ({result['test']}, {result['date']}): {m['acted']} of {m['reached']}, "
+          f"{pct(m['rate'])} {m['measure']}, against round {result['round']}'s discounted {pct(p['discounted'])} "
+          f"(raw {pct(p['raw'])}). Ratio {result['ratio']:g}: later rounds show discounted x {result['ratio']:g} "
+          f"as the corrected figure.")
+
+
+@command("ground", "compare real results with the round they test, and store the ratio", show_ground, [
+    (("file",), {"metavar": "FILE", "help": "real results, PANEL/real/<label>.json"}),
+    (("--panel",), {"metavar": "DIR", "help": "panel folder (default FILE/../..)"}),
+    (("--weights",), {"metavar": "W5,W4,W3,W2,W1", "help": "intent weights, default 0.75,0.25,0.1,0.05,0.02"}),
+])
+def cmd_ground(args):
+    weights = parse_weights(args.weights)
+    checked = validate_file(args.file)
+    if checked["kind"] != "real" or checked["errors"]:
+        return {"errors": [dict(e, file=args.file) for e in checked["errors"]]
+                or [{"file": args.file, "line": 0, "field": None, "problem": "not a real/<label>.json file"}]}, 3
+    rec = checked["data"]
+    panel = args.panel or os.path.join(os.path.dirname(os.path.abspath(args.file)), os.pardir)
+    round_dir = os.path.join(panel, "rounds", rec["round"])
+    where = {"file": args.file, "line": 0}
+    if not os.path.isdir(round_dir):
+        return {"errors": [dict(where, field="round", problem=f"no round {rec['round']} in {panel}")]}, 3
+    meta, buyers, answers, scores, errors = load_round(round_dir)
+    if errors:
+        return {"errors": errors}, 3
+    for field in ("price", "currency"):
+        if rec[field] != meta[field]:
+            return {"errors": [dict(where, field=field, problem=(
+                f"the real test used {rec[field]}, round {rec['round']} showed {meta[field]}: "
+                "ground against a round with the offer and price tested"))]}, 3
+    summary = aggregate(meta, buyers, answers, scores, weights)
+    expected = likely(summary["rows"], weights)
+    if not expected:
+        return {"errors": [dict(where, field="round", problem=(
+            f"round {rec['round']} predicts no buyer, so there is nothing to compare the real result with"))]}, 3
+    reached_field, acted_field, measure = REAL_TESTS[rec["test"]]
+    reached, acted = rec[reached_field], rec[acted_field]
+    s = summary["buy_share"]
+    grounding = {
+        "label": rec["label"], "test": rec["test"], "round": rec["round"], "date": rec["date"],
+        "source": rec["source"], "offer": meta["offer"], "price": meta["price"], "currency": meta["currency"],
+        "real": {"reached": reached, "acted": acted, "rate": round(acted / reached, 4), "measure": measure},
+        "predicted": {"buyers": s["buyers"], "buy": s["buy"], "raw": s["raw"], "discounted": s["discounted"],
+                      "weights": weights},
+        "ratio": round((acted / reached) / (expected / s["buyers"]), 4),
+    }
+    ledger = os.path.join(panel, "grounding.jsonl")
+    kept = []
+    if os.path.exists(ledger):
+        old = validate_file(ledger)
+        if old["errors"]:
+            return {"errors": [dict(e, file=ledger) for e in old["errors"]]}, 3
+        kept = old["data"]
+    if any(g["label"] == grounding["label"] for g in kept):
+        kept = [grounding if g["label"] == grounding["label"] else g for g in kept]
+    else:
+        kept.append(grounding)
+    with open(ledger, "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(json.dumps(g, ensure_ascii=False) + "\n" for g in kept)
+    return grounding, 0
+
+
+def corrected_figure(round_dir, summary, weights):
+    """The latest grounding in the panel applied to this round: (corrected or None, errors)."""
+    ledger = os.path.join(round_dir, os.pardir, os.pardir, "grounding.jsonl")
+    if not os.path.exists(ledger):
+        return None, []
+    checked = validate_file(os.path.normpath(ledger))
+    if checked["errors"]:
+        return None, [dict(e, file=checked["file"]) for e in checked["errors"]]
+    latest = None
+    for g in checked["data"]:                       # latest test date; a tie goes to the line written later
+        if latest is None or g["date"] >= latest["date"]:
+            latest = g
+    if latest is None:
+        return None, []
+    m = latest["real"]
+    out = {"figure": None, "ratio": latest["ratio"], "grounding": latest["label"], "test": latest["test"],
+           "round": latest["round"], "date": latest["date"], "reached": m["reached"], "acted": m["acted"],
+           "measure": m["measure"]}
+    grounded_on = latest["predicted"]["weights"]
+    n = summary["buy_share"]["buyers"]
+    if grounded_on["by_intent"] != weights["by_intent"]:
+        out["problem"] = (f"the ratio was computed on {grounded_on.get('scheme', 'other weights')}, "
+                          f"this round uses {weights['scheme']}")
+    elif n:
+        out["figure"] = round(latest["ratio"] * likely(summary["rows"], weights) / n, 4)
+    return out, []
+
+
+def show_corrected(c):
+    source = (f"grounding {c['grounding']} ({c['test']} on round {c['round']}, {c['acted']} of {c['reached']}, "
+              f"{c['date']})")
+    if c["figure"] is None:
+        print(f"Corrected: n/a, {c.get('problem', 'no buyers in this round')}; {source}")
+    else:
+        print(f"Corrected: {pct(c['figure'])} {c['measure']}, discounted x {c['ratio']:g} from {source}")
 
 
 # ---------------------------------------------------------------- main

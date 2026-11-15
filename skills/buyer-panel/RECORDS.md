@@ -11,6 +11,9 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
   plan.json           segments with shares and budget ranges
   buyers.jsonl        the panel, written once, reused by every round
   history.md          one line per round
+  real/<label>.json   what real people did in one real test (ground)
+  grounding.jsonl     panel.py ground: real against predicted, one line per real test
+  price-p<n>.md       a price run's report (PRICE.md)
   rounds/<label>/
     round.json        what this round showed and how it was run
     cards.jsonl       panel.py deal: each buyer's batch and option order
@@ -18,6 +21,8 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
     judge-input.jsonl panel.py reactions: what the judge may see
     scores.jsonl      the judge's output
     summary.json      panel.py aggregate --out
+    checks.json       panel.py checks --out
+    critique.md       the devil's advocate (CRITIQUE.md)
     diff.json         panel.py diff --out: this round against an earlier one (fix and later modes)
     compare.json      panel.py compare --out: variant A's folder only, the two halves side by side
     report.md         the round's report
@@ -29,7 +34,7 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
     landing.md        the smoke-test landing brief
 ```
 
-Round labels are short and unique within the panel: `r1` for the first round; later modes name theirs.
+Round labels are short and unique within the panel: `r1` for the first round; later modes name theirs (`price` uses `p<n>-<price>`, such as `p1-14`).
 
 ## brief.json
 
@@ -163,6 +168,42 @@ Written by `panel.py compare ROUND_A ROUND_B --out FILE`, never by hand. The two
 | `higher` | the label with the higher raw share, or null on a tie; never a winner by itself |
 | `segments`, `balanced` | buyers per segment in each half; `balanced` is false when a segment differs by more than one buyer |
 
+## Real results
+
+`real/<label>.json`: what real people did in one real test, from the user's records.
+
+| field | type | what |
+|---|---|---|
+| `label` | text | short and unique in the panel: `smoke-1`, `talks-1` |
+| `test` | `smoke-test`, `interviews` or `pre-sale` | which real test was run |
+| `round` | text | the label of the round that showed the offer tested, at the price tested |
+| `date` | `YYYY-MM-DD` | when the test ended |
+| `source` | text | where the numbers come from: analytics export, interview notes, payment records |
+| `price` | number | the price the test charged or asked; must equal the round's |
+| `currency` | text | must equal the round's |
+
+Then the two counts of its test, whole numbers, the second no larger than the first:
+
+| `test` | people reached (1 or more) | people who acted | the rate measures |
+|---|---|---|---|
+| `smoke-test` | `visits` | `conversions` | conversions per visit |
+| `interviews` | `interviews` | `commitments` (a deposit, a letter of intent, a start date) | commitments per interview |
+| `pre-sale` | `asked` | `paid` | payments per person asked |
+
+## grounding.jsonl
+
+Written by `panel.py ground`, one line per real test, read by `aggregate`. Do not write it by hand.
+
+| field | what |
+|---|---|
+| `label`, `test`, `round`, `date`, `source` | copied from the real-results file |
+| `offer`, `price`, `currency` | the round's, as its card showed them |
+| `real` | `{reached, acted, rate, measure}`: the two counts, their ratio to 4 places, and what it measures |
+| `predicted` | `{buyers, buy, raw, discounted, weights}`: the round's BUY share as `aggregate` gives it, with the weights used |
+| `ratio` | the real rate divided by the round's discounted share, to 4 places |
+
+`aggregate` applies the line with the latest `date` (on a tie, the one written later): its `corrected` field holds `figure` (the round's discounted share times `ratio`, to 4 places), `ratio`, `grounding` (the label), `test`, `round`, `date`, `reached`, `acted` and `measure`. A round aggregated with weights other than the grounding's gets `figure: null` and a `problem` saying why. Without `grounding.jsonl` there is no `corrected` field.
+
 ## Exit codes
 
-`0` done; `1` reserved for a failed panel check; `2` bad arguments; `3` invalid records: the output lists file, line, field and problem, and nothing is computed from them.
+`0` done; `1` a panel check failed (`checks`; READING.md); `2` bad arguments; `3` invalid records: the output lists file, line, field and problem, and nothing is computed from them.

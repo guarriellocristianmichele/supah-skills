@@ -1,0 +1,7 @@
+{"buyer_id": "b01", "round": "order-biased", "intent": 2, "reason": "safe-bet", "quote": "it seems the safe bet"}
+{"buyer_id": "b02", "round": "order-biased", "intent": 1, "reason": "no-need", "quote": "I can keep scribbling hours on paper"}
+{"buyer_id": "b03", "round": "order-biased", "intent": 4, "reason": "saves-time", "quote": "save my studio the weekly chase"}
+{"buyer_id": "b04", "round": "order-biased", "intent": 2, "reason": "what-peers-use", "quote": "what freelancers I know already use"}
+{"buyer_id": "b05", "round": "order-biased", "intent": 2, "reason": "vendor-approval", "quote": "might satisfy our ERP people"}
+{"buyer_id": "b06", "round": "order-biased", "intent": 3, "reason": "already-paid", "quote": "We stay on Harvest"}
+{"buyer_id": "b07", "round": "order-biased", "intent": 1, "reason": "no-need", "quote": "Nobody pays me by the hour"}

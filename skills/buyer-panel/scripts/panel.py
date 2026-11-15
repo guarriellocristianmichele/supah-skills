@@ -7,6 +7,8 @@ Usage:
   panel.py [--json] reactions ROUND_DIR [--seed N] --out FILE
   panel.py [--json] aggregate ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
   panel.py [--json] page ROUND_DIR [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--data FILE] [--out FILE]
+  panel.py [--json] quotes ROUND_DIR [--buyers FILE] [--type SEGMENT] [--holdout N] [--seed N]
+                   [--holdout-out FILE] [--out FILE]
 
 validate   checks records against the schemas in RECORDS.md; the kind comes from the file name
            (buyers.jsonl, answers.jsonl or answers/*.jsonl, scores.jsonl, brief.json, plan.json, round.json).
@@ -19,6 +21,9 @@ aggregate  turns one round (round.json, answers, scores) into numbers: raw and d
 page       writes the page data for a round (default ROUND_DIR/page.json) and a self-contained HTML page
            from it (default ROUND_DIR/page.html): the simulated-panel line, the summary, any checks found in
            ROUND_DIR/summary.json, the price curves as inline SVG and the buyer table with filters.
+quotes     for the pitch: one buyer type's quotes and reactions with buyer ids (the type named, or the most
+           likely to buy), and the buyers held out to try the pitch on: half the type, dealt so both halves
+           hold buyers and passers, with their first-round decisions; their own words are never printed.
 
 Exit codes: 0 done; 1 a check failed (reserved for checks); 2 bad usage; 3 invalid records (nothing is
 aggregated from them). Stdlib only.
@@ -990,6 +995,86 @@ def cmd_page(args):
     with open(page_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(page_html(data))
     return {"data": data_path, "page": page_path, "rows": len(data["rows"])}, 0
+
+
+# --- pitch ---
+
+def split_type(rows, holdout, rng):
+    """Sources and holdout for one buyer type: BUYs first, each group shuffled, then dealt alternately so both
+    halves hold buyers who bought and buyers who passed. The holdout takes `holdout` buyers."""
+    buys = [r for r in rows if r["decision"] == "BUY"]
+    passes = [r for r in rows if r["decision"] != "BUY"]
+    rng.shuffle(buys)
+    rng.shuffle(passes)
+    dealt = buys + passes
+    held = dealt[1::2][:holdout]
+    held_ids = {r["buyer_id"] for r in held}
+    return [r for r in dealt if r["buyer_id"] not in held_ids], held
+
+
+def show_quotes(result):
+    """Markdown for the pitch writer: the type, its words with buyer ids, and who is held out."""
+    if "errors" in result:
+        return show_errors(result)
+    f = result["first_round"]
+    print(f"Type {result['type']} ({result['picked']}) in round {result['round']}, seed {result['seed']}. "
+          "Other types: " + (", ".join(f"{t['segment']} {t['buy']} of {t['buyers']}" for t in result["types"]
+                                       if t["segment"] != result["type"]) or "none"))
+    print("Their words (borrow only from these, quoted, with the buyer id):")
+    for q in result["quotes"]:
+        print(f"- {q['buyer_id']} {q['name']} ({q['decision']}, intent {q['intent']}, {q['reason']}): "
+              f"\"{q['quote']}\" Reaction: \"{q['reaction']}\"")
+    print(f"Held out for the try-out, first round BUY {f['buy']} of {f['buyers']}: raw {pct(f['raw'])}, "
+          f"discounted {pct(f['discounted'])}: " + (", ".join(
+              f"{h['buyer_id']} {h['name']} ({h['decision']}, intent {h['intent']})" for h in result["holdout"])
+              or "none, so the pitch cannot be tried on this type"))
+
+
+@command("quotes", "a buyer type's own words with buyer ids, and the buyers held out to try the pitch on",
+         show_quotes, [
+             (("round_dir",), {"metavar": "ROUND_DIR"}),
+             (("--buyers",), {"metavar": "FILE", "help": "buyers file (default ROUND_DIR/../../buyers.jsonl)"}),
+             (("--type",), {"metavar": "SEGMENT", "help": "the buyer type to pitch (default: the most likely to buy)"}),
+             (("--holdout",), {"type": int, "metavar": "N",
+                               "help": "buyers of the type kept out of the quotes, up to half (default: half)"}),
+             (("--seed",), {"type": int, "metavar": "N", "help": "random seed, recorded (default: a fresh one)"}),
+             (("--holdout-out",), {"metavar": "FILE", "help": "write the held-out buyers' records here (buyers.jsonl)"}),
+             (("--out",), {"metavar": "FILE", "help": "also write the JSON result here"}),
+         ])
+def cmd_quotes(args):
+    meta, buyers, answers, scores, errors = load_round(args.round_dir, args.buyers)
+    if errors:
+        return {"errors": errors}, 3
+    summary = aggregate(meta, buyers, answers, scores, WEIGHTS)
+    ranked = buyer_types(summary["rows"], WEIGHTS, top=None)
+    names = [t["segment"] for t in ranked]
+    if args.type is not None and args.type not in names:
+        raise UsageError(f"--type {args.type!r} is not a buyer type of this round: {', '.join(names)}")
+    chosen = args.type if args.type is not None else names[0]
+    rows = [r for r in summary["rows"] if r["segment"] == chosen]
+    holdout = len(rows) // 2 if args.holdout is None else args.holdout
+    if not 0 <= holdout <= len(rows) // 2:
+        raise UsageError(f"--holdout must be from 0 to {len(rows) // 2}, half the {len(rows)} {chosen} buyers")
+    seed = args.seed if args.seed is not None else random.SystemRandom().randrange(10 ** 6)
+    sources, held = split_type(rows, holdout, random.Random(seed))
+    result = {
+        "round": meta["label"], "type": chosen, "picked": "most likely" if args.type is None else "named",
+        "seed": seed, "types": ranked,
+        "quotes": [{"buyer_id": r["buyer_id"], "name": r["name"], "decision": r["decision"], "intent": r["intent"],
+                    "reason": r["reason"], "quote": r["quote"], "reaction": answers[r["buyer_id"]]["reaction"]}
+                   for r in sources],
+        "holdout": [{"buyer_id": r["buyer_id"], "name": r["name"], "decision": r["decision"], "choice": r["choice"],
+                     "intent": r["intent"], "reason": r["reason"]} for r in held],
+        "first_round": buy_share(held, WEIGHTS),
+    }
+    if args.holdout_out:
+        with open(args.holdout_out, "w", encoding="utf-8", newline="\n") as f:
+            f.writelines(json.dumps(buyers[r["buyer_id"]], ensure_ascii=False) + "\n" for r in held)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(result, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+    return result, 0
 
 
 # ---------------------------------------------------------------- main

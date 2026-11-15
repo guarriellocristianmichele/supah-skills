@@ -11,7 +11,11 @@ npx skills@latest add guarriellocristianmichele/supah-skills -s ai-slop-design
 claude plugin install ai-slop-design --marketplace guarriellocristianmichele/supah-skills --scope user
 ```
 
-Every route and scope is in the [repository README](../../README.md#installation-1-minute-setup). Requirements: Python 3.10 or newer on `PATH`, standard library only. A browser tool (Playwright, Claude in Chrome) is optional and adds screenshot checks.
+Every route and scope is in the [repository README](../../README.md#installation-1-minute-setup). Requirements: Python 3.10 or newer on `PATH`, standard library only.
+
+### Works best with screenshots
+
+The scanner reads source, so it can't see what only the rendered page shows: a hero that sits dead centre, text over a photo, elements that overlap at 390 pixels, a grid that turned into a wall of cards. Give the agent a browser tool and, once you allow it on screen, it researches on its own: craft looks at current work in the category and the competitors in your brief, opens font specimens and checks every stock photo URL, and both modes look at the page at 390, 768 and 1440 pixels, check for horizontal scroll, and judge the screenshots against the direction and the category's floor. The question offers an isolated Playwright browser (recommended), your own Chrome with your sign-ins, or no browser. In Claude Code, any of these works: the [Playwright plugin](https://github.com/microsoft/playwright-mcp), Claude in Chrome, or the built-in browser. Without one, the skill still runs and the report says the render was not checked.
 
 ## Use
 
@@ -55,6 +59,7 @@ Le pagine costruite dagli agenti si somigliano tutte: gradiente viola-blu, Inter
 Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s ai-slop-design`, oppure come plugin di Claude Code con `claude plugin install ai-slop-design --marketplace guarriellocristianmichele/supah-skills --scope user`. Si avvia a mano, quindi non occupa contesto nelle altre sessioni.
 
 - `craft <brief>` scrive prima la pagina che verrebbe di riflesso e la scarta, poi sceglie palette, caratteri, layout, un solo elemento memorabile e un solo movimento, ognuno con il suo motivo. Costruisce, controlla il proprio codice e gli screenshot, e annota la direzione in `.slop-design/history.md` perché la pagina successiva vada altrove.
-- Entrambe partono dalla categoria del prodotto (sito vetrina, sito marketing SaaS, interfaccia SaaS, app mobile, e-commerce, portfolio e campagne): per ognuna ci sono le convenzioni da rispettare, lo spazio per la creatività, quanto decorare e i requisiti minimi di accessibilità. La creatività resta dentro la cornice.
 - `sweep [file…]` legge HTML, CSS, JSX/TSX, Vue, Svelte e Astro, giudica ogni segnalazione (riflesso, scelta voluta con il motivo, falso positivo), corregge i riflessi e guarda la pagina intera per ciò che nessuno schema vede.
+- Entrambe partono dalla categoria del prodotto (sito vetrina, sito marketing SaaS, interfaccia SaaS, app mobile, e-commerce, portfolio e campagne): per ognuna ci sono le convenzioni da rispettare, lo spazio per la creatività, quanto decorare e i requisiti minimi di accessibilità. La creatività resta dentro la cornice.
+- Funziona meglio con gli screenshot. Lo scanner legge il codice, quindi non vede ciò che appare solo nella pagina renderizzata: un hero piantato al centro, testo sopra una foto, elementi che si sovrappongono a 390 pixel. Con un browser a disposizione (il plugin Playwright, Claude in Chrome o il browser integrato) e dopo la tua autorizzazione a schermo, l'agente fa ricerca da solo: in `craft` guarda i siti attuali della categoria e i concorrenti del brief, apre i campioni dei font e verifica le foto stock; in entrambe le modalità guarda la pagina a 390, 768 e 1440 pixel, controlla lo scroll orizzontale e giudica gli screenshot. La domanda propone un browser Playwright isolato (consigliato), il tuo Chrome con i tuoi accessi, oppure nessun browser. Senza browser la skill funziona lo stesso e il report dice che la resa non è stata controllata.
 - Lo scanner ha 45 regole in nove categorie, contrasto WCAG, responsive e stili duplicati compresi. I livelli vengono dalla precisione misurata sui casi giudicati.

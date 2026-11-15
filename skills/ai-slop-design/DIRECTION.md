@@ -29,7 +29,7 @@ Three words naming physical objects or materials ("enamel, receipt, cast iron"),
 
 1. From the voice words, describe the face as an object: "the lettering on a 1960s enamel sign", "a typewritten repair ticket".
 2. Write the three faces you would reach for first. Any of them on the reflex-font list (REFLEXES.md) is set aside, and so is any face used in `.slop-design/history.md`.
-3. Search a real catalogue (Google Fonts, Fontshare, Velvetyne, Collletttivo, a foundry's specimen pages) for the object, not for "elegant serif" or "modern sans".
+3. Search a real catalogue (Google Fonts, Fontshare, Velvetyne, Collletttivo, a foundry's specimen pages) for the object, not for "elegant serif" or "modern sans"; with the browser the user allowed, open it and read the specimen at display and body sizes.
 4. Check the pick against step 2. If it matches a first reach, start again from step 1 with a different object.
 5. Set a scale with steps at least 1.25 apart, body line length 60 to 75 characters, and weights that differ visibly.
 

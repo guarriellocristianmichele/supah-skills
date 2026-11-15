@@ -204,6 +204,7 @@ Asking for "something more creative" swaps the reflex for the next one: cream, a
 
 - [`/ai-slop-design craft`](./skills/ai-slop-design/SKILL.md) writes down the page it would build for the category without thinking, sets that answer aside, and commits to a direction drawn from the subject (palette, type, layout, one memorable element, one motion moment), each with its reason. It builds, sweeps its own output, checks screenshots, and records the direction so the next page in the project goes somewhere else.
 - [`/ai-slop-design sweep`](./skills/ai-slop-design/SKILL.md) scans existing frontend code with 45 rules in nine categories, WCAG contrast, responsive breakage and duplicated styles included, then judges every hit against the brand and the content before anything changes.
+- Both work best with a browser tool (Playwright, Claude in Chrome): the agent then checks screenshots at phone, tablet and desktop widths for what source can't show.
 
 ### Summary
 

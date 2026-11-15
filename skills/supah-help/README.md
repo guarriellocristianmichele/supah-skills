@@ -32,6 +32,11 @@ With no arguments it shows the situations and asks which one is yours. It is use
 | sharing the cleanup with a team or agents | `/ai-slop-audit publish`, then `fix #<n>` or `/implement #<n>` |
 | a new site or page that must not look generated | `/ai-slop-design craft <brief>` |
 | a site that looks generated, low-contrast text, copy-pasted styles | `/ai-slop-design sweep <files>` |
+| is my idea worth building? | `/buyer-panel <idea>`, then the real test it names |
+| what would remove the top objection? | `/buyer-panel fix [reason]` after a first panel |
+| which of two offers or names, or what if a competitor cuts its price | `/buyer-panel compare A B`, `/buyer-panel competitor` |
+| which price, how to pitch it | `/buyer-panel <idea>`, then `/buyer-panel price` and `/buyer-panel pitch` |
+| testing the idea on real people | `/buyer-panel test`: interview script, landing brief, go and stop thresholds |
 | the text users see in an app | `/ai-slop-prose sweep src/**/*.tsx locales/*.json` |
 | a page, post, email or README | `/ai-slop-prose sweep <file>` plus what it is for |
 | a big context before you type, or instructions that fight | `/context-audit` |
@@ -53,6 +58,7 @@ Un router sulle skill supah. Descrivi cosa vuoi fare e ti consiglia il percorso 
 ```text
 /supah-help la mia app è stata fatta con l'AI e il codice è pieno di roba inutile
 /supah-help devo sistemare i testi dei messaggi di errore e della landing page
+/supah-help vale la pena costruire questa idea?
 ```
 
 Ogni consiglio spiega il perché con cinque principi: prove prima di cambiare, misurare invece di indovinare, passi piccoli e reversibili, sono le persone a decidere cosa esce dalla macchina, funziona da sola e si integra tramite configurazione.

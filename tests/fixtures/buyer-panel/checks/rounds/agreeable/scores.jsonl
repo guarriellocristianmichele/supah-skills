@@ -1,0 +1,7 @@
+{"buyer_id": "b01", "round": "agreeable", "intent": 5, "reason": "saves-time", "quote": "it starts by itself"}
+{"buyer_id": "b02", "round": "agreeable", "intent": 5, "reason": "saves-time", "quote": "someone who forgets timers"}
+{"buyer_id": "b03", "round": "agreeable", "intent": 4, "reason": "auto-start", "quote": "the team would love the auto-start"}
+{"buyer_id": "b04", "round": "agreeable", "intent": 4, "reason": "better-quotes", "quote": "knowing where hours go"}
+{"buyer_id": "b05", "round": "agreeable", "intent": 3, "reason": "vendor-approval", "quote": "IT would still need to approve a new vendor"}
+{"buyer_id": "b06", "round": "agreeable", "intent": 5, "reason": "switch", "quote": "would switch from Harvest tomorrow"}
+{"buyer_id": "b07", "round": "agreeable", "intent": 2, "reason": "no-need", "quote": "nobody pays me by the hour"}

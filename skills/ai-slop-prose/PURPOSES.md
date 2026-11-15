@@ -28,6 +28,10 @@ On microcopy (`button`, `link`, `label`, `placeholder`, `alt`, `tooltip`, `hint`
 | Purpose | Its job | Rewrite to |
 |---|---|---|
 | landing page, product page | show what it does and for whom, then the next step | concrete outcomes, numbers, one call to action; cut stakes inflation and "revolutionary" |
+| pitch | win a listener's next step in about 30 seconds, spoken | who it is for, their problem in their words, what it does, the price, one ask; about 75 words; keep quoted phrases verbatim; cut "imagine", rhetorical questions and superlatives |
+| panel report | say what a synthetic panel found and how far to trust it | the simulated-panel line first, the numbers and tables exactly as the script printed them, the verdict and one real test; cut hype, "the data proves" and any claim the panel cannot carry; never change a number, quote or table row |
+| interview script | get facts about a person's past behaviour and real spend | questions about the last time it happened, what they used and what they paid; cut "would you", "imagine" and anything that names the offer before the closing; keep each question's subject, quote and threshold |
+| landing page brief | tell whoever builds a smoke-test page what it must say and measure | the offer, the price, the one action, the objections it answers with buyers' words, the traffic and the measure; cut testimonials, user counts and scarcity no one can back; keep prices and thresholds |
 | docs, README | let the reader do the task | the task first, commands and expected output, then reference; cut meta-text about the document |
 | blog post, article | argue one point well | the point early, evidence, the author's voice; cut signposted endings |
 | email, newsletter | one action or one piece of news per message | the point in the first sentence, the ask stated once |

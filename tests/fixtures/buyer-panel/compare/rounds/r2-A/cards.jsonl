@@ -1,0 +1,4 @@
+{"buyer_id": "b01", "batch": 1, "options": ["Harvest", "offer", "nothing", "Toggl"]}
+{"buyer_id": "b03", "batch": 1, "options": ["offer", "Harvest", "Toggl", "nothing"]}
+{"buyer_id": "b05", "batch": 1, "options": ["Toggl", "offer", "Harvest", "nothing"]}
+{"buyer_id": "b07", "batch": 1, "options": ["offer", "Toggl", "nothing", "Harvest"]}

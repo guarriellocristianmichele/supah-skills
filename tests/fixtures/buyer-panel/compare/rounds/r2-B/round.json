@@ -1,0 +1,13 @@
+{
+ "label": "r2-B",
+ "offer": "Tickr for studios that quote by project: see where the hours went before you price the next job.",
+ "price": 9,
+ "currency": "EUR",
+ "options": ["offer", "Toggl", "Harvest", "nothing"],
+ "model": "test-model-1",
+ "interviews": "orchestrate",
+ "batch_size": 4,
+ "seed": 7,
+ "variant": "B",
+ "compare": "r2-A"
+}

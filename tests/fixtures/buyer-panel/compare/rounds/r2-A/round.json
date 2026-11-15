@@ -1,0 +1,13 @@
+{
+ "label": "r2-A",
+ "offer": "Tickr: a time tracker that starts itself when you open a client's files.",
+ "price": 9,
+ "currency": "EUR",
+ "options": ["offer", "Toggl", "Harvest", "nothing"],
+ "model": "test-model-1",
+ "interviews": "orchestrate",
+ "batch_size": 4,
+ "seed": 7,
+ "variant": "A",
+ "compare": "r2-B"
+}

@@ -1,0 +1,12 @@
+{
+ "label": "r2",
+ "offer": "Tickr: a time tracker that starts itself when you open a client's files.",
+ "price": 9,
+ "currency": "EUR",
+ "options": ["offer", "Toggl", "Harvest", "Clockify", "nothing"],
+ "model": "test-model-1",
+ "interviews": "orchestrate",
+ "batch_size": 4,
+ "base": "r1",
+ "competitor": {"name": "Clockify", "price": 4}
+}

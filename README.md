@@ -2,7 +2,7 @@
 
 [![skills.sh](https://skills.sh/b/guarriellocristianmichele/supah-skills)](https://skills.sh/guarriellocristianmichele/supah-skills)
 
-Agent skills for cleaning up after AI: the dead code and needless layers it leaves in a codebase, the tics it leaves in prose, and the pages that all look alike.
+Agent skills for cleaning up after AI: the dead code and needless layers it leaves in a codebase, the tics it leaves in prose, and the pages that all look alike. One more, buyer-panel, tests a business idea on synthetic buyers and says how far to trust them.
 
 Agents write a lot, fast. Some of it is excellent, and some of it is slop: a wrapper around a wrapper, a test that checks the mock it just configured, a README that `delves into` a `rich tapestry`. These skills find that slop with evidence instead of vibes, and remove it in small steps that keep behaviour, meaning and voice intact.
 
@@ -206,6 +206,16 @@ Asking for "something more creative" swaps the reflex for the next one: cream, a
 - [`/ai-slop-design sweep`](./skills/ai-slop-design/SKILL.md) scans existing frontend code with 45 rules in nine categories, WCAG contrast, responsive breakage and duplicated styles included, then judges every hit against the brand and the content before anything changes.
 - Both work best with a browser tool (Playwright, Claude in Chrome): the agent then checks screenshots at phone, tablet and desktop widths for what source can't show.
 
+### #5: Every idea sounds good to a model
+
+**The Problem**: Ask a model to invent 100 buyers and pitch them your idea, and it hands back a confident table of BUY and PASS. The buyers know the idea is yours and turn polite. They answer alike, rarely walk away, pick whatever is listed first, and name prices two to three times what people pay. You get a mirror that looks like evidence.
+
+**The Fix** is a panel built against each of those failures, which says what it is:
+
+- [`/buyer-panel <idea>`](./skills/buyer-panel/SKILL.md) researches competitors and their prices first, builds buyers from a segment plan with budgets taken from that research, and shows each one your idea as another company's product, next to the real competitors and "buy nothing", in an order shuffled per buyer.
+- Buyers are interviewed in fresh contexts through `orchestrate`, react in their own words before choosing, and a separate judge places each reaction on five fixed anchor statements. A script turns the round into a raw and a discounted BUY share, the top reasons to pass, and a price range marked as an upper bound.
+- The report opens by saying the panel is simulated and which model wrote it, and ends with the first real test to run this week.
+
 ### Summary
 
 Agents are fast at adding. These skills are about taking away, carefully, with proof. Enjoy.
@@ -220,6 +230,7 @@ User-invoked skills run only when you type them. Model-invoked skills can be typ
 - [context-audit](./skills/context-audit/README.md): measures what every Claude Code session loads before you type, from your own transcripts and split by plugin, and finds the instructions, memories and plugins that contradict each other or hold development back.
 - [doc-truth](./skills/doc-truth/README.md): checks every claim the docs make about the repository (links, anchors, scripts, flags, npm scripts, make targets, environment variables) against the repository, then fixes the doc or reports the code that lost what the doc promises.
 - [ai-slop-design](./skills/ai-slop-design/README.md): builds pages whose look comes from their subject (`craft <brief>`), and sweeps frontend code for design reflexes, text below WCAG contrast and duplicated styles (`sweep [file…]`), judging every hit before it changes.
+- [buyer-panel](./skills/buyer-panel/README.md): tests a business idea on a synthetic panel of buyers built against agreeable, uniform and over-stated answers, from the project you are in or from an idea you type, and ends with the first real test to run. Modes: `run [idea]`, `fix [reason]`, `price [low mid high]`, `pitch [type]`, `compare A B`, `competitor`, `test`, and `ground`, which compares real results with the panel and shows corrected figures from then on.
 - [ai-slop-audit](./skills/ai-slop-audit/README.md): evidence-backed audit and cleanup of needless complexity across a codebase. Modes: `audit [path]`, `plan`, `publish [batches]`, `fix <ID>`, `verify`. Keeps its state in `.slop-audit/` across sessions, and never reports a partial scan as complete.
 
 ### Model-invoked
@@ -234,7 +245,7 @@ User-invoked skills run only when you type them. Model-invoked skills can be typ
 
 ### How the skills work together
 
-Each skill works alone, and each one uses the others when they are installed. ai-slop-design hands the words on a page to ai-slop-prose; ai-slop-audit asks mutation-check whether a test checks anything, and ai-slop-design's scanner where styles were copied. Any job over more than three files or modules goes to `orchestrate`, which runs it on parallel agents sized to free memory, or inline on a small job. Calls go one way, so no two skills wait on each other ([ADR 0012](docs/adr/0012-skills-reach-each-other-by-files-and-orchestrate.md)).
+Each skill works alone, and each one uses the others when they are installed. ai-slop-design hands the words on a page to ai-slop-prose; ai-slop-audit asks mutation-check whether a test checks anything, and ai-slop-design's scanner where styles were copied; buyer-panel interviews its buyers through `orchestrate` and hands its report to ai-slop-prose. Any job over more than three files or modules goes to `orchestrate`, which runs it on parallel agents sized to free memory, or inline on a small job. Calls go one way, so no two skills wait on each other ([ADR 0012](docs/adr/0012-skills-reach-each-other-by-files-and-orchestrate.md)).
 
 When a skill is unsure, it looks first: the repository, its docs, a web search. What only you can decide, it asks as one question with two to four answers ready to pick, the recommended one first; in Claude Code they appear on screen ([ADR 0013](docs/adr/0013-ask-with-options.md)).
 
@@ -259,7 +270,7 @@ New skills go in `skills/<name>/` and in `.claude-plugin/plugin.json`. Bump `ver
 
 ## Italiano
 
-Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice morto e livelli inutili nella codebase, tic di scrittura nei testi, pagine che sembrano tutte uguali. Pensate per Claude Code, funzionano con qualsiasi agente che legga il formato Agent Skills.
+Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice morto e livelli inutili nella codebase, tic di scrittura nei testi, pagine che sembrano tutte uguali. Una in più, buyer-panel, prova un'idea di business su acquirenti sintetici e dice quanto fidarsi. Pensate per Claude Code, funzionano con qualsiasi agente che legga il formato Agent Skills.
 
 ### Installazione
 
@@ -268,7 +279,7 @@ Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice mo
    - qualsiasi agente: `npx skills@latest add guarriellocristianmichele/supah-skills`, che chiede skill, agenti e ambito (*Project* o *Global*); `-g` lo fissa a globale;
    - Claude Code, globale: `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user`;
    - Claude Code, progetto: `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, poi `claude plugin install supah-skills@guarriellocristianmichele --scope project`, e commit di `.claude/settings.json`;
-   - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-design`, `ai-slop-prose`, `context-audit`, `doc-truth`, `mutation-check`, `orchestrate` o `supah-help`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
+   - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-design`, `ai-slop-prose`, `buyer-panel`, `context-audit`, `doc-truth`, `mutation-check`, `orchestrate` o `supah-help`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
    - Codex, Copilot CLI e Gemini CLI: i comandi nei riquadri della sezione [Installation](#installation-1-minute-setup).
 3. Facoltativo: tutto funziona da solo, ma se usi anche le skill di mattpocock lancia `/setup-matt-pocock-skills` una volta nel repo. L'audit userà il suo tracker e le sue label (così `/triage` e `/implement` vedono le issue) e passerà i problemi di design a `/improve-codebase-architecture`. Le due raccolte non scrivono mai nei file dell'altra.
 
@@ -278,6 +289,7 @@ Servono Python 3.10 o superiore (solo libreria standard) e git.
 
 - `ai-slop-audit` (la avvii tu) fa un audit di un'intera codebase con prove riproducibili e livello di confidenza per ogni problema. Modalità `audit`, `plan`, `publish`, `fix <ID>`, `verify`. Corregge solo ciò che indichi per ID, a piccoli lotti protetti dai test.
 - `ai-slop-design` (la avvii tu) costruisce pagine il cui aspetto viene dal soggetto (`craft <brief>`) e controlla il codice frontend per le scelte di riflesso, il contrasto WCAG e gli stili duplicati (`sweep [file…]`), giudicando ogni segnalazione prima di cambiare qualcosa.
+- `buyer-panel` (la avvii tu, `/buyer-panel <idea>`) prova un'idea di business su un panel di acquirenti sintetici costruito contro le risposte accomodanti, uniformi e gonfiate: cerca prima concorrenti e prezzi, mostra l'idea come il prodotto di un altro accanto ai concorrenti veri e a "non compro niente", dice nella prima riga che il panel è simulato e chiude con il primo test reale da fare.
 - `ai-slop-prose` (si attiva da sola) usa uno scanner deterministico per i segnali di scrittura AI in inglese e italiano, trattini e punteggiatura compresi, con correzioni sicure, controllo che nessun dato vada perso e riscrittura nella voce dell'autore.
 - `mutation-check` (si attiva da sola) modifica il codice un passo alla volta, lancia i tuoi test dopo ogni modifica ed elenca quelle che i test lasciano passare: la prova dei test tautologici.
 - `orchestrate` (si attiva da sola) esegue lavori grandi inline o su agenti paralleli dimensionati sulla RAM libera, ferma i più recenti quando la memoria scarseggia salvando il lavoro in `STOPPED_AGENTS_WORK.md` e riprende alla sessione successiva.
@@ -288,7 +300,7 @@ Servono Python 3.10 o superiore (solo libreria standard) e git.
 
 ### Come lavorano insieme
 
-Ogni skill funziona da sola e usa le altre quando sono installate: ai-slop-design passa i testi della pagina ad ai-slop-prose, ai-slop-audit chiede a mutation-check se un test controlla davvero qualcosa e allo scanner di ai-slop-design dove sono stati copiati gli stili. I lavori su più di tre file o moduli passano a `orchestrate`, che li esegue su agenti paralleli dimensionati sulla memoria libera. Quando una skill ha un dubbio prima cerca (repository, documentazione, web); ciò che spetta a te te lo chiede con due-quattro risposte pronte, la consigliata per prima, che in Claude Code compaiono a schermo.
+Ogni skill funziona da sola e usa le altre quando sono installate: ai-slop-design passa i testi della pagina ad ai-slop-prose, ai-slop-audit chiede a mutation-check se un test controlla davvero qualcosa e allo scanner di ai-slop-design dove sono stati copiati gli stili; buyer-panel intervista gli acquirenti tramite `orchestrate` e passa il report ad ai-slop-prose. I lavori su più di tre file o moduli passano a `orchestrate`, che li esegue su agenti paralleli dimensionati sulla memoria libera. Quando una skill ha un dubbio prima cerca (repository, documentazione, web); ciò che spetta a te te lo chiede con due-quattro risposte pronte, la consigliata per prima, che in Claude Code compaiono a schermo.
 
 ### Licenza
 

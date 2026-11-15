@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buyer panel, round r1</title>
+<style>
+:root {
+  --bg: #f3f2ef; --surface: #fbfaf8; --text: #23221f; --muted: #57554f; --line: #d3d0c9;
+  --buy: #2d6a39; --pass: #8b3a28; --note-bg: #fbf1d9; --note-line: #9a7414;
+  --too-cheap: #1d6b87; --cheap: #4f8f33; --expensive: #a8661a; --too-expensive: #a23a3a; --band: #e3e9df;
+  --radius: 6px; --gap: 1rem;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1a1b1d; --surface: #222326; --text: #e9e7e2; --muted: #aeaba4; --line: #3b3c40;
+    --buy: #86c78f; --pass: #e79a86; --note-bg: #3a3220; --note-line: #d9b35a;
+    --too-cheap: #6cc0dd; --cheap: #9bd27f; --expensive: #e3a65c; --too-expensive: #ec8b8b; --band: #2c3a2c;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1a1b1d; --surface: #222326; --text: #e9e7e2; --muted: #aeaba4; --line: #3b3c40;
+  --buy: #86c78f; --pass: #e79a86; --note-bg: #3a3220; --note-line: #d9b35a;
+  --too-cheap: #6cc0dd; --cheap: #9bd27f; --expensive: #e3a65c; --too-expensive: #ec8b8b; --band: #2c3a2c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 72rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+h1 { font-size: 1.6rem; line-height: 1.25; margin: 1.25rem 0 0.25rem; }
+h2 { font-size: 1.2rem; margin: 2rem 0 0.75rem; }
+p { margin: 0 0 0.75rem; }
+.simulated { background: var(--note-bg); border: 2px solid var(--note-line); border-radius: var(--radius);
+  padding: 0.75rem 1rem; font-weight: 600; font-size: 1.05rem; margin: 0; }
+.meta, .scheme, .count { color: var(--muted); }
+.summary { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1.25rem; margin: 0; }
+.summary dt { font-weight: 600; }
+.summary dd { margin: 0; }
+.checks { padding-left: 1.25rem; }
+.failed { color: var(--pass); font-weight: 600; }
+.passed { color: var(--buy); font-weight: 600; }
+figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: var(--gap); }
+svg { display: block; width: 100%; max-width: 36rem; height: auto; }
+svg text { fill: var(--muted); font-size: 14px; }
+.axis { stroke: var(--line); stroke-width: 1; }
+.band { fill: var(--band); }
+.curve { fill: none; stroke-width: 2.5; }
+.too-cheap { stroke: var(--too-cheap); } .cheap { stroke: var(--cheap); }
+.expensive { stroke: var(--expensive); } .too-expensive { stroke: var(--too-expensive); }
+.legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; padding: 0; margin: 0.75rem 0 0; list-style: none; }
+.legend li::before { content: ""; display: inline-block; width: 1.25rem; height: 0; margin-right: 0.4rem;
+  vertical-align: middle; border-top: 3px solid currentColor; }
+.legend .too-cheap { color: var(--too-cheap); } .legend .cheap { color: var(--cheap); }
+.legend .expensive { color: var(--expensive); } .legend .too-expensive { color: var(--too-expensive); }
+.legend span { color: var(--text); }
+figcaption { margin-top: 0.75rem; }
+form { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: end; margin: 0 0 1rem; }
+label { display: flex; flex-direction: column; gap: 0.2rem; font-weight: 600; }
+select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 0.35rem 0.5rem; min-width: 9rem; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); }
+th, td { text-align: left; vertical-align: top; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; }
+td.num { white-space: nowrap; }
+.BUY { color: var(--buy); font-weight: 600; }
+.PASS { color: var(--pass); font-weight: 600; }
+@media (max-width: 48rem) {
+  .summary { grid-template-columns: 1fr; }
+  .summary dd { margin-bottom: 0.5rem; }
+  thead { display: none; }
+  table, tbody, tr, td { display: block; }
+  tr { border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 0.75rem; padding: 0.25rem 0; }
+  td { border: 0; padding: 0.3rem 0.75rem; display: grid; grid-template-columns: 7rem 1fr; gap: 0.75rem; }
+  td::before { content: attr(data-label); color: var(--muted); }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+<p class="simulated" role="note">Simulated panel: 7 synthetic buyers written by test-model-1, not real people. Every number below is a hypothesis to test on people.</p>
+<h1>A time tracker that starts itself when you open a client&#x27;s files.</h1>
+<p class="meta">Round r1 at 9 EUR. The card read: &ldquo;Tickr: a time tracker that starts itself when you open a client&#x27;s files.&rdquo; Interviews: orchestrate, in batches of 4 buyers in fresh contexts. Model: test-model-1.</p>
+</header>
+<section aria-labelledby="summary">
+<h2 id="summary">Summary</h2>
+<dl class="summary">
+<dt>BUY share</dt><dd>3 of 7: raw 42.9%, discounted 15.7% <span class="scheme">(top-box 75/25/10/5/2 (Jamieson and Bass 1989))</span></dd><dt>Top reasons to pass</dt><dd>already-paid (2), no-need (2)</dd><dt>Top reasons to buy</dt><dd>saves-time (2), better-quotes (1)</dd><dt>Buyer types most likely to buy</dt><dd>solo 2 of 2 (discounted 50.0%), studio 1 of 2 (discounted 5.0%), agency 0 of 2 (discounted 0.0%)</dd><dt>Price range, an upper bound</dt><dd>9 EUR to 23.5 EUR; optimal point 9 EUR, indifference point 13.5 EUR; from 5 answers in order, 2 out-of-order answers dropped (b05, b07)</dd>
+</dl>
+</section>
+
+<section aria-labelledby="price">
+<h2 id="price">Price curves</h2>
+<figure>
+<svg viewBox="0 0 420 250" role="img" aria-labelledby="chart-title">
+<title id="chart-title">Van Westendorp price curves, 5 answers in order</title>
+<rect class="band" x="96.3" y="10" width="145.8" height="200"/>
+<line class="axis" x1="46" y1="210" x2="408" y2="210"/>
+<text x="38" y="215" text-anchor="end">0%</text>
+<line class="axis" x1="46" y1="110.0" x2="408" y2="110.0"/>
+<text x="38" y="115.0" text-anchor="end">50%</text>
+<line class="axis" x1="46" y1="10" x2="408" y2="10"/>
+<text x="38" y="15" text-anchor="end">100%</text>
+<text x="46.0" y="232" text-anchor="middle">4</text>
+<text x="96.3" y="232" text-anchor="middle">9</text>
+<text x="242.1" y="232" text-anchor="middle">23.5</text>
+<text x="408.0" y="232" text-anchor="middle">40</text>
+<text x="408" y="248" text-anchor="end">EUR</text>
+<polyline class="curve too-cheap" points="46.0,10.0 56.1,50.0 66.1,90.0 76.2,130.0 86.2,170.0 96.3,210.0 106.3,210.0 116.4,210.0 126.4,210.0 156.6,210.0 186.8,210.0 206.9,210.0 227.0,210.0 257.2,210.0 287.3,210.0 307.4,210.0 357.7,210.0 408.0,210.0"/>
+<polyline class="curve cheap" points="46.0,10.0 56.1,10.0 66.1,10.0 76.2,10.0 86.2,10.0 96.3,10.0 106.3,50.0 116.4,130.0 126.4,170.0 156.6,210.0 186.8,210.0 206.9,210.0 227.0,210.0 257.2,210.0 287.3,210.0 307.4,210.0 357.7,210.0 408.0,210.0"/>
+<polyline class="curve expensive" points="46.0,210.0 56.1,210.0 66.1,210.0 76.2,210.0 86.2,210.0 96.3,210.0 106.3,210.0 116.4,210.0 126.4,210.0 156.6,170.0 186.8,130.0 206.9,90.0 227.0,50.0 257.2,10.0 287.3,10.0 307.4,10.0 357.7,10.0 408.0,10.0"/>
+<polyline class="curve too-expensive" points="46.0,210.0 56.1,210.0 66.1,210.0 76.2,210.0 86.2,210.0 96.3,210.0 106.3,210.0 116.4,210.0 126.4,210.0 156.6,210.0 186.8,210.0 206.9,210.0 227.0,210.0 257.2,170.0 287.3,130.0 307.4,90.0 357.7,50.0 408.0,10.0"/>
+</svg>
+<ul class="legend"><li class="too-cheap"><span>Too cheap at this price</span></li><li class="cheap"><span>A bargain at this price</span></li><li class="expensive"><span>Expensive at this price</span></li><li class="too-expensive"><span>Too expensive at this price</span></li></ul>
+<figcaption class="meta">Share of the 5 buyers whose answers were in order. The shaded band is the acceptable range; synthetic buyers overstate what they would pay, so read it as an upper bound.</figcaption>
+</figure>
+</section>
+<section aria-labelledby="buyers">
+<h2 id="buyers">Buyers</h2>
+<form id="filters" hidden>
+<label for="filter-segment">Segment<select id="filter-segment"><option value="">All</option><option value="solo">solo</option><option value="studio">studio</option><option value="agency">agency</option><option value="school">school</option></select></label>
+<label for="filter-decision">Decision<select id="filter-decision"><option value="">All</option><option value="BUY">BUY</option><option value="PASS">PASS</option></select></label>
+<label for="filter-reason">Reason<select id="filter-reason"><option value="">All</option><option value="already-paid">already-paid</option><option value="better-quotes">better-quotes</option><option value="no-need">no-need</option><option value="saves-time">saves-time</option></select></label>
+<p id="count" class="count" aria-live="polite"></p>
+</form>
+<p class="meta">Intent runs from 1 to 5 on the judge's anchor statements. Price answers read too cheap / cheap / expensive / too expensive, in EUR.</p>
+<table>
+<thead><tr><th scope="col">Buyer</th><th scope="col">Segment</th><th scope="col">Budget</th><th scope="col">Decision</th><th scope="col">Intent</th><th scope="col">Reason</th><th scope="col">In their words</th><th scope="col">Gives up</th><th scope="col">Price answers</th></tr></thead>
+<tbody>
+<tr data-segment="solo" data-decision="BUY" data-reason="saves-time"><td data-label="Buyer">b01 Ana Ruiz</td><td data-label="Segment">solo</td><td data-label="Budget" class="num">15 EUR</td><td data-label="Decision"><span class="BUY">BUY</span></td><td data-label="Intent" class="num">5</td><td data-label="Reason">saves-time</td><td data-label="In their words">&ldquo;I stop losing Friday afternoons to my sheet&rdquo;</td><td data-label="Gives up">one takeaway lunch a month</td><td data-label="Price answers" class="num">5 / 10 / 20 / 30</td></tr>
+<tr data-segment="solo" data-decision="BUY" data-reason="saves-time"><td data-label="Buyer">b02 Tomas Berg</td><td data-label="Segment">solo</td><td data-label="Budget" class="num">12 EUR</td><td data-label="Decision"><span class="BUY">BUY</span></td><td data-label="Intent" class="num">4</td><td data-label="Reason">saves-time</td><td data-label="In their words">&ldquo;a tracker that starts on its own is the point&rdquo;</td><td data-label="Gives up">my music streaming plan</td><td data-label="Price answers" class="num">8 / 12 / 25 / 40</td></tr>
+<tr data-segment="studio" data-decision="PASS" data-reason="already-paid"><td data-label="Buyer">b03 Lea Moretti</td><td data-label="Segment">studio</td><td data-label="Budget" class="num">30 EUR</td><td data-label="Decision"><span class="PASS">PASS (Toggl)</span></td><td data-label="Intent" class="num">2</td><td data-label="Reason">already-paid</td><td data-label="In their words">&ldquo;We already pay for Toggl and the team knows it.&rdquo;</td><td data-label="Gives up">-</td><td data-label="Price answers" class="num">4 / 9 / 15 / 25</td></tr>
+<tr data-segment="studio" data-decision="BUY" data-reason="better-quotes"><td data-label="Buyer">b04 Kofi Mensah</td><td data-label="Segment">studio</td><td data-label="Budget" class="num">25 EUR</td><td data-label="Decision"><span class="BUY">BUY</span></td><td data-label="Intent" class="num">3</td><td data-label="Reason">better-quotes</td><td data-label="In their words">&ldquo;knowing where hours go would help me quote better&rdquo;</td><td data-label="Gives up">the shared calendar&#x27;s paid tier</td><td data-label="Price answers" class="num">6 / 11 / 18 / 28</td></tr>
+<tr data-segment="agency" data-decision="PASS" data-reason="no-need"><td data-label="Buyer">b05 Ines Duarte</td><td data-label="Segment">agency</td><td data-label="Budget" class="num">60 EUR</td><td data-label="Decision"><span class="PASS">PASS</span></td><td data-label="Intent" class="num">1</td><td data-label="Reason">no-need</td><td data-label="In their words">&ldquo;Our ERP already does timesheets&rdquo;</td><td data-label="Gives up">-</td><td data-label="Price answers" class="num">12 / 10 / 20 / 30</td></tr>
+<tr data-segment="agency" data-decision="PASS" data-reason="already-paid"><td data-label="Buyer">b06 Raj Patel</td><td data-label="Segment">agency</td><td data-label="Budget" class="num">45 EUR</td><td data-label="Decision"><span class="PASS">PASS (Harvest)</span></td><td data-label="Intent" class="num">2</td><td data-label="Reason">already-paid</td><td data-label="In their words">&ldquo;Harvest is paid through next year&rdquo;</td><td data-label="Gives up">-</td><td data-label="Price answers" class="num">7 / 10 / 22 / 35</td></tr>
+<tr data-segment="school" data-decision="PASS" data-reason="no-need"><td data-label="Buyer">b07 Mira Novak</td><td data-label="Segment">school</td><td data-label="Budget" class="num">5 EUR</td><td data-label="Decision"><span class="PASS">PASS</span></td><td data-label="Intent" class="num">2</td><td data-label="Reason">no-need</td><td data-label="In their words">&ldquo;Nobody pays me by the hour&rdquo;</td><td data-label="Gives up">-</td><td data-label="Price answers" class="num">30 / 20 / 10 / 5</td></tr>
+</tbody>
+</table>
+</section>
+</main>
+<script>
+(function () {
+  var form = document.getElementById("filters");
+  var rows = Array.prototype.slice.call(document.querySelectorAll("tbody tr"));
+  var count = document.getElementById("count");
+  function apply() {
+    var shown = 0;
+    rows.forEach(function (row) {
+      var keep = ["segment", "decision", "reason"].every(function (name) {
+        var value = document.getElementById("filter-" + name).value;
+        return !value || row.getAttribute("data-" + name) === value;
+      });
+      row.hidden = !keep;
+      if (keep) { shown += 1; }
+    });
+    count.textContent = "Showing " + shown + " of " + rows.length + " buyers.";
+  }
+  form.hidden = false;
+  form.addEventListener("change", apply);
+  apply();
+})();
+</script>
+</body>
+</html>

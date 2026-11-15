@@ -1,0 +1,8 @@
+{
+ "size": 8,
+ "currency": "EUR",
+ "segments": [
+  {"name": "studio", "share": 0.5, "budget": [10, 50], "source": "fixture"},
+  {"name": "solo", "share": 0.5, "budget": [5, 25], "source": "fixture"}
+ ]
+}

@@ -1,0 +1,7 @@
+{"buyer_id": "b01", "round": "echo", "intent": 5, "reason": "saves-time", "quote": "I might try it"}
+{"buyer_id": "b02", "round": "echo", "intent": 4, "reason": "saves-time", "quote": "I might try it"}
+{"buyer_id": "b03", "round": "echo", "intent": 2, "reason": "already-paid", "quote": "I might try it"}
+{"buyer_id": "b04", "round": "echo", "intent": 3, "reason": "better-quotes", "quote": "I might try it"}
+{"buyer_id": "b05", "round": "echo", "intent": 1, "reason": "no-need", "quote": "I might try it"}
+{"buyer_id": "b06", "round": "echo", "intent": 2, "reason": "already-paid", "quote": "I might try it"}
+{"buyer_id": "b07", "round": "echo", "intent": 2, "reason": "no-need", "quote": "I might try it"}

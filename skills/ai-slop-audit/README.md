@@ -33,7 +33,7 @@ claude plugin install ai-slop-audit --marketplace guarriellocristianmichele/supa
 
 Inside a Claude Code session: `/plugin install ai-slop-audit --marketplace guarriellocristianmichele/supah-skills`. The [repository README](../../README.md#installation-1-minute-setup) covers every route, the full set, and what each scope means.
 
-The skill needs git, and works best with the [`orchestrate`](../orchestrate/README.md) skill installed for large codebases. Publishing to GitHub needs `gh` and a repo configured with `/setup-matt-pocock-skills`.
+The skill needs git, and works best with the [`orchestrate`](../orchestrate/README.md) skill installed for large codebases. With [`ai-slop-design`](../ai-slop-design/README.md) installed as well, frontend modules get its duplication rules as evidence: the same class string in three components, identical CSS blocks, a colour repeated instead of a token. Publishing to GitHub needs `gh` and a repo configured with `/setup-matt-pocock-skills`.
 
 The skill is user-invoked (`disable-model-invocation: true`): it runs only when you type its name.
 
@@ -179,7 +179,7 @@ Alta confidenza vuol dire che le prove escludono ogni modo in cui il codice può
 
 ### Da sola o con le skill di mattpocock
 
-La skill funziona da sola: `publish` crea le issue su GitHub con `gh`, oppure file in `.slop-audit/issues/` se il repo non è su GitHub. Se nel repo è stato lanciato `/setup-matt-pocock-skills` (esiste `docs/agents/issue-tracker.md`), usa quel tracker e quelle label: `ready-for-agent` per `/implement`, `needs-triage` per `/triage`. Passa i problemi di design a `/improve-codebase-architecture` e aggiunge `code-review` alla verifica finale. Non copia mai i loro formati e non scrive nei loro file.
+La skill funziona da sola: `publish` crea le issue su GitHub con `gh`, oppure file in `.slop-audit/issues/` se il repo non è su GitHub. Se nel repo è stato lanciato `/setup-matt-pocock-skills` (esiste `docs/agents/issue-tracker.md`), usa quel tracker e quelle label: `ready-for-agent` per `/implement`, `needs-triage` per `/triage`. Passa i problemi di design a `/improve-codebase-architecture` e aggiunge `code-review` alla verifica finale. Con `ai-slop-design` installata, nei moduli frontend usa le sue regole di duplicazione (classi, blocchi CSS e colori copiati) come prova. Non copia mai i loro formati e non scrive nei loro file.
 
 ### Regole fisse
 

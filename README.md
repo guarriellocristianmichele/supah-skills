@@ -232,6 +232,12 @@ User-invoked skills run only when you type them. Model-invoked skills can be typ
 
 - [slop-guard](./plugins/slop-guard/README.md): a separate plugin, not a skill. At session start it adds about 150 tokens of rules for code and prose; after each write to a Markdown or text file it scans only the new text and, when it finds a tell, sends Claude one line naming it. Clean writes cost nothing. Install with `claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`; skills.sh doesn't install hooks.
 
+### How the skills work together
+
+Each skill works alone, and each one uses the others when they are installed. ai-slop-design hands the words on a page to ai-slop-prose; ai-slop-audit asks mutation-check whether a test checks anything, and ai-slop-design's scanner where styles were copied. Any job over more than three files or modules goes to `orchestrate`, which runs it on parallel agents sized to free memory, or inline on a small job. Calls go one way, so no two skills wait on each other ([ADR 0012](docs/adr/0012-skills-reach-each-other-by-files-and-orchestrate.md)).
+
+When a skill is unsure, it looks first: the repository, its docs, a web search. What only you can decide, it asks as one question with two to four answers ready to pick, the recommended one first; in Claude Code they appear on screen ([ADR 0013](docs/adr/0013-ask-with-options.md)).
+
 ## Other agents
 
 On Claude Code the skills use argument substitution, command output injected at load time, and background subagents. Each skill tells other agents, in one line, how to do the same by hand. Without background subagents, `orchestrate` runs jobs inline with the same checkpoints. To upload a skill to claude.ai or the Skills API, keep only the `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools` frontmatter keys.
@@ -279,6 +285,10 @@ Servono Python 3.10 o superiore (solo libreria standard) e git.
 - `doc-truth` (la avvii tu, `/doc-truth`) confronta ogni affermazione della documentazione con il repository (link, ancore, script, flag, variabili d'ambiente) e corregge il documento o segnala il codice.
 - `supah-help` (la avvii tu, `/supah-help`) ti dice quale skill o percorso usare nella tua situazione, i comandi in ordine e il perché di ogni passo.
 - `slop-guard` è un plugin di hook per Claude Code, da installare a parte (`claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`). A inizio sessione aggiunge circa 150 token di regole su codice e testi; dopo ogni scrittura in un file Markdown o di testo controlla solo il testo nuovo e, se trova un segnale, lo segnala a Claude in una riga. Le scritture pulite non costano nulla. skills.sh non installa hook.
+
+### Come lavorano insieme
+
+Ogni skill funziona da sola e usa le altre quando sono installate: ai-slop-design passa i testi della pagina ad ai-slop-prose, ai-slop-audit chiede a mutation-check se un test controlla davvero qualcosa e allo scanner di ai-slop-design dove sono stati copiati gli stili. I lavori su più di tre file o moduli passano a `orchestrate`, che li esegue su agenti paralleli dimensionati sulla memoria libera. Quando una skill ha un dubbio prima cerca (repository, documentazione, web); ciò che spetta a te te lo chiede con due-quattro risposte pronte, la consigliata per prima, che in Claude Code compaiono a schermo.
 
 ### Licenza
 

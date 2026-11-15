@@ -20,7 +20,7 @@ Every route and scope is in the [repository README](../../README.md#installation
 /doc-truth README.md docs/install.md
 ```
 
-With no arguments it checks every tracked Markdown file. It is user-invoked, so it costs nothing in sessions where you don't call it.
+With no arguments it checks every tracked Markdown file. It is user-invoked, so it costs nothing in sessions where you don't call it. With more than three files it runs them on parallel agents through [`orchestrate`](../orchestrate/README.md) when that skill is installed. When the history can't tell whether the doc or the code changed on purpose, it asks you, with the answers ready to pick.
 
 ## What it checks
 
@@ -41,7 +41,7 @@ This repository runs it on its own docs in `python scripts/release.py --check`.
 
 ## Italiano
 
-La documentazione invecchia: un README tiene un comando dopo che lo script è stato rinominato, un flag dopo che è stato tolto, un link dopo che la pagina si è spostata, una variabile d'ambiente che nessuno legge più. La documentazione scritta dall'AI peggiora le cose, perché descrive flag e opzioni mai esistiti. Questa skill confronta ogni affermazione dei documenti con il repository, poi corregge il documento o segnala il codice che ha perso quello che il documento promette.
+La documentazione invecchia: un README tiene un comando dopo che lo script è stato rinominato, un flag dopo che è stato tolto, un link dopo che la pagina si è spostata, una variabile d'ambiente che nessuno legge più. La documentazione scritta dall'AI peggiora le cose, perché descrive flag e opzioni mai esistiti. Questa skill confronta ogni affermazione dei documenti con il repository, poi corregge il documento o segnala il codice che ha perso quello che il documento promette. Con più di tre file lavora su agenti paralleli tramite `orchestrate`, se installata; quando la storia del repo non dice se è cambiato apposta il documento o il codice, te lo chiede con le risposte pronte.
 
 Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s doc-truth`, oppure come plugin di Claude Code con `claude plugin install doc-truth --marketplace guarriellocristianmichele/supah-skills --scope user`. Si avvia a mano (`/doc-truth`), quindi non occupa contesto nelle altre sessioni.
 

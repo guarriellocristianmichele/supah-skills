@@ -30,7 +30,7 @@ Read the mode's file and follow it to its completion criterion. The first word o
 | `pitch [type]` | `${CLAUDE_SKILL_DIR}/PITCH.md` | a pitch with traced quotes, its try-out round |
 | `compare A B` | `${CLAUDE_SKILL_DIR}/COMPARE.md` (not yet available) | two half-panel rounds |
 | `competitor` | `${CLAUDE_SKILL_DIR}/COMPETITOR.md` (not yet available) | a round with a competitor added or repriced |
-| `test` | `${CLAUDE_SKILL_DIR}/TEST.md` (not yet available) | the real-test kit and its thresholds |
+| `test` | `${CLAUDE_SKILL_DIR}/TEST.md` | the real-test kit in `test/`: interview script, landing brief, `test.json` thresholds |
 | `ground` | `${CLAUDE_SKILL_DIR}/GROUND.md` (not yet available) | real results and the grounding ratio |
 
 A mode marked not yet available is not built in this version: say so, and offer `run` or a mode that is. No arguments: with no panel in the ledger, `run` drafts the brief from the project; with one or more, show each panel's last history line and this table, and ask which panel and mode.
@@ -47,7 +47,7 @@ A mode marked not yet available is not built in this version: say so, and offer 
 
 ## Panel ledger
 
-`.buyer-panel/<slug>/` at the project root, one folder per panel, `<slug>` from the idea in lowercase words joined by hyphens: `brief.json`, `research.md`, `plan.json`, `buyers.jsonl`, `history.md` and `rounds/<label>/` (`round.json`, `cards.jsonl`, `answers/`, `scores.jsonl`, `summary.json`, `report.md`, `page.json`, `page.html`). `RECORDS.md` holds every schema. On first use ask with options: **keep it out of git** (recommended; append `.buyer-panel/` to `.git/info/exclude`) or **commit it** (rounds are shared with the team; nothing to add). Skip the question when `git check-ignore -q .buyer-panel` already answers it, or the folder is tracked.
+`.buyer-panel/<slug>/` at the project root, one folder per panel, `<slug>` from the idea in lowercase words joined by hyphens: `brief.json`, `research.md`, `plan.json`, `buyers.jsonl`, `history.md` and `rounds/<label>/` (`round.json`, `cards.jsonl`, `answers/`, `scores.jsonl`, `summary.json`, `report.md`, `page.json`, `page.html`) and `test/` for the real-test kit. `RECORDS.md` holds every schema. On first use ask with options: **keep it out of git** (recommended; append `.buyer-panel/` to `.git/info/exclude`) or **commit it** (rounds are shared with the team; nothing to add). Skip the question when `git check-ignore -q .buyer-panel` already answers it, or the folder is tracked.
 
 ## Companions
 
@@ -55,7 +55,8 @@ Each companion is optional; the steps say what to do without it.
 
 - **orchestrate**: interviews fan out through it (RUN.md step 9) in small batches mixed across segments, each worker in a fresh context writing only its batch's answers. Without it, interview one buyer at a time and write each answer before reading the next buyer; the round records `interviews: inline`, and the report states that independence was partial.
 - **ai-slop-prose**: sweeps the report (RUN.md step 13) with purpose `panel report`, and the pitch (PITCH.md step 4) with purpose `pitch`. Without it, the report goes out unswept and says so in its method section.
-- **ai-slop-design**: the smoke-test landing page in `test` goes to its `craft` mode.
+- **ai-slop-design**: the smoke-test landing page in `test` goes to its `craft` mode, read from its folder (TEST.md step 5). Without it, the landing brief is saved and the user is told to run `/ai-slop-design craft` with it.
+- **ai-slop-prose in `test`**: it sweeps the interview script and the landing brief (TEST.md step 7). Without it, each file says it was not swept.
 - **A subagent tool** (Claude Code's Agent tool): the judge (RUN.md step 10) runs in its own context. Without one, judge after every interview is written, reading only `judge-input.jsonl`.
 - **The Artifact tool**: publishes a round's page (RUN.md step 15) as a private page the user can share. Without it, the page stays a local HTML file that opens in any browser.
 - **A browser tool**: market research (competitors' pricing pages, category spend, reviews). Open it only after the user allows it on screen, once per session, asking with options:

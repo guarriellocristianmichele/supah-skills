@@ -21,6 +21,10 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
     report.md         the round's report
     page.json         panel.py page: the page data
     page.html         panel.py page: the private page, self-contained
+  test/               the real-test kit (TEST.md); an older kit moves to test-<written date>/
+    test.json         the go and stop thresholds, written before the test runs
+    interview.md      the Mom Test interview script
+    landing.md        the smoke-test landing brief
 ```
 
 Round labels are short and unique within the panel: `r1` for the first round; later modes name theirs.
@@ -98,6 +102,24 @@ Price answers out of order (each must be below the next) are kept in the file, t
 | `intent` | 1 to 5 | the anchor statement closest to the reaction (SCORING.md) |
 | `reason` | tag | the main reason, lowercase words joined by hyphens: `already-paid` |
 | `quote` | text | the words that carry the reason, copied from the reaction (case and spacing aside) |
+
+## test.json
+
+The thresholds that decide the real test, written by `test` before anything goes live and never edited after; a new kit gets a new file.
+
+| field | type | what |
+|---|---|---|
+| `round` | text | the round the kit was built from |
+| `written` | date | `YYYY-MM-DD`, the day the thresholds were set |
+| `ends` | date | `YYYY-MM-DD`, the last day of the test; not before `written` |
+| `offer` | text | the offer the test shows |
+| `price` | number | the price the test shows |
+| `currency` | text | |
+| `objections` | list | the reason tags the interviews probe, at least one |
+| `sample` | object | `visits` and `interviews`, whole numbers above 0: the planned base of each share; each base a metric uses is required |
+| `thresholds` | object | one or more of `signups` and `preorders` (shares of visits) and `commitments` (share of interviews that end in a commitment), each `{go, stop}`: shares from 0 to 1, `stop` below `go` |
+
+Reading a result against it: a metric's share is its count over its base (sign-ups or pre-orders over visits, commitments over interviews). Read it once the base reaches the sample or `ends` has passed; a base still short of the sample on `ends` is reported as short, not decided. At or above `go` is go, at or below `stop` is stop, in between is unclear. The test as a whole is stop when any metric is stop, go when every metric is go, and unclear otherwise.
 
 ## Exit codes
 

@@ -30,6 +30,11 @@ COPIES = [
     ("skills/ai-slop-audit/scripts", "plugins/slop-guard/codescan"),
 ]
 KEEP = os.path.join(ROOT, "docs", "readme-keep.tsv")
+# ADR 0013: every SKILL.md carries this paragraph word for word
+ASK_WITH_OPTIONS = ("**Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when "
+                    "the answer is a fact about the world. What only the user can decide, ask as one question with 2 "
+                    "to 4 ready answers, the recommended one first and each saying what it changes; Claude Code's "
+                    "`AskUserQuestion` shows them on screen, other agents number them in the reply.")
 
 
 def load(path):
@@ -127,6 +132,9 @@ def check_manifests():
             errors.append(f"the {plugin['name']} marketplace description does not name {name}")
         if name != "supah-help" and name not in router:
             errors.append(f"supah-help does not route to {name}")
+        with open(os.path.join(ROOT, "skills", name, "SKILL.md"), encoding="utf-8") as f:
+            if ASK_WITH_OPTIONS not in f.read():
+                errors.append(f"skills/{name}/SKILL.md lacks the Ask with options paragraph (ADR 0013)")
     return errors + check_scanner_copy()
 
 

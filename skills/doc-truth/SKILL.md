@@ -12,13 +12,16 @@ A **claim** is anything a doc says the repository has: a linked file, a heading,
 
 Claude Code fills in `${CLAUDE_SKILL_DIR}` (this skill's folder) and `$ARGUMENTS` (what the user typed after the skill name); elsewhere, resolve them yourself. The script is `python "${CLAUDE_SKILL_DIR}/scripts/doctruth.py"`; it reads files and runs nothing from the repository.
 
+**Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when the answer is a fact about the world. What only the user can decide, ask as one question with 2 to 4 ready answers, the recommended one first and each saying what it changes; Claude Code's `AskUserQuestion` shows them on screen, other agents number them in the reply.
+
 ## Steps
 
-1. **Scope**: the files in `$ARGUMENTS`, or every tracked Markdown file (`git ls-files '*.md'`) except vendored and generated ones.
+1. **Scope**: the files in `$ARGUMENTS`, or every tracked Markdown file (`git ls-files '*.md'`) except vendored and generated ones. More than 3 files: scan them all in step 2, then run the `orchestrate` skill when installed (job `doc-truth`, profile `light`, units = files, unit brief = steps 3 and 4 for one file with its findings, each worker may edit its own file and append to its own keep file); without it, work the files in sequence.
 2. **Scan**: `doctruth.py --json <files>`.
 3. **Judge each finding** by reading the doc line and the code it points at:
    - **doc is wrong**: the thing was renamed, moved or removed on purpose (`git log -S<name>` tells you when); fix the doc to what the code does now.
    - **code is wrong**: the doc describes behaviour that was lost by accident; report it, with the commit that dropped it, and leave the code alone.
+   - When the history cannot tell which side changed on purpose, ask with options: fix the doc, report the code, or keep the claim.
    - **fp**: the claim is about the user's project or a path the program creates (`.claude/settings.json`, a state file); append `kind<TAB>claim<TAB>reason` to a keep file in the scratchpad.
 4. **Read for what the scanner can't see**: behaviour the doc describes (defaults, output formats, supported versions) checked against the code that implements it, one section at a time.
 5. **Rescan** with `--keep <keep file>`: exit 0.

@@ -56,6 +56,20 @@ _Avoid_: scan (the scanner's step within a sweep), lint, check
 A TSV of hits and metrics deliberately left in the text, each with a reason (`quote`, `voice`, `literal`, `term`, `dialogue`).
 _Avoid_: allowlist, ignore file
 
+### Design
+
+**Reflex**:
+A design choice that appears whatever the subject: the default a model reaches for on any brief in the category. Wrong only when nothing (brief, brand, content) chose it.
+_Avoid_: AI look, slop style, cliché
+
+**Direction**:
+The plan a craft run commits to before writing code: palette, type roles, layout concept, one memorable element, one motion moment, each with the reason it fits the subject.
+_Avoid_: theme, style, moodboard
+
+**Lane**:
+A saturated aesthetic family a page can fall into even when it avoids every catalogued reflex (cream + serif + clay; near-black + one neon accent; broadsheet hairlines; neo-brutalist offset shadows; the SaaS card kit).
+_Avoid_: trend, aesthetic, vibe
+
 ### Orchestration
 
 **Job**:

@@ -9,7 +9,7 @@
     {
       "name": "supah-skills",
       "source": "./",
-      "description": "All seven skills: ai-slop-audit, ai-slop-prose, context-audit, doc-truth, mutation-check, orchestrate and supah-help.",
+      "description": "All eight skills: ai-slop-audit, ai-slop-design, ai-slop-prose, context-audit, doc-truth, mutation-check, orchestrate and supah-help.",
       "category": "productivity",
       "keywords": [
         "skills",
@@ -29,6 +29,19 @@
         "refactoring",
         "dead-code",
         "audit"
+      ]
+    },
+    {
+      "name": "ai-slop-design",
+      "source": "./skills/ai-slop-design",
+      "version": "0.6.0",
+      "description": "Build pages whose look comes from their subject, and sweep frontend code for design reflexes, contrast failures and duplicated styles, found by a scanner and judged one by one.",
+      "category": "development",
+      "keywords": [
+        "design",
+        "frontend",
+        "ui",
+        "accessibility"
       ]
     },
     {

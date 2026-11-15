@@ -1,0 +1,60 @@
+# ai-slop-design
+
+Pages built by agents look alike: a purple-to-blue gradient, Inter, a centred hero over three icon cards, glass panels, small tracked caps above every heading, an arrow glued to every link. Each choice is a reflex, the default a model reaches for on any brief. This skill builds pages whose look comes from their subject, and sweeps existing frontend code for those reflexes, for text that fails contrast, for layouts that break on phones, and for styles copied where one component would do.
+
+*Versione italiana in fondo: [Italiano](#italiano).*
+
+## Install
+
+```sh
+npx skills@latest add guarriellocristianmichele/supah-skills -s ai-slop-design
+claude plugin install ai-slop-design --marketplace guarriellocristianmichele/supah-skills --scope user
+```
+
+Every route and scope is in the [repository README](../../README.md#installation-1-minute-setup). Requirements: Python 3.10 or newer on `PATH`, standard library only. A browser tool (Playwright, Claude in Chrome) is optional and adds screenshot checks.
+
+## Use
+
+```text
+/ai-slop-design craft a site for a bicycle repair workshop in Turin
+/ai-slop-design sweep src/app/page.tsx src/components/*.tsx
+```
+
+It is user-invoked, so it costs nothing in sessions where you don't call it.
+
+- `craft` names the subject, audience and job, writes the page it would build by reflex and sets that answer aside, then commits to a direction (palette, type, layout, one memorable element, one motion moment) with a reason for each axis. It builds, sweeps its own output, checks screenshots, and records the direction in `.slop-design/history.md` so the next page in the project goes somewhere else.
+- `sweep` scans HTML, CSS, SCSS, JSX/TSX, Vue, Svelte and Astro files, judges every hit (`reflex`, `chosen` with a reason, or `fp`), fixes the reflexes and reads the page as a whole for what no pattern sees.
+- Both start from the category of what is being built: local business site, SaaS marketing site, SaaS product UI, mobile app, e-commerce, or portfolio and campaign. Each category has a frame of conventions visitors rely on (hours one tap away, real prices, the platform's navigation, guest checkout), the room where the design can go far, an accessory budget for decoration, and its own accessibility floor. Creativity goes inside the frame.
+
+## What the scanner checks
+
+45 rules in nine categories. `python scripts/designscan.py rules` lists them with their tiers.
+
+| Category | Examples |
+|---|---|
+| colour | purple gradients, stock Tailwind swatches, cream with clay, literal black and white, text below WCAG contrast |
+| type | reflex fonts, one accented word in a heading, eyebrows, small tracked caps, mono labels |
+| surface | gradient text, glass cards, coloured glows, accent stripes, the default shadcn card, one radius everywhere |
+| layout | three-column icon-card grids, 01/02/03 markers, stat banners, viewport-high heroes, drawn browser windows |
+| glyph | emoji icons, `A · B · C` strings, glued arrows, `WORD — fragment` labels, pulsing dots |
+| motion | `transition: all`, a reveal on every section, bounce easing, hover scale everywhere, no reduced-motion path |
+| placeholder | Acme, Jane Doe, 555 numbers, `href="#"` |
+| responsive | no viewport meta, fixed pixel widths, multi-column grids on phones, hover-only content, text under 12 pixels, `100vw` |
+| duplication | the same long class string in three places, identical CSS blocks, one hex colour repeated instead of a token |
+
+A hit is a candidate, never a verdict: a real brand colour, a real sequence of steps or a live status dot is kept with its reason. Tiers come from judged precision ([ADR 0011](../../docs/adr/0011-design-reflex-tiers-from-judged-precision.md)), and the scanner reads source only; contrast is checked where text and background are declared together.
+
+## Credits
+
+The catalogue ports ideas, not text, from impeccable (Apache-2.0), Anthropic's frontend-design (Apache-2.0), taste-skill, hallmark, design-slop-cop and unslop-ui (MIT); sources and licences are in [the research note](../../docs/research/2026-11-design-reflexes.md). The contrast check uses Tailwind's default palette (MIT).
+
+## Italiano
+
+Le pagine costruite dagli agenti si somigliano tutte: gradiente viola-blu, Inter, hero centrato sopra tre card con icona, pannelli di vetro, maiuscoletto spaziato sopra ogni titolo, una freccia attaccata a ogni link. Ognuna è una scelta di riflesso, quella che un modello fa per qualunque brief. Questa skill costruisce pagine il cui aspetto viene dal soggetto, e controlla il codice frontend esistente per questi riflessi, per i testi con contrasto insufficiente e per gli stili copiati dove basterebbe un componente.
+
+Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s ai-slop-design`, oppure come plugin di Claude Code con `claude plugin install ai-slop-design --marketplace guarriellocristianmichele/supah-skills --scope user`. Si avvia a mano, quindi non occupa contesto nelle altre sessioni.
+
+- `craft <brief>` scrive prima la pagina che verrebbe di riflesso e la scarta, poi sceglie palette, caratteri, layout, un solo elemento memorabile e un solo movimento, ognuno con il suo motivo. Costruisce, controlla il proprio codice e gli screenshot, e annota la direzione in `.slop-design/history.md` perché la pagina successiva vada altrove.
+- Entrambe partono dalla categoria del prodotto (sito vetrina, sito marketing SaaS, interfaccia SaaS, app mobile, e-commerce, portfolio e campagne): per ognuna ci sono le convenzioni da rispettare, lo spazio per la creatività, quanto decorare e i requisiti minimi di accessibilità. La creatività resta dentro la cornice.
+- `sweep [file…]` legge HTML, CSS, JSX/TSX, Vue, Svelte e Astro, giudica ogni segnalazione (riflesso, scelta voluta con il motivo, falso positivo), corregge i riflessi e guarda la pagina intera per ciò che nessuno schema vede.
+- Lo scanner ha 45 regole in nove categorie, contrasto WCAG, responsive e stili duplicati compresi. I livelli vengono dalla precisione misurata sui casi giudicati.

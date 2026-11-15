@@ -11,6 +11,8 @@ A **mutant** is the code with one small change (`<` to `<=`, `and` to `or`, a re
 
 Claude Code fills in `${CLAUDE_SKILL_DIR}` (this skill's folder) and `$ARGUMENTS` (what the user typed after the skill name); elsewhere, resolve them yourself. The script is `python "${CLAUDE_SKILL_DIR}/scripts/mutate.py"`.
 
+**Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when the answer is a fact about the world. What only the user can decide, ask as one question with 2 to 4 ready answers, the recommended one first and each saying what it changes; Claude Code's `AskUserQuestion` shows them on screen, other agents number them in the reply.
+
 ## Steps
 
 1. **Scope**: the file, and a function or line range when the file is large; `mutate.py list <file> [--function NAME]` shows the mutants. More than 60 is a sign to narrow the scope.

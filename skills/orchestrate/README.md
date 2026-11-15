@@ -2,7 +2,7 @@
 
 A Claude Code skill for jobs that split into many independent units (modules, files, documents). It decides on its own whether to work inline or on parallel subagents, based on the RAM actually free on the machine. When memory runs short it stops some agents, keeps every unit they finished, and resumes them later, in the same session or the next one.
 
-Other skills in this repository use it: `ai-slop-audit` hands it the module scan, and `ai-slop-prose` hands it sweeps of more than three files.
+Other skills in this repository use it: `ai-slop-audit` hands it the module scan, `ai-slop-prose` and `ai-slop-design` hand it sweeps of more than three files, and `ai-slop-design` builds craft variants with it.
 
 *Versione italiana in fondo: [Italiano](#italiano).*
 

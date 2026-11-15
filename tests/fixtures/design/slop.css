@@ -1,0 +1,28 @@
+:root {
+  --cream: #f4f1ea;
+}
+body {
+  background: #f4f1ea;
+  color: #000;
+}
+.hero {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.accent { color: #d97757; }
+.dark { background: #0b0b0b; color: #fff; }
+.card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+}
+.callout {
+  border-left: 4px solid #6366f1;
+  border-radius: 8px;
+}
+.pop { transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55); }
+@keyframes float { from { transform: translateY(0); } to { transform: translateY(-8px); } }
+.float { animation: float 3s infinite; }
+.muted { color: #9ca3af; background: #ffffff; }
+.wrap { width: 1140px; margin: 0 auto; }
+.fine { font-size: 11px; }

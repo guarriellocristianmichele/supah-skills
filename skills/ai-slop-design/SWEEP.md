@@ -1,0 +1,19 @@
+# Sweep
+
+Find every catalogued reflex in the files, give each hit a verdict, fix the reflexes, and read for the ones no pattern sees.
+
+Read `REFLEXES.md` (in this folder) in full before step 3.
+
+1. **Scope**: the files in the arguments, or `git ls-files` filtered to `.html .htm .css .scss .less .js .jsx .ts .tsx .mjs .vue .svelte .astro`, minus vendored, generated, minified and `node_modules` files. Snapshot each file to the scratchpad as `<name>.orig`.
+2. **Context**: read `PRODUCT.md` / `DESIGN.md` when present, the theme or token files (Tailwind config, `@theme`, CSS custom properties) and the page the files render. Write down in one line what the brand has already committed to: those choices are `chosen: brand`. Name the category of each surface in `CATEGORIES.md` and read its section: a hit that breaks the category's frame or floor is fixed even when it looks deliberate, and the judgment-only read in step 6 includes the category's reflexes.
+3. **Scan**: `designscan.py --json <files>`, all files in one call so duplication is counted across them. Each hit carries `line`, `rule`, `category`, `tier`, `match` and `context`.
+   More than 3 files: run the `orchestrate` skill when installed, job `design-sweep`, profile `light`, units = files, unit brief = steps 4, 5 and 8 for one file with that file's hits from this scan (duplication hits excluded), and each worker may edit its own file and its own keep file. Duplication hits stay with you: after the merge, fix them across files (one component, class or token), then go on from step 6 for the whole set, steps 8 and 9 included. Without orchestrate, work the files in sequence.
+4. **Judge** each hit in its context with one verdict (SKILL.md). Kept and `fp` hits go into the keep file with their reason.
+5. **Fix** the reflexes category by category, in REFLEXES.md order, with the fix direction under each rule. Content, behaviour and accessibility stay as they were; a fix changes how the page looks, never what it says or does. When most hits on a page point at one lane (REFLEXES.md, judgment-only section), patching each hit leaves the lane in place: keep those hits with reason `handoff` and name the lane in the report, so craft can give the page a new direction.
+6. **Read for what the scanner cannot see**: REFLEXES.md's judgment-only list, one item at a time, against the page as a whole. With a browser tool, take screenshots at 390, 768 and 1440 pixels wide and judge them against the same list and DIRECTION.md's responsive checks; at each width, check in the page that `document.documentElement.scrollWidth` does not exceed `clientWidth` (no horizontal scroll). Record what each width showed.
+7. **Copy**: with ai-slop-prose installed, run its sweep on the same files; otherwise list the visible strings that read as copy reflexes (buzzwords, "Get started" next to "Learn more", invented testimonials).
+8. **Rescan**: `designscan.py --keep <keep file> <files>` exits 0. A new hit means a fix brought in another reflex: fix it and rescan.
+9. **Record**: one call for the whole sweep, every snapshot paired with its file: `designscan.py verdict <scratchpad>/<name>.orig <file> [<scratchpad>/<name>.orig <file>…] --keep <keep file>`, so duplication is judged across the files as step 3 saw them. The log is evidence for whoever maintains the tiers; it never changes a tier by itself.
+10. **Report**: one line per REFLEXES.md category (hits, fixed, chosen with reasons, fp, model-only finds; zeros included), the handoffs with their lane, what the screenshots showed or that no browser was available, and the diff against the snapshots.
+
+**Completion.** The rescan exits 0, verdicts are recorded for every file, the report has all nine category lines plus the judgment-only line, and the screenshots were judged or reported unavailable.

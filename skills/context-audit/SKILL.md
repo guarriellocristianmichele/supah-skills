@@ -12,6 +12,8 @@ Everything always loaded (instructions, memories, skill and tool listings, hook 
 
 Claude Code fills in `${CLAUDE_SKILL_DIR}` (this skill's folder) and `$ARGUMENTS` (what the user typed after the skill name); elsewhere, resolve them yourself. `measure` and `sources` read Claude Code's transcripts and settings; `check` also works on any repo with an `AGENTS.md`.
 
+**Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when the answer is a fact about the world. What only the user can decide, ask as one question with 2 to 4 ready answers, the recommended one first and each saying what it changes; Claude Code's `AskUserQuestion` shows them on screen, other agents number them in the reply.
+
 The script is `python "${CLAUDE_SKILL_DIR}/scripts/ctx.py"`, run with `--project <dir>` when `$ARGUMENTS` names one. Transcripts hold the user's conversations: quote hook text and file lines, never prompts.
 
 ## Steps
@@ -39,4 +41,4 @@ The script is `python "${CLAUDE_SKILL_DIR}/scripts/ctx.py"`, run with `--project
 
 ## Fixes
 
-Memories and repo files are fixed in place once the user approves the list. Settings, plugins and hooks belong to the user: give the exact change (`claude plugin disable <name>`, the `settings.json` key) and let them apply it. Rerun `measure` in a new session after changes; the new first-request number is the result.
+Memories and repo files are fixed in place once the user approves the list: ask with options (apply all, apply some by number, change one first); for each contradiction, the options are its two quoted sides plus a merged wording. Settings, plugins and hooks belong to the user: give the exact change (`claude plugin disable <name>`, the `settings.json` key) and let them apply it. Rerun `measure` in a new session after changes; the new first-request number is the result.

@@ -2,7 +2,7 @@
 
 [![skills.sh](https://skills.sh/b/guarriellocristianmichele/supah-skills)](https://skills.sh/guarriellocristianmichele/supah-skills)
 
-Agent skills for cleaning up after AI: the dead code and needless layers it leaves in a codebase, and the tics it leaves in prose.
+Agent skills for cleaning up after AI: the dead code and needless layers it leaves in a codebase, the tics it leaves in prose, and the pages that all look alike.
 
 Agents write a lot, fast. Some of it is excellent, and some of it is slop: a wrapper around a wrapper, a test that checks the mock it just configured, a README that `delves into` a `rich tapestry`. These skills find that slop with evidence instead of vibes, and remove it in small steps that keep behaviour, meaning and voice intact.
 
@@ -190,6 +190,21 @@ After:  Remote work is changing how teams operate, and it only works when schedu
 - When memory gets tight it stops the newest agents first. Each saves the unit it just finished, and the rest goes into `STOPPED_AGENTS_WORK.md`.
 - The next run, in this session or tomorrow's, picks up from that file. Small jobs just run inline.
 
+### #4: Every landing page looks the same
+
+> "Design is not just what it looks like and feels like. Design is how it works."
+>
+> Steve Jobs, in *The New York Times Magazine*, 2003
+
+**The Problem**: Ask an agent for a landing page and you get the one everybody gets: a purple-to-blue gradient, Inter, a centred hero over three icon cards, glass panels, small tracked caps above every heading, `Get started →`. Grey text on near-black that fails contrast. The same eight-class button string pasted into twelve components.
+
+Asking for "something more creative" swaps the reflex for the next one: cream, a serif and a terracotta accent.
+
+**The Fix** is to name the reflex before choosing:
+
+- [`/ai-slop-design craft`](./skills/ai-slop-design/SKILL.md) writes down the page it would build for the category without thinking, sets that answer aside, and commits to a direction drawn from the subject (palette, type, layout, one memorable element, one motion moment), each with its reason. It builds, sweeps its own output, checks screenshots, and records the direction so the next page in the project goes somewhere else.
+- [`/ai-slop-design sweep`](./skills/ai-slop-design/SKILL.md) scans existing frontend code with 45 rules in nine categories, WCAG contrast, responsive breakage and duplicated styles included, then judges every hit against the brand and the content before anything changes.
+
 ### Summary
 
 Agents are fast at adding. These skills are about taking away, carefully, with proof. Enjoy.
@@ -203,6 +218,7 @@ User-invoked skills run only when you type them. Model-invoked skills can be typ
 - [supah-help](./skills/supah-help/README.md): tell it what you are trying to do; it recommends the flow, the commands in order and the reason for each step, including how to pair with mattpocock/skills.
 - [context-audit](./skills/context-audit/README.md): measures what every Claude Code session loads before you type, from your own transcripts and split by plugin, and finds the instructions, memories and plugins that contradict each other or hold development back.
 - [doc-truth](./skills/doc-truth/README.md): checks every claim the docs make about the repository (links, anchors, scripts, flags, npm scripts, make targets, environment variables) against the repository, then fixes the doc or reports the code that lost what the doc promises.
+- [ai-slop-design](./skills/ai-slop-design/README.md): builds pages whose look comes from their subject (`craft <brief>`), and sweeps frontend code for design reflexes, text below WCAG contrast and duplicated styles (`sweep [file…]`), judging every hit before it changes.
 - [ai-slop-audit](./skills/ai-slop-audit/README.md): evidence-backed audit and cleanup of needless complexity across a codebase. Modes: `audit [path]`, `plan`, `publish [batches]`, `fix <ID>`, `verify`. Keeps its state in `.slop-audit/` across sessions, and never reports a partial scan as complete.
 
 ### Model-invoked
@@ -236,7 +252,7 @@ New skills go in `skills/<name>/` and in `.claude-plugin/plugin.json`. Bump `ver
 
 ## Italiano
 
-Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice morto e livelli inutili nella codebase, tic di scrittura nei testi. Pensate per Claude Code, funzionano con qualsiasi agente che legga il formato Agent Skills.
+Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice morto e livelli inutili nella codebase, tic di scrittura nei testi, pagine che sembrano tutte uguali. Pensate per Claude Code, funzionano con qualsiasi agente che legga il formato Agent Skills.
 
 ### Installazione
 
@@ -245,7 +261,7 @@ Skill per agenti che ripuliscono quello che l'AI lascia dietro di sé: codice mo
    - qualsiasi agente: `npx skills@latest add guarriellocristianmichele/supah-skills`, che chiede skill, agenti e ambito (*Project* o *Global*); `-g` lo fissa a globale;
    - Claude Code, globale: `claude plugin install supah-skills --marketplace guarriellocristianmichele/supah-skills --scope user`;
    - Claude Code, progetto: `claude plugin marketplace add guarriellocristianmichele/supah-skills --scope project`, poi `claude plugin install supah-skills@guarriellocristianmichele --scope project`, e commit di `.claude/settings.json`;
-   - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-prose`, `context-audit`, `doc-truth`, `mutation-check`, `orchestrate` o `supah-help`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
+   - una sola skill: con skills.sh aggiungi `-s ai-slop-prose`; con il plugin di Claude Code sostituisci `supah-skills` con il nome della skill (`ai-slop-audit`, `ai-slop-design`, `ai-slop-prose`, `context-audit`, `doc-truth`, `mutation-check`, `orchestrate` o `supah-help`). Scegli il pacchetto completo oppure le skill singole: installarli entrambi duplica le skill;
    - Codex, Copilot CLI e Gemini CLI: i comandi nei riquadri della sezione [Installation](#installation-1-minute-setup).
 3. Facoltativo: tutto funziona da solo, ma se usi anche le skill di mattpocock lancia `/setup-matt-pocock-skills` una volta nel repo. L'audit userà il suo tracker e le sue label (così `/triage` e `/implement` vedono le issue) e passerà i problemi di design a `/improve-codebase-architecture`. Le due raccolte non scrivono mai nei file dell'altra.
 
@@ -254,6 +270,7 @@ Servono Python 3.10 o superiore (solo libreria standard) e git.
 ### Le skill
 
 - `ai-slop-audit` (la avvii tu) fa un audit di un'intera codebase con prove riproducibili e livello di confidenza per ogni problema. Modalità `audit`, `plan`, `publish`, `fix <ID>`, `verify`. Corregge solo ciò che indichi per ID, a piccoli lotti protetti dai test.
+- `ai-slop-design` (la avvii tu) costruisce pagine il cui aspetto viene dal soggetto (`craft <brief>`) e controlla il codice frontend per le scelte di riflesso, il contrasto WCAG e gli stili duplicati (`sweep [file…]`), giudicando ogni segnalazione prima di cambiare qualcosa.
 - `ai-slop-prose` (si attiva da sola) usa uno scanner deterministico per i segnali di scrittura AI in inglese e italiano, trattini e punteggiatura compresi, con correzioni sicure, controllo che nessun dato vada perso e riscrittura nella voce dell'autore.
 - `mutation-check` (si attiva da sola) modifica il codice un passo alla volta, lancia i tuoi test dopo ogni modifica ed elenca quelle che i test lasciano passare: la prova dei test tautologici.
 - `orchestrate` (si attiva da sola) esegue lavori grandi inline o su agenti paralleli dimensionati sulla RAM libera, ferma i più recenti quando la memoria scarseggia salvando il lavoro in `STOPPED_AGENTS_WORK.md` e riprende alla sessione successiva.

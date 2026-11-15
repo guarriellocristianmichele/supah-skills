@@ -5,7 +5,7 @@ argument-hint: "audit [path] | plan | publish [B<n>…] | fix <SLOP-ID[,ID]|B<n>
 arguments: [mode, target]
 disable-model-invocation: true
 effort: high
-allowed-tools: Read Grep Glob Bash(python *codescan.py*) Bash(git rev-parse *) Bash(git status *) Bash(git ls-files *) Bash(git log *) Bash(git diff *)
+allowed-tools: Read Grep Glob Bash(python *codescan.py*) Bash(python *designscan.py*) Bash(git rev-parse *) Bash(git status *) Bash(git ls-files *) Bash(git log *) Bash(git diff *)
 ---
 
 # AI slop audit
@@ -18,6 +18,8 @@ git status --short
 ```
 
 Claude Code fills in the placeholders and command output above, and `${CLAUDE_SKILL_DIR}` (this skill's folder) below. Where they still appear raw, take mode and target from the user's request and run `git rev-parse --short HEAD` and `git status --short` yourself.
+
+**Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when the answer is a fact about the world. What only the user can decide, ask as one question with 2 to 4 ready answers, the recommended one first and each saying what it changes; Claude Code's `AskUserQuestion` shows them on screen, other agents number them in the reply.
 
 **Slop** is complexity the code's behaviour does not need. Judge each candidate by what the code does and which reach paths hit it; style, length and suspected AI origin are not evidence. A claim without reproducible **evidence** stays out of the ledger.
 

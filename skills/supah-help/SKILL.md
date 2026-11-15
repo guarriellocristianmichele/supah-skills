@@ -1,6 +1,6 @@
 ---
 name: supah-help
-description: Ask which supah skill or flow fits your situation, and why. A router over ai-slop-audit, ai-slop-prose, context-audit, doc-truth, mutation-check, orchestrate and the slop-guard hooks, with how they pair with mattpocock/skills.
+description: Ask which supah skill or flow fits your situation, and why. A router over ai-slop-audit, ai-slop-design, ai-slop-prose, context-audit, doc-truth, mutation-check, orchestrate and the slop-guard hooks, with how they pair with mattpocock/skills.
 argument-hint: "[what you are trying to do]"
 disable-model-invocation: true
 ---
@@ -8,6 +8,8 @@ disable-model-invocation: true
 # supah-help
 
 The user describes a situation (`$ARGUMENTS`; Claude Code fills it in, elsewhere read it from the request). Recommend the flow below that fits, the exact commands in order, and the reason behind each step. Answer in the user's language. When the situation fits two rows, ask one question that separates them; when `$ARGUMENTS` is empty, show the situations table and ask which one is theirs.
+
+**Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when the answer is a fact about the world. What only the user can decide, ask as one question with 2 to 4 ready answers, the recommended one first and each saying what it changes; Claude Code's `AskUserQuestion` shows them on screen, other agents number them in the reply.
 
 Read the SKILL.md of every skill you recommend (in this skill's sibling folders, `${CLAUDE_SKILL_DIR}/../<skill>/SKILL.md`, or wherever it is installed) before describing what it does or saying a step can be skipped; the lines here orient, the SKILL.md decides.
 
@@ -27,6 +29,8 @@ Every recommendation follows these five habits. State the one behind each step y
 |---|---|---|
 | looking at a codebase built fast with AI that feels bloated | `/ai-slop-audit audit` → `plan` → `fix B1` (one batch at a time) → `verify` | the audit proves every reach path before calling code dead; the plan records a test baseline, so each batch can be checked and reverted on its own |
 | sharing that cleanup with a team or with agents | after `plan`: `/ai-slop-audit publish`, then work the issues with `fix #<n>` or `/implement #<n>` | issues carry their own done-when checks and evidence, so whoever picks one up needs no local state |
+| building a new site, landing page or app screen and wanting it not to look generated | `/ai-slop-design craft <brief>` | the reflex answer for the category is written down and set aside first, so every choice in the direction has a reason tied to the subject; the build is swept and checked on screenshots before it is shown |
+| looking at a site that reads as "AI made this" (purple gradients, icon-card grids, glass, eyebrows), or with low-contrast text and copy-pasted styles | `/ai-slop-design sweep <files>` (pass all files of a feature together) | each hit is judged against the brand and the content before it changes; a page that sits in a whole lane is handed to `craft` instead of patched; duplicated styles are counted across files |
 | cleaning the text people see in an app (UI copy, error messages, translations) | `/ai-slop-prose sweep src/**/*.tsx locales/*.json` | only visible strings are read, never comments or code; each text has a purpose (button, error…) and is rewritten for it |
 | editing a page, post, email or README | `/ai-slop-prose sweep <file>` and say what it is for ("landing page", "onboarding email") | the purpose picks the rewrite rules in PURPOSES.md; calibration keeps human-sounding text untouched (under 1% of human documents need a fix) |
 | paying for a big context before typing anything, or getting instructions that fight each other | `/context-audit` | the first request's tokens are measured from your transcripts and split by plugin, so you cut what costs most; every contradiction is quoted from both sides before anything changes |

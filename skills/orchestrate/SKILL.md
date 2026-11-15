@@ -15,6 +15,8 @@ Subagents run inside Claude Code's own process; the RAM that matters is what the
 
 Written for Claude Code, which fills in `${CLAUDE_SKILL_DIR}` (this skill's folder) and `${CLAUDE_SESSION_ID}`, and provides background subagents, background shell commands and TaskStop. On another agent: resolve the placeholders yourself (use a timestamp as the session id), use its own subagent and background-process mechanisms, and when it has no background subagents, run the job inline with the same checkpoints.
 
+**Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when the answer is a fact about the world. What only the user can decide, ask as one question with 2 to 4 ready answers, the recommended one first and each saying what it changes; Claude Code's `AskUserQuestion` shows them on screen, other agents number them in the reply.
+
 ## State
 
 `<caller state dir>/orchestrator/<job>/`, or `.orchestrator/<job>/` at the repo root, listed in `.git/info/exclude`.

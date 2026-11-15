@@ -1,0 +1,6 @@
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+.nav { position: sticky; top: 0; backdrop-filter: blur(8px); background: rgba(250, 248, 240, 0.9); }
+.diff-line { border-left: 1px solid var(--rule); }
+@media (min-width: 48rem) {
+  .gallery { grid-template-columns: repeat(3, 1fr); }
+}

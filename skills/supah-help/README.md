@@ -30,6 +30,8 @@ With no arguments it shows the situations and asks which one is yours. It is use
 |---|---|
 | a codebase built fast with AI that feels bloated | `/ai-slop-audit audit` → `plan` → `fix B1` → `verify` |
 | sharing the cleanup with a team or agents | `/ai-slop-audit publish`, then `fix #<n>` or `/implement #<n>` |
+| a new site or page that must not look generated | `/ai-slop-design craft <brief>` |
+| a site that looks generated, low-contrast text, copy-pasted styles | `/ai-slop-design sweep <files>` |
 | the text users see in an app | `/ai-slop-prose sweep src/**/*.tsx locales/*.json` |
 | a page, post, email or README | `/ai-slop-prose sweep <file>` plus what it is for |
 | a big context before you type, or instructions that fight | `/context-audit` |

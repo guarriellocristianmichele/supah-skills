@@ -33,6 +33,7 @@ It is user-invoked, so it costs nothing in sessions where you don't call it.
 - A separate judge, who sees only the reactions, places each one on five fixed anchor statements and tags the reason.
 - The script turns the round into the raw BUY share next to a discounted one (the weighting scheme is named), the top five reasons with counts, the three buyer types most likely to buy, and the price range as an upper bound with out-of-order answers dropped and counted.
 - The report is a Markdown file with the full buyer table, a verdict, and the first real test for this week: five interviews, a smoke test or a pre-sale.
+- The script also writes the round as one HTML file you can open anywhere: the simulated-panel line on top, the summary, the price curves and the buyer table with filters by segment, decision and reason, in light and dark themes. After the report it asks whether to publish that page privately (with Claude's Artifact tool, when available), keep it as a local file, or skip it.
 
 The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks whether to commit it or keep it out of git. The modes that reuse the same buyers in later rounds (`fix`, `price`, `pitch`, `compare`, `competitor`, `test`, `ground`) are listed in the skill and arrive in later versions.
 
@@ -51,4 +52,4 @@ Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s 
 - Chiede 30, 100 o 200 acquirenti (100 di default), divisi in segmenti con quote e budget presi dalla ricerca; lo script scarta chi manca di un campo.
 - Ogni acquirente vede l'idea come il prodotto di un'altra azienda, accanto ai concorrenti veri e a "non compro niente", in un ordine casuale registrato. Prima reagisce a parole, poi sceglie, dice a cosa rinuncerebbe per pagare e risponde alle quattro domande di prezzo di Van Westendorp.
 - Un giudice separato, che legge solo le reazioni, le colloca su cinque frasi di riferimento fisse. Lo script calcola la quota di acquisto grezza e quella scontata, i motivi principali con i conteggi, i tre tipi di acquirente più propensi e la fascia di prezzo come limite superiore.
-- Il report in Markdown chiude con un verdetto e il primo test reale della settimana. Il panel resta in `.buyer-panel/` nel progetto, e la skill ti chiede se metterlo nel commit.
+- Il report in Markdown chiude con un verdetto e il primo test reale della settimana. Lo script scrive anche una pagina HTML del round, con la riga sul panel simulato in cima, le curve di prezzo e la tabella filtrabile; la skill ti chiede se pubblicarla in privato, tenerla come file locale o lasciar perdere. Il panel resta in `.buyer-panel/` nel progetto, e la skill ti chiede se metterlo nel commit.

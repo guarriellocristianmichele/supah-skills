@@ -1,0 +1,4 @@
+{"buyer_id": "b01", "round": "r2-A", "intent": 5, "reason": "saves-time", "quote": "I stop losing Friday afternoons to my sheet"}
+{"buyer_id": "b03", "round": "r2-A", "intent": 2, "reason": "already-paid", "quote": "We already pay for Toggl and the team knows it."}
+{"buyer_id": "b05", "round": "r2-A", "intent": 1, "reason": "no-need", "quote": "Our ERP already does timesheets"}
+{"buyer_id": "b07", "round": "r2-A", "intent": 2, "reason": "no-need", "quote": "Nobody pays me by the hour"}

@@ -11,6 +11,9 @@ Usage:
   panel.py [--json] quotes ROUND_DIR [--buyers FILE] [--type SEGMENT] [--holdout N] [--seed N]
                    [--holdout-out FILE] [--out FILE]
   panel.py [--json] objections ROUND_DIR [--buyers FILE] [--top N]
+  panel.py [--json] split --buyers FILE --options ID,ID,... [--batch-size N] [--seed N] --out-a FILE --out-b FILE
+  panel.py [--json] compare ROUND_A ROUND_B [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
+  panel.py [--json] competitor ROUND_A ROUND_B [--buyers FILE] [--weights W5,W4,W3,W2,W1] [--out FILE]
 
 validate   checks records against the schemas in RECORDS.md; the kind comes from the file name
            (buyers.jsonl, answers.jsonl or answers/*.jsonl, scores.jsonl, brief.json, plan.json, round.json,
@@ -32,6 +35,13 @@ quotes     for the pitch: one buyer type's quotes and reactions with buyer ids (
            hold buyers and passers, with their first-round decisions; their own words are never printed.
 objections the round's top pass reasons for the real-test kit, each with the buyers who gave it, their words,
            current solution and last spend, plus the likely buyer type and the predicted BUY share.
+split      for compare: two halves of the panel balanced by segment (a segment's odd buyer to A, then B,
+           in turn), each half's cards dealt as `deal` does, one cards file per variant.
+compare    two variants, each shown to one half: BUY share raw and discounted on each side, B minus A, the
+           noise beside it (one standard error of the difference, and what one buyer moves), reasons and
+           choices per side, and the segments on each side. A buyer in both rounds is refused.
+competitor the round diff after ROUND_B added or repriced the competitor its round.json names, plus who
+           switched to it, who left it, and who stayed on each option with the reasons that held them.
 
 Exit codes: 0 done; 1 a check failed (reserved for checks); 2 bad usage; 3 invalid records (nothing is
 aggregated from them). Stdlib only.
@@ -1359,6 +1369,289 @@ def cmd_objections(args):
             "predicted": {k: s[k] for k in ("buyers", "buy", "raw", "discounted")},
             "likely_type": result["buyer_types"][0]["segment"] if result["buyer_types"] else None,
             "objections": objections}, 0
+
+
+# --- compare ---
+
+def halves(buyers, rng):
+    """Two halves balanced by segment: each segment's buyers shuffled and dealt alternately, and a segment's
+    odd buyer goes to A, then B, then A..., segments in order of first appearance, so the halves differ by
+    at most one buyer overall and within every segment."""
+    by_segment = {}
+    for b in buyers:
+        by_segment.setdefault(b["segment"], []).append(b)
+    a, b, spare_to_a, counts = [], [], True, []
+    for segment, group in by_segment.items():
+        group = group[:]
+        rng.shuffle(group)
+        pairs = len(group) - len(group) % 2
+        to_a, to_b = group[0:pairs:2], group[1:pairs:2]
+        if len(group) % 2:
+            (to_a if spare_to_a else to_b).append(group[-1])
+            spare_to_a = not spare_to_a
+        a += to_a
+        b += to_b
+        counts.append({"segment": segment, "a": len(to_a), "b": len(to_b)})
+    return a, b, counts
+
+
+def deal_cards(buyers, options, batch_size, rng):
+    """As `deal`: each buyer's own option order, batches mixed across segments."""
+    cards = []
+    for i, buyer in enumerate(mixed_order(buyers)):
+        shown = options[:]
+        rng.shuffle(shown)
+        cards.append({"buyer_id": buyer["id"], "batch": i // batch_size + 1, "options": shown})
+    return cards
+
+
+def show_split(result):
+    if "errors" in result:
+        return show_errors(result)
+    print(f"Halves balanced by segment, seed {result['seed']}, batches of up to {result['batch_size']}: "
+          + ", ".join(f"{s['segment']} {s['a']}/{s['b']}" for s in result["segments"]))
+    for side in ("a", "b"):
+        r = result[side]
+        print(f"{side.upper()}: {r['buyers']} cards in {r['batches']} batches: {r['out']}")
+
+
+@command("split", "split the panel into two halves balanced by segment and deal each half's cards", show_split, [
+    (("--buyers",), {"required": True, "metavar": "FILE"}),
+    (("--options",), {"required": True, "metavar": "ID,ID,...",
+                      "help": "option ids for both halves: offer, nothing and the alternatives' names"}),
+    (("--batch-size",), {"type": int, "default": 5, "metavar": "N", "help": "buyers per interview context (5)"}),
+    (("--seed",), {"type": int, "metavar": "N", "help": "random seed, recorded (default: a fresh one)"}),
+    (("--out-a",), {"required": True, "metavar": "FILE", "help": "cards for variant A's half"}),
+    (("--out-b",), {"required": True, "metavar": "FILE", "help": "cards for variant B's half"}),
+])
+def cmd_split(args):
+    options = [o.strip() for o in args.options.split(",") if o.strip()]
+    problems = option_errors(options)
+    if problems:
+        raise UsageError(f"--options {problems[0][1]}")
+    if args.batch_size < 1:
+        raise UsageError("--batch-size must be 1 or more")
+    checked = validate_file(args.buyers)
+    if checked["kind"] != "buyers" or checked["errors"]:
+        return {"errors": [dict(e, file=args.buyers) for e in checked["errors"]]
+                or [{"file": args.buyers, "line": 0, "field": None, "problem": "not a buyers.jsonl file"}]}, 3
+    seed = args.seed if args.seed is not None else random.SystemRandom().randrange(10 ** 6)
+    rng = random.Random(seed)
+    half_a, half_b, counts = halves(checked["data"], rng)
+    result = {"seed": seed, "batch_size": args.batch_size, "segments": counts}
+    for side, half, path in (("a", half_a, args.out_a), ("b", half_b, args.out_b)):
+        cards = deal_cards(half, options, args.batch_size, rng)
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.writelines(json.dumps(c, ensure_ascii=False) + "\n" for c in cards)
+        result[side] = {"out": path, "buyers": len(cards), "batches": cards[-1]["batch"] if cards else 0}
+    return result, 0
+
+
+def same_panel(args):
+    if args.buyers is None:
+        panels = {os.path.realpath(os.path.join(d, os.pardir, os.pardir)) for d in (args.before, args.after)}
+        if len(panels) > 1:
+            raise UsageError("the two rounds belong to different panels; split one panel's buyers between them")
+
+
+def dealt_without_row(round_dir, rows):
+    """Buyers dealt a card in ROUND_DIR/cards.jsonl with no scored answer; None without a cards file. The round's
+    own `aggregate` cannot say this: it counts the other half as missing too."""
+    path = os.path.join(round_dir, "cards.jsonl")
+    if not os.path.exists(path):
+        return None
+    dealt = [rec.get("buyer_id") for _, rec, problem in read_jsonl(path) if not problem]
+    return [b for b in dealt if b not in rows]
+
+
+def side_of(meta, rows, weights):
+    s = buy_share(rows, weights)
+    segments = {}
+    for r in rows:
+        segments[r["segment"]] = segments.get(r["segment"], 0) + 1
+    return {"label": meta["label"], "variant": meta.get("variant"), "offer": meta["offer"], "price": meta["price"],
+            "currency": meta["currency"], "buyers": s["buyers"], "buy": s["buy"], "raw": s["raw"],
+            "discounted": s["discounted"],
+            "choices": [{"option": o, "count": sum(r["choice"] == o for r in rows)} for o in meta["options"]],
+            "pass_reasons": reasons([r for r in rows if r["decision"] == "PASS"]),
+            "buy_reasons": reasons([r for r in rows if r["decision"] == "BUY"]),
+            "price_range": price_range(rows), "segments": segments}
+
+
+def show_compare(result):
+    """Markdown for the report: each side, the difference and the noise next to it, the reasons per side."""
+    if "errors" in result:
+        return show_errors(result)
+    a, b, d, n = result["a"], result["b"], result["difference"], result["noise"]
+    for key, x in (("A", a), ("B", b)):
+        print(f"{key} {x['label']}: BUY {x['buy']} of {x['buyers']}, raw {pct(x['raw'])}, discounted "
+              f"{pct(x['discounted'])}, at {x['price']:g} {x['currency']}. Card: \"{x['offer']}\"")
+    for key, x in (("A", a), ("B", b)):
+        if x["missing"]:
+            print(f"Missing in {key} {x['label']} (dealt a card, no scored answer): {ids(x['missing'])}")
+    print(f"B minus A: raw {points(d['raw'])}, discounted {points(d['discounted'])}. Noise: one standard error is "
+          f"{n['standard_error'] * 100:.1f} points, and one buyer moves the smaller side by "
+          f"{n['one_buyer'] * 100:.1f} points. " + (
+              "The difference is within twice the noise: read it as no difference." if result["within_noise"] else
+              f"The difference is more than twice the noise: {result['higher']} converts more on this panel, "
+              "a hypothesis to test on people."))
+    print(f"Weights {result['scheme']}")
+    print("Segments (A/B): " + ", ".join(f"{s['segment']} {s['a']}/{s['b']}" for s in result["segments"])
+          + ("" if result["balanced"] else ". Not balanced: a segment differs by more than one buyer"))
+    for key, label in (("pass_reasons", "Top reasons to pass"), ("buy_reasons", "Top reasons to buy")):
+        print(f"{label}: " + "; ".join(
+            f"{side} " + (", ".join(f"{r['reason']} {r['count']}" for r in x[key]) or "none")
+            for side, x in (("A", a), ("B", b))))
+    print("Choices: " + "; ".join(f"{side} " + ", ".join(f"{c['option']} {c['count']}" for c in x["choices"])
+                                  for side, x in (("A", a), ("B", b))))
+    print("Price range (upper bound): " + "; ".join(
+        f"{side} " + (f"{x['price_range']['range'][0]:g} to {x['price_range']['range'][1]:g} {x['currency']}"
+                      if x["price_range"]["range"] else "no crossing")
+        for side, x in (("A", a), ("B", b))))
+
+
+@command("compare", "compare two variants each shown to one half of the panel", show_compare, [
+    (("before",), {"metavar": "ROUND_A"}),
+    (("after",), {"metavar": "ROUND_B"}),
+    (("--buyers",), {"metavar": "FILE", "help": "buyers file for both (default ROUND_A/../../buyers.jsonl)"}),
+    (("--weights",), {"metavar": "W5,W4,W3,W2,W1", "help": "intent weights, default 0.75,0.25,0.1,0.05,0.02"}),
+    (("--out",), {"metavar": "FILE", "help": "also write the JSON result here"}),
+])
+def cmd_compare(args):
+    weights = parse_weights(args.weights)
+    same_panel(args)
+    meta_a, rows_a, errors = load_rows(args.before, args.buyers, weights)
+    meta_b, rows_b, more = load_rows(args.after, args.buyers, weights)
+    if errors or more:
+        return {"errors": errors + more}, 3
+    both = [bid for bid in rows_a if bid in rows_b]
+    if both:
+        raise UsageError(f"each buyer sees one variant; {', '.join(both)} answered both rounds")
+    a, b = side_of(meta_a, list(rows_a.values()), weights), side_of(meta_b, list(rows_b.values()), weights)
+    a["missing"], b["missing"] = dealt_without_row(args.before, rows_a), dealt_without_row(args.after, rows_b)
+    na, nb = a["buyers"], b["buyers"]
+    if not na or not nb:
+        raise UsageError("each round needs scored answers from its half of the panel")
+    likely = {side: sum(weights["by_intent"][str(r["intent"])] for r in rows.values() if r["choice"] == OFFER)
+              for side, rows in (("a", rows_a), ("b", rows_b))}
+    raw = share(b["buy"] * na - a["buy"] * nb, na * nb)
+    pooled = (a["buy"] + b["buy"]) / (na + nb)
+    se = round((pooled * (1 - pooled) * (1 / na + 1 / nb)) ** 0.5, 4)
+    names = list(a["segments"]) + [s for s in b["segments"] if s not in a["segments"]]
+    segments = [{"segment": s, "a": a["segments"].get(s, 0), "b": b["segments"].get(s, 0)} for s in names]
+    result = {"a": a, "b": b, "scheme": weights["scheme"],
+              "difference": {"raw": raw, "discounted": share(likely["b"] * na - likely["a"] * nb, na * nb)},
+              "noise": {"standard_error": se, "one_buyer": share(1, min(na, nb))},
+              "within_noise": abs(raw) <= 2 * se,
+              "higher": None if raw == 0 else (b["label"] if raw > 0 else a["label"]),
+              "segments": segments, "balanced": all(abs(s["a"] - s["b"]) <= 1 for s in segments)}
+    if args.out:
+        with open(args.out, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(result, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+    return result, 0
+
+
+# --- competitor ---
+# round.json `competitor`: {name, price, was}: the competitor this round added (no `was`) or repriced (`was` is the
+# price it had in the base round).
+
+def competitor_errors(rec):
+    c = rec.get("competitor")
+    if c is None:
+        return []
+    if not isinstance(c, dict):
+        return [("competitor", "must be {name, price} and, for a reprice, was")]
+    errors = [(f"competitor.{f}", m) for f, m in field_errors(c, {"name": TEXT, "price": NUMBER})]
+    if c.get("name") in (OFFER, NOTHING):
+        errors.append(("competitor.name", f"{c['name']!r} is a reserved option id"))
+    elif isinstance(c.get("name"), str) and isinstance(rec.get("options"), list) and c["name"] not in rec["options"]:
+        errors.append(("competitor.name", f"{c['name']!r} is not one of the round's options"))
+    if "was" in c and not (is_number(c["was"]) and c["was"] >= 0):
+        errors.append(("competitor.was", "must be a number of 0 or more"))
+    return errors
+
+
+plain_round_errors = EXTRA["round"]
+
+
+def round_with_competitor_errors(rec):
+    return plain_round_errors(rec) + competitor_errors(rec)
+
+
+EXTRA["round"] = round_with_competitor_errors
+
+
+def show_competitor(result):
+    if "errors" in result:
+        return show_errors(result)
+    show_diff(result)
+    c = result["competitor"]
+    cur = result["after"]["currency"]
+    what = (f"added at {c['price']['after']:g} {cur}" if c["change"] == "added"
+            else f"repriced {c['price']['before']:g} -> {c['price']['after']:g} {cur}")
+    print()
+    print(f"{c['name']} {what}: chosen by {c['chosen']['before']} -> {c['chosen']['after']} buyers.")
+    print(f"Switched to {c['name']}: " + ("; ".join(
+        f"{x['buyer_id']} from {x['from']} ({x['reason']}: \"{x['quote']}\")" for x in c["switched_to"]) or "none"))
+    print(f"Left {c['name']}: " + ("; ".join(
+        f"{x['buyer_id']} to {x['to']} ({x['reason']}: \"{x['quote']}\")" for x in c["left"]) or "none"))
+    if c["other_switches"]:
+        print("Other switches: " + ", ".join(f"{x['buyer_id']} {x['from']} -> {x['to']}" for x in c["other_switches"]))
+    print("Stayed: " + ("; ".join(
+        f"{g['option']} {ids(g['buyers'])} (" + ", ".join(f"{r['reason']} {r['count']}" for r in g["reasons"]) + ")"
+        for g in c["stayed"]) or "none"))
+
+
+@command("competitor", "the round diff after a competitor was added or repriced, with who switched and who stayed",
+         show_competitor, [
+             (("before",), {"metavar": "ROUND_A"}),
+             (("after",), {"metavar": "ROUND_B", "help": "the round whose round.json names the competitor"}),
+             (("--buyers",), {"metavar": "FILE", "help": "buyers file for both (default ROUND_A/../../buyers.jsonl)"}),
+             (("--weights",), {"metavar": "W5,W4,W3,W2,W1", "help": "intent weights, default 0.75,0.25,0.1,0.05,0.02"}),
+             (("--out",), {"metavar": "FILE", "help": "also write the JSON result here"}),
+         ])
+def cmd_competitor(args):
+    result, code = diff_rounds(args)
+    if code:
+        return result, code
+    meta_a = read_json(os.path.join(args.before, "round.json"))
+    meta_b = read_json(os.path.join(args.after, "round.json"))
+    named = meta_b.get("competitor")
+    if not isinstance(named, dict):
+        raise UsageError("ROUND_B's round.json must name the competitor it added or repriced: "
+                         "\"competitor\": {\"name\", \"price\"} and \"was\" for a reprice")
+    name = named["name"]
+    if name in meta_a["options"] and "was" not in named:
+        raise UsageError(f"{name} is in ROUND_A too, so this is a reprice: give the price it had there as \"was\"")
+    if name not in meta_a["options"] and "was" in named:
+        raise UsageError(f"{name} is not in ROUND_A, so it was added: drop \"was\"")
+    rows = result["rows"]
+    stayed = []
+    for option in [c["option"] for c in result["choices"]]:
+        held = [r for r in rows if r["before"]["choice"] == option and r["after"]["choice"] == option]
+        if held:
+            stayed.append({"option": option, "buyers": [r["buyer_id"] for r in held],
+                           "reasons": reasons([r["after"] for r in held], top=None)})
+    chosen = next(c for c in result["choices"] if c["option"] == name)
+    result["competitor"] = {
+        "name": name, "change": "repriced" if "was" in named else "added",
+        "price": {"before": named.get("was"), "after": named["price"]},
+        "chosen": {"before": chosen["before"], "after": chosen["after"]},
+        "switched_to": [{"buyer_id": r["buyer_id"], "from": r["before"]["choice"], "reason": r["after"]["reason"],
+                         "quote": r["after"]["quote"]}
+                        for r in rows if r["after"]["choice"] == name and r["before"]["choice"] != name],
+        "left": [{"buyer_id": r["buyer_id"], "to": r["after"]["choice"], "reason": r["after"]["reason"],
+                  "quote": r["after"]["quote"]}
+                 for r in rows if r["before"]["choice"] == name and r["after"]["choice"] != name],
+        "other_switches": [s for s in result["switches"] if name not in (s["from"], s["to"])],
+        "stayed": stayed,
+    }
+    if args.out:
+        with open(args.out, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(result, f, ensure_ascii=False, indent=1)
+            f.write("\n")
+    return result, 0
 
 
 # ---------------------------------------------------------------- main

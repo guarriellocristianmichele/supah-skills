@@ -28,8 +28,8 @@ Read the mode's file and follow it to its completion criterion. The first word o
 | `fix [reason]` | `${CLAUDE_SKILL_DIR}/FIX.md` | three screening rounds, a full round, its diff and report |
 | `price [low mid high]` | `${CLAUDE_SKILL_DIR}/PRICE.md` (not yet available) | three price rounds, revenue per price |
 | `pitch [type]` | `${CLAUDE_SKILL_DIR}/PITCH.md` | a pitch with traced quotes, its try-out round |
-| `compare A B` | `${CLAUDE_SKILL_DIR}/COMPARE.md` (not yet available) | two half-panel rounds |
-| `competitor` | `${CLAUDE_SKILL_DIR}/COMPETITOR.md` (not yet available) | a round with a competitor added or repriced |
+| `compare A B` | `${CLAUDE_SKILL_DIR}/COMPARE.md` | two half-panel rounds balanced by segment, `compare.json` and the report |
+| `competitor` | `${CLAUDE_SKILL_DIR}/COMPETITOR.md` | a round with a competitor added or repriced, its diff and report |
 | `test` | `${CLAUDE_SKILL_DIR}/TEST.md` | the real-test kit in `test/`: interview script, landing brief, `test.json` thresholds |
 | `ground` | `${CLAUDE_SKILL_DIR}/GROUND.md` (not yet available) | real results and the grounding ratio |
 

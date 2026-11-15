@@ -34,6 +34,7 @@ With no arguments it shows the situations and asks which one is yours. It is use
 | a site that looks generated, low-contrast text, copy-pasted styles | `/ai-slop-design sweep <files>` |
 | is my idea worth building? | `/buyer-panel <idea>`, then the real test it names |
 | what would remove the top objection? | `/buyer-panel fix [reason]` after a first panel |
+| which of two offers or names, or what if a competitor cuts its price | `/buyer-panel compare A B`, `/buyer-panel competitor` |
 | which price, how to pitch it | `/buyer-panel <idea>`: price range and likely buyer types; then `/buyer-panel pitch` |
 | testing the idea on real people | `/buyer-panel test`: interview script, landing brief, go and stop thresholds |
 | the text users see in an app | `/ai-slop-prose sweep src/**/*.tsx locales/*.json` |

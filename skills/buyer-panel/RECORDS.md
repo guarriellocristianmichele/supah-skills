@@ -19,6 +19,7 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
     scores.jsonl      the judge's output
     summary.json      panel.py aggregate --out
     diff.json         panel.py diff --out: this round against an earlier one (fix and later modes)
+    compare.json      panel.py compare --out: variant A's folder only, the two halves side by side
     report.md         the round's report
     page.json         panel.py page: the page data
     page.html         panel.py page: the private page, self-contained
@@ -82,6 +83,9 @@ With `plan.json` in the same folder (or in the same `validate` call), each buyer
 | `change` | text | optional: the change to the base offer, in one line |
 | `screen` | `true` | optional: shown only to the buyers who gave the reason |
 | `screened_in` | text | optional: the screening round the change won |
+| `variant` | `A` or `B` | optional: the variant this half of the panel saw (`compare`) |
+| `compare` | text | optional: the other variant's round label |
+| `competitor` | object | optional: `{name, price}` of the competitor this round added, plus `was` (its price in the base round) when it was repriced; `name` is one of `options`, never `offer` or `nothing` (`competitor`) |
 
 ## answers
 
@@ -143,6 +147,21 @@ Written by `panel.py diff ROUND_A ROUND_B --out FILE`, never by hand. Both round
 | `pass_reasons`, `buy_reasons` | `before` and `after` top five with counts; `new` and `gone` tags |
 | `price` | `card` (before, after, change, currency), each round's price range, `range_change`, `optimal_change`, `indifference_change` |
 | `rows` | per buyer: id, name, segment, `change` (`pass-to-buy`, `buy-to-pass`, `switch`, `same`) and `before`, `after` (choice, decision, intent, reason, quote, give-up, price answers) |
+| `competitor` | only from `panel.py competitor`: `name`, `change` (`added` or `repriced`), `price` (before, after), `chosen` (buyers before, after), `switched_to` (each `{buyer_id, from, reason, quote}`), `left` (each `{buyer_id, to, reason, quote}`), `other_switches` (switches between other options), `stayed` (each `{option, buyers, reasons}`: who kept their choice and the reasons, with counts, that held them in ROUND_B) |
+
+## compare.json
+
+Written by `panel.py compare ROUND_A ROUND_B --out FILE`, never by hand. The two rounds are halves of one panel: a buyer answered in both is refused.
+
+| field | what |
+|---|---|
+| `a`, `b` | each half: label, variant, offer, price, currency, `buyers`, `buy`, `raw`, `discounted`, `choices` (each `{option, count}`), `pass_reasons`, `buy_reasons`, `price_range`, `segments` (buyers per segment), `missing` (dealt a card in its `cards.jsonl` with no scored answer; null without that file) |
+| `scheme` | the intent weights' name |
+| `difference` | B minus A: `raw` and `discounted`, from the counts |
+| `noise` | `standard_error`: of the raw difference, from the two halves pooled; `one_buyer`: what one buyer moves the smaller half |
+| `within_noise` | true when the raw difference is at most twice the standard error: read it as no difference |
+| `higher` | the label with the higher raw share, or null on a tie; never a winner by itself |
+| `segments`, `balanced` | buyers per segment in each half; `balanced` is false when a segment differs by more than one buyer |
 
 ## Exit codes
 

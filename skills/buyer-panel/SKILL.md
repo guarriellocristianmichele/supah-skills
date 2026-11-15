@@ -48,7 +48,7 @@ No arguments: with no panel in the ledger, `run` drafts the brief from the proje
 
 ## Panel ledger
 
-`.buyer-panel/<slug>/` at the project root, one folder per panel, `<slug>` from the idea in lowercase words joined by hyphens: `brief.json`, `research.md`, `plan.json`, `buyers.jsonl`, `history.md`, `rounds/<label>/` (`round.json`, `cards.jsonl`, `answers/`, `scores.jsonl`, `summary.json`, `checks.json`, `critique.md`, `report.md`, `page.json`, `page.html`), `test/` for the real-test kit, and once `ground` has run, `real/<label>.json` and `grounding.jsonl`. `RECORDS.md` holds every schema. On first use ask with options: **keep it out of git** (recommended; append `.buyer-panel/` to `.git/info/exclude`) or **commit it** (rounds are shared with the team; nothing to add). Skip the question when `git check-ignore -q .buyer-panel` already answers it, or the folder is tracked.
+`.buyer-panel/<slug>/` at the project root, one folder per panel, `<slug>` from the idea in lowercase words joined by hyphens: `brief.json`, `research.md`, `plan.json`, `buyers.jsonl`, `history.md`, `rounds/<label>/` (`round.json`, `cards.jsonl`, `answers/`, `scores.jsonl`, `summary.json`, `checks.json`, `critique.md`, `report.md`, `page.json`, `page.html`), `test/` for the real-test kit, and once `ground` has run, `real/<label>.json`; the project's `grounding.jsonl` sits in `.buyer-panel/` beside the panel folders, so every panel reads it. `RECORDS.md` holds every schema. On first use ask with options: **keep it out of git** (recommended; append `.buyer-panel/` to `.git/info/exclude`) or **commit it** (rounds are shared with the team; nothing to add). Skip the question when `git check-ignore -q .buyer-panel` already answers it, or the folder is tracked.
 
 ## Companions
 

@@ -5,6 +5,8 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
 ## Layout
 
 ```text
+.buyer-panel/
+  grounding.jsonl     panel.py ground: real against predicted, one line per real test, for every panel
 .buyer-panel/<slug>/
   brief.json          the idea, audience, price and real alternatives
   research.md         one line per fact: what, source URL, date seen
@@ -12,8 +14,7 @@ The panel ledger's files and the schemas `panel.py validate` enforces. JSON obje
   buyers.jsonl        the panel, written once, reused by every round
   history.md          one line per round
   real/<label>.json   what real people did in one real test (ground)
-  grounding.jsonl     panel.py ground: real against predicted, one line per real test
-  price-p<n>.md       a price run's report (PRICE.md)
+  price-p<n>.md       a price series' report (PRICE.md)
   rounds/<label>/
     round.json        what this round showed and how it was run
     cards.jsonl       panel.py deal: each buyer's batch and option order
@@ -190,17 +191,18 @@ Then the two counts of its test, whole numbers, the second no larger than the fi
 
 ## grounding.jsonl
 
-Written by `panel.py ground`, one line per real test, read by `aggregate`. Do not write it by hand.
+Written by `panel.py ground` into `.buyer-panel/grounding.jsonl`, beside the panel folders, one line per real test: the project keeps one ledger, so a panel built later reports corrected numbers too. Do not write it by hand.
 
 | field | what |
 |---|---|
+| `panel` | the folder name of the panel whose round was tested; with `label`, unique in the file |
 | `label`, `test`, `round`, `date`, `source` | copied from the real-results file |
 | `offer`, `price`, `currency` | the round's, as its card showed them |
 | `real` | `{reached, acted, rate, measure}`: the two counts, their ratio to 4 places, and what it measures |
 | `predicted` | `{buyers, buy, raw, discounted, weights}`: the round's BUY share as `aggregate` gives it, with the weights used |
 | `ratio` | the real rate divided by the round's discounted share, to 4 places |
 
-`aggregate` applies the line with the latest `date` (on a tie, the one written later): its `corrected` field holds `figure` (the round's discounted share times `ratio`, to 4 places), `ratio`, `grounding` (the label), `test`, `round`, `date`, `reached`, `acted` and `measure`. A round aggregated with weights other than the grounding's gets `figure: null` and a `problem` saying why. Without `grounding.jsonl` there is no `corrected` field.
+Every subcommand that prints a BUY share (`aggregate`, `diff`, `competitor`, `compare`, `revenue`, `quotes`, `objections` and `page`) applies the line with the latest `date`, from any panel (on a tie, the one written later), to the buyers behind that share: its `corrected` field holds `figure` (their discounted share times `ratio`, to 4 places), `ratio`, `panel`, `grounding` (the label), `test`, `round`, `date`, `reached`, `acted` and `measure`, and its Markdown prints a `Corrected` line. It sits at the top of `aggregate`'s result, under `corrected` with `before` and `after` in `diff` and `competitor`, in each half of `compare`, in each round of `revenue`, in `first_round` of `quotes`, in `predicted` of `objections` and in the page data's `summary`. A round aggregated with weights other than the grounding's gets `figure: null` and a `problem` saying why. Without `grounding.jsonl` there is no `corrected` field.
 
 ## Exit codes
 

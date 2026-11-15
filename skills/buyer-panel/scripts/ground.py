@@ -1,7 +1,8 @@
-"""Real results against the panel's prediction, and the corrected figure later rounds show (GROUND.md). Stdlib only."""
+"""Real results against the panel's prediction, stored for the whole project, and the corrected figure every later
+round of any panel in the project shows (GROUND.md). Stdlib only."""
 import os
 
-from records import REAL_TESTS, RecordErrors, load, load_round, problem, validate_file, write_jsonl
+from records import REAL_TESTS, RecordErrors, load, load_round, panel_of, problem, project_of, write_jsonl
 from tally import discounted_count, summary
 
 
@@ -28,17 +29,22 @@ def ground(path, panel, weights):
     reached, acted = rec[reached_field], rec[acted_field]
     s = result["buy_share"]
     grounding = {
-        "label": rec["label"], "test": rec["test"], "round": rec["round"], "date": rec["date"],
-        "source": rec["source"], "offer": meta["offer"], "price": meta["price"], "currency": meta["currency"],
+        "panel": os.path.basename(os.path.normpath(os.path.abspath(panel))), "label": rec["label"],
+        "test": rec["test"], "round": rec["round"], "date": rec["date"], "source": rec["source"],
+        "offer": meta["offer"], "price": meta["price"], "currency": meta["currency"],
         "real": {"reached": reached, "acted": acted, "rate": round(acted / reached, 4), "measure": measure},
         "predicted": {"buyers": s["buyers"], "buy": s["buy"], "raw": s["raw"], "discounted": s["discounted"],
                       "weights": weights},
         "ratio": round((acted / reached) / (expected / s["buyers"]), 4),
     }
-    ledger = os.path.join(panel, "grounding.jsonl")
+    ledger = os.path.join(project_of(panel), "grounding.jsonl")
     kept = load(ledger, "grounding", "a grounding.jsonl file")["data"] if os.path.exists(ledger) else []
-    if any(g["label"] == grounding["label"] for g in kept):
-        kept = [grounding if g["label"] == grounding["label"] else g for g in kept]
+
+    def same(g):
+        return (g["panel"], g["label"]) == (grounding["panel"], grounding["label"])
+
+    if any(same(g) for g in kept):
+        kept = [grounding if same(g) else g for g in kept]
     else:
         kept.append(grounding)
     write_jsonl(ledger, kept)
@@ -46,8 +52,9 @@ def ground(path, panel, weights):
 
 
 def latest_grounding(round_dir):
-    """The grounding line with the latest test date (a tie goes to the line written later), or None."""
-    ledger = os.path.normpath(os.path.join(round_dir, os.pardir, os.pardir, "grounding.jsonl"))
+    """The project's grounding line with the latest test date, from any of its panels (a tie goes to the line
+    written later), or None."""
+    ledger = os.path.join(project_of(panel_of(round_dir)), "grounding.jsonl")
     if not os.path.exists(ledger):
         return None
     latest = None
@@ -63,9 +70,9 @@ def corrected_figure(round_dir, rows, weights):
     if latest is None:
         return None
     m = latest["real"]
-    out = {"figure": None, "ratio": latest["ratio"], "grounding": latest["label"], "test": latest["test"],
-           "round": latest["round"], "date": latest["date"], "reached": m["reached"], "acted": m["acted"],
-           "measure": m["measure"]}
+    out = {"figure": None, "ratio": latest["ratio"], "panel": latest["panel"], "grounding": latest["label"],
+           "test": latest["test"], "round": latest["round"], "date": latest["date"], "reached": m["reached"],
+           "acted": m["acted"], "measure": m["measure"]}
     grounded_on = latest["predicted"]["weights"]
     if grounded_on["by_intent"] != weights["by_intent"]:
         out["problem"] = (f"the ratio was computed on {grounded_on.get('scheme', 'other weights')}, "

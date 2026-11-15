@@ -58,8 +58,11 @@ class Ground(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             panel = panel_with(d, ("smoke-1", {}))
             result, code = run_json("ground", os.path.join(panel, "real", "smoke-1.json"))
-            stored = lines(os.path.join(panel, "grounding.jsonl"))
+            stored = lines(os.path.join(d, "grounding.jsonl"))              # the project's ledger, beside the panels
+            in_panel = os.path.exists(os.path.join(panel, "grounding.jsonl"))
         self.assertEqual(code, 0, result)
+        self.assertFalse(in_panel)
+        self.assertEqual(result["panel"], "panel")
         # 22 of 400 visits converted: 0.055; 0.055 / (1.10 / 7) = 0.385 / 1.10 = 0.35
         self.assertEqual(result["real"], {"reached": 400, "acted": 22, "rate": 0.055, "measure": "conversions per visit"})
         self.assertAlmostEqual(result["predicted"]["raw"], 0.4286, places=4)
@@ -90,7 +93,7 @@ class Ground(unittest.TestCase):
             run_json("ground", os.path.join(panel, "real", "talks-1.json"))
             real(panel, "smoke-1", conversions=44)                     # corrected count, same label
             result, code = run_json("ground", os.path.join(panel, "real", "smoke-1.json"))
-            stored = lines(os.path.join(panel, "grounding.jsonl"))
+            stored = lines(os.path.join(d, "grounding.jsonl"))
         self.assertEqual(code, 0, result)
         self.assertEqual([(g["label"], g["real"]["acted"]) for g in stored], [("smoke-1", 44), ("talks-1", 1)])
         # 44 / 400 = 0.11, twice 0.055: 0.70
@@ -101,7 +104,7 @@ class Ground(unittest.TestCase):
             panel = panel_with(d, ("dear", {"label": "dear", "price": 12}), ("lost", {"label": "lost", "round": "r9"}))
             dear, dear_code = run_json("ground", os.path.join(panel, "real", "dear.json"))
             lost, lost_code = run_json("ground", os.path.join(panel, "real", "lost.json"))
-            written = os.path.exists(os.path.join(panel, "grounding.jsonl"))
+            written = os.path.exists(os.path.join(d, "grounding.jsonl"))
         self.assertEqual((dear_code, lost_code), (3, 3))
         self.assertEqual([e["field"] for e in dear["errors"]], ["price"])
         self.assertEqual([e["field"] for e in lost["errors"]], ["round"])
@@ -119,6 +122,31 @@ class Ground(unittest.TestCase):
             result, code = run_json("ground", os.path.join(panel, "real", "smoke-1.json"))
         self.assertEqual(code, 3)
         self.assertIn("predicts no buyer", result["errors"][0]["problem"])
+
+
+class ProjectLedger(unittest.TestCase):
+    def test_the_same_label_in_two_panels_keeps_two_lines(self):
+        with tempfile.TemporaryDirectory() as d:
+            one = panel_with(d, ("smoke-1", {}))
+            two = os.path.join(d, "other")
+            shutil.copytree(one, two)
+            run_json("ground", os.path.join(one, "real", "smoke-1.json"))
+            run_json("ground", os.path.join(two, "real", "smoke-1.json"))
+            stored = lines(os.path.join(d, "grounding.jsonl"))
+        self.assertEqual([(g["panel"], g["label"]) for g in stored], [("panel", "smoke-1"), ("other", "smoke-1")])
+
+    def test_a_later_panel_in_the_project_shows_the_corrected_figure(self):
+        with tempfile.TemporaryDirectory() as d:
+            grounded_panel = panel_with(d, ("smoke-1", {}))
+            run_json("ground", os.path.join(grounded_panel, "real", "smoke-1.json"))
+            later = os.path.join(d, "later")
+            shutil.copytree(NORMAL, later)
+            result, code = run_json("aggregate", os.path.join(later, "rounds", "r1"))
+            text = run("aggregate", os.path.join(later, "rounds", "r1")).stdout
+        self.assertEqual(code, 0, result)
+        # the grounded panel's ratio, 0.35, on this panel's r1: 0.35 x 1.10 / 7 = 0.055
+        self.assertEqual((result["corrected"]["panel"], result["corrected"]["figure"]), ("panel", 0.055))
+        self.assertIn("grounding smoke-1 of panel panel", text)
 
 
 def second_round(panel):
@@ -193,10 +221,99 @@ class Corrected(unittest.TestCase):
     def test_a_damaged_grounding_ledger_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             panel = panel_with(d)
-            write(panel, "grounding.jsonl", '{"label": "smoke-1", "test": "smoke-test"}\n')
+            write(d, "grounding.jsonl", '{"label": "smoke-1", "test": "smoke-test"}\n')
             result, code = run_json("aggregate", os.path.join(panel, "rounds", "r1"))
         self.assertEqual(code, 3)
         self.assertIn("ratio", [e["field"] for e in result["errors"]])
+
+
+def grounded(d):
+    """The normal panel at d/panel with r2 (second_round) and smoke-1 grounded on r1: ratio 0.35."""
+    panel = panel_with(d, ("smoke-1", {}))
+    run_json("ground", os.path.join(panel, "real", "smoke-1.json"))
+    return panel, os.path.join(panel, "rounds", "r1"), second_round(panel)
+
+
+class CorrectedInEveryReport(unittest.TestCase):
+    """r1: discounted 1.10 / 7, corrected 0.35 x 1.10 / 7 = 0.055; r2: 2.25 / 7, corrected 0.1125."""
+
+    def test_diff_shows_the_corrected_figure_before_and_after(self):
+        with tempfile.TemporaryDirectory() as d:
+            _, r1, r2 = grounded(d)
+            result, code = run_json("diff", r1, r2)
+            text = run("diff", r1, r2).stdout
+        self.assertEqual(code, 0, result)
+        c = result["corrected"]
+        self.assertEqual((c["before"]["figure"], c["after"]["figure"]), (0.055, 0.1125))
+        self.assertIn("Corrected: r1 5.5%, r2 11.2% conversions per visit", text)
+
+    def test_competitor_shows_the_corrected_figure(self):
+        with tempfile.TemporaryDirectory() as d:
+            panel = panel_with(d, ("smoke-1", {}))
+            shutil.copytree(os.path.join(FIXTURES, "competitor"), panel, dirs_exist_ok=True)
+            run_json("ground", os.path.join(panel, "real", "smoke-1.json"))
+            result, code = run_json("competitor", os.path.join(panel, "rounds", "r1"),
+                                    os.path.join(panel, "rounds", "r2"))
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["corrected"]["before"]["figure"], 0.055)
+
+    def test_objections_show_the_corrected_prediction(self):
+        with tempfile.TemporaryDirectory() as d:
+            _, r1, _ = grounded(d)
+            result, code = run_json("objections", r1)
+            text = run("objections", r1).stdout
+        self.assertEqual(code, 0, result)
+        self.assertEqual(result["predicted"]["corrected"]["figure"], 0.055)
+        self.assertIn("Corrected: 5.5% conversions per visit", text)
+
+    def test_the_page_shows_the_corrected_figure(self):
+        with tempfile.TemporaryDirectory() as d:
+            _, r1, _ = grounded(d)
+            _, code = run_json("page", r1)
+            with open(os.path.join(r1, "page.json"), encoding="utf-8") as f:
+                data = json.load(f)
+            with open(os.path.join(r1, "page.html"), encoding="utf-8") as f:
+                html = f.read()
+        self.assertEqual(code, 0)
+        self.assertEqual(data["summary"]["corrected"]["figure"], 0.055)
+        self.assertIn("<dt>Corrected</dt>", html)
+
+    def test_quotes_show_the_corrected_first_round_of_the_held_out_buyers(self):
+        with tempfile.TemporaryDirectory() as d:
+            _, r1, _ = grounded(d)
+            result, code = run_json("quotes", r1, "--seed", "1")
+            text = run("quotes", r1, "--seed", "1").stdout
+        self.assertEqual(code, 0, result)
+        first = result["first_round"]
+        self.assertAlmostEqual(first["corrected"]["figure"], 0.35 * first["discounted"], places=3)
+        self.assertIn("Corrected:", text)
+
+    def test_compare_shows_the_corrected_figure_on_each_side(self):
+        with tempfile.TemporaryDirectory() as d:
+            panel = panel_with(d, ("smoke-1", {}))
+            shutil.copytree(os.path.join(FIXTURES, "compare"), panel, dirs_exist_ok=True)
+            run_json("ground", os.path.join(panel, "real", "smoke-1.json"))
+            a, b = os.path.join(panel, "rounds", "r2-A"), os.path.join(panel, "rounds", "r2-B")
+            result, code = run_json("compare", a, b)
+            text = run("compare", a, b).stdout
+        self.assertEqual(code, 0, result)
+        # A: 0.35 x 0.75 / 4 = 0.0656; B: 0.35 x 1.00 / 3 = 0.1167
+        self.assertEqual((result["a"]["corrected"]["figure"], result["b"]["corrected"]["figure"]), (0.0656, 0.1167))
+        self.assertIn("Corrected: r2-A 6.6%, r2-B 11.7% conversions per visit", text)
+
+    def test_revenue_shows_the_corrected_figure_at_each_price(self):
+        with tempfile.TemporaryDirectory() as d:
+            panel = os.path.join(d, "price")
+            shutil.copytree(os.path.join(FIXTURES, "price"), panel)
+            real(panel, "smoke-1", round="p1-9")
+            run_json("ground", os.path.join(panel, "real", "smoke-1.json"))
+            rounds = [os.path.join(panel, "rounds", x) for x in ("p1-9", "p1-14", "p1-24")]
+            result, code = run_json("revenue", *rounds)
+            text = run("revenue", *rounds).stdout
+        self.assertEqual(code, 0, result)
+        # ratio 0.055 / (1.65 / 7) = 0.2333; times 1.65, 1.10 and 0.35 discounted buyers, over 7
+        self.assertEqual([r["corrected"]["figure"] for r in result["rounds"]], [0.055, 0.0367, 0.0117])
+        self.assertIn("Corrected: p1-9 5.5%, p1-14 3.7%, p1-24 1.2% conversions per visit", text)
 
 
 if __name__ == "__main__":

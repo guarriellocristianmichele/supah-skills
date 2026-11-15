@@ -32,7 +32,8 @@ reactions  writes what the judge may see: buyer id and free reaction only, in sh
 aggregate  turns one round (round.json, answers, scores) into numbers: raw and discounted BUY share with the
            weighting scheme named, reasons with counts, buyer types, and the Van Westendorp price range with
            out-of-order answers dropped and counted. Buyers default to ROUND_DIR/../../buyers.jsonl. With a
-           grounding.jsonl in the panel, it adds the corrected figure from the latest grounding.
+           grounding.jsonl in the project's ledger (ROUND_DIR/../../..), it adds the corrected figure from the
+           latest grounding; so does every subcommand below that prints a BUY share.
 checks     flags a round that should not be trusted: intent spread too low, one reason tag given by too many
            buyers, reactions in the same words, praise too dense, BUY share above the plausible bound, the
            option shown first chosen too often (thresholds and sources in READING.md); prints the report's
@@ -65,7 +66,8 @@ competitor the round diff after ROUND_B added or repriced the competitor its rou
            switched to it, who left it, and who stayed on each option with the reasons that held them.
 ground     compares real results (PANEL/real/<label>.json: a smoke test, interviews or a pre-sale) with the
            discounted BUY share of the round they tested, at the same price, and stores the ratio of real to
-           predicted in PANEL/grounding.jsonl (one line per label; importing a label again replaces it).
+           predicted in PANEL/../grounding.jsonl, the project's ledger, naming the panel (one line per panel and
+           label; importing a label again replaces it).
 
 Exit codes: 0 done; 1 a check failed (checks, variety); 2 bad usage; 3 invalid records (nothing is aggregated or checked
 from them). This file is the command line and its Markdown; the modules beside it hold the records
@@ -250,13 +252,28 @@ def cmd_reactions(args):
 
 # ---------------------------------------------------------------- aggregate
 
-def show_corrected(c):
-    source = (f"grounding {c['grounding']} ({c['test']} on round {c['round']}, {c['acted']} of {c['reached']}, "
-              f"{c['date']})")
-    if c["figure"] is None:
+def add_corrected(into, rnd, rows, weights=WEIGHTS):
+    """Put the project's latest grounding, applied to these rows of the round, under `corrected` in `into`;
+    nothing without a grounding."""
+    figure = ground.corrected_figure(rnd.dir, rows, weights)
+    if figure:
+        into["corrected"] = figure
+    return into
+
+
+def show_corrected(*named):
+    """One `Corrected` line for (label or None, corrected) pairs that share one grounding; nothing without it."""
+    named = [(label, c) for label, c in named if c]
+    if not named:
+        return
+    c = named[0][1]
+    source = (f"grounding {c['grounding']} of panel {c['panel']} ({c['test']} on round {c['round']}, "
+              f"{c['acted']} of {c['reached']}, {c['date']})")
+    if all(x["figure"] is None for _, x in named):
         print(f"Corrected: n/a, {c.get('problem', 'no buyers in this round')}; {source}")
-    else:
-        print(f"Corrected: {pct(c['figure'])} {c['measure']}, discounted x {c['ratio']:g} from {source}")
+        return
+    figures = ", ".join((f"{label} " if label else "") + pct(x["figure"]) for label, x in named)
+    print(f"Corrected: {figures} {c['measure']}, discounted x {c['ratio']:g} from {source}")
 
 
 def show_aggregate(result):
@@ -265,8 +282,7 @@ def show_aggregate(result):
     cur = rnd["currency"]
     print(f"BUY {s['buy']} of {s['buyers']}: raw {pct(s['raw'])}, discounted {pct(s['discounted'])} "
           f"({s['weights']['scheme']})")
-    if "corrected" in result:
-        show_corrected(result["corrected"])
+    show_corrected((None, result.get("corrected")))
     print(f"Top reasons to pass: {reason_counts(result['pass_reasons'])}")
     print(f"Top reasons to buy: {reason_counts(result['buy_reasons'])}")
     print("Buyer types most likely to buy: " + ", ".join(
@@ -296,9 +312,7 @@ def cmd_aggregate(args):
     weights = parse_weights(args.weights)
     rnd = load_round(args.round_dir, args.buyers)
     result = tally.summary(rnd, weights)
-    corrected = ground.corrected_figure(args.round_dir, result["rows"], weights)
-    if corrected:
-        result["corrected"] = corrected
+    add_corrected(result, rnd, result["rows"], weights)
     if args.out:
         write_json(args.out, result)
     return result, 0
@@ -367,6 +381,8 @@ def show_diff(result):
           f"raw {pct(s['before']['raw'])} -> {pct(s['after']['raw'])} ({signed_points(s['raw_change'])}), "
           f"discounted {pct(s['before']['discounted'])} -> {pct(s['after']['discounted'])} "
           f"({signed_points(s['discounted_change'])}), weights {s['scheme']}")
+    if "corrected" in result:
+        show_corrected((a, result["corrected"]["before"]), (b, result["corrected"]["after"]))
     print(f"PASS to BUY: {id_list(result['flips']['pass_to_buy'])}. "
           f"BUY to PASS: {id_list(result['flips']['buy_to_pass'])}.")
     print("Switches: " + (", ".join(f"{x['buyer_id']} {x['from']} -> {x['to']}" for x in result["switches"])
@@ -405,13 +421,24 @@ def two_rounds(args, why):
     return load_round(args.before, args.buyers), load_round(args.after, args.buyers)
 
 
+def diff_with_corrected(round_a, round_b):
+    """The round diff, with the corrected figure of each round over the buyers compared when grounded."""
+    result = diff.diff_rounds(round_a, round_b, WEIGHTS)
+    both = {r["buyer_id"] for r in result["rows"]}
+    sides = {side: add_corrected({}, rnd, [r for r in rnd.rows() if r["buyer_id"] in both]).get("corrected")
+             for side, rnd in (("before", round_a), ("after", round_b))}
+    if sides["before"]:
+        result["corrected"] = sides
+    return result
+
+
 @command("diff", "compare two rounds of the same buyers, buyer by buyer", show_diff, [
     (("before",), {"metavar": "ROUND_A"}), (("after",), {"metavar": "ROUND_B"}), BUYERS_BOTH,
     OUT_JSON,
 ])
 def cmd_diff(args):
     round_a, round_b = two_rounds(args, SAME_BUYERS)
-    result = diff.diff_rounds(round_a, round_b, WEIGHTS)
+    result = diff_with_corrected(round_a, round_b)
     if args.out:
         write_json(args.out, result)
     return result, 0
@@ -443,7 +470,7 @@ def show_competitor(result):
          ])
 def cmd_competitor(args):
     round_a, round_b = two_rounds(args, SAME_BUYERS)
-    result = diff.diff_rounds(round_a, round_b, WEIGHTS)
+    result = diff_with_corrected(round_a, round_b)
     result["competitor"] = diff.competitor_moves(round_a, round_b, result)
     if args.out:
         write_json(args.out, result)
@@ -458,10 +485,11 @@ def price_round(rnd, weights, keep):
     s = tally.buy_share(rows, weights)
     likely = tally.discounted_count(rows, weights)
     meta = rnd.meta
-    return {"label": meta["label"], "price": meta["price"], "currency": meta["currency"], "buyers": s["buyers"],
-            "buy": s["buy"], "raw": s["raw"], "discounted": s["discounted"],
-            "discounted_buyers": round(likely, 4), "revenue": round(meta["price"] * likely, 2),
-            "raw_revenue": round(meta["price"] * s["buy"], 2)}
+    numbers = {"label": meta["label"], "price": meta["price"], "currency": meta["currency"], "buyers": s["buyers"],
+               "buy": s["buy"], "raw": s["raw"], "discounted": s["discounted"],
+               "discounted_buyers": round(likely, 4), "revenue": round(meta["price"] * likely, 2),
+               "raw_revenue": round(meta["price"] * s["buy"], 2)}
+    return add_corrected(numbers, rnd, rows, weights)
 
 
 def earns_most(rounds, key):
@@ -487,6 +515,8 @@ def show_revenue(result):
     for r in result["rounds"]:
         print(f"| {r['price']:g} {cur} | {r['label']} | {r['buy']} of {r['buyers']} ({pct(r['raw'])}) | "
               f"{pct(r['discounted'])} | {r['discounted_buyers']:g} | {r['revenue']:g} {cur} | {pct(r['relative'])} |")
+    print()
+    show_corrected(*((r["label"], r.get("corrected")) for r in result["rounds"]))
 
 
 @command("revenue", "compare price rounds of one panel: buyers and revenue at each price", show_revenue, [
@@ -597,6 +627,7 @@ def show_quotes(result):
           f"discounted {pct(f['discounted'])}: " + (", ".join(
               f"{h['buyer_id']} {h['name']} ({h['decision']}, intent {h['intent']})" for h in result["holdout"])
               or "none, so the pitch cannot be tried on this type"))
+    show_corrected((None, f.get("corrected")))
 
 
 @command("quotes", "a buyer type's own words with buyer ids, and the buyers held out to try the pitch on",
@@ -628,6 +659,7 @@ def cmd_quotes(args):
                      "intent": r["intent"], "reason": r["reason"]} for r in held],
         "first_round": tally.buy_share(held, WEIGHTS),
     }
+    add_corrected(result["first_round"], rnd, held)
     if args.holdout_out:
         write_jsonl(args.holdout_out, [rnd.buyers[r["buyer_id"]] for r in held])
     if args.out:
@@ -641,6 +673,7 @@ def show_objections(result):
     p = result["predicted"]
     print(f"Round {result['round']} at {result['price']:g} {result['currency']}: BUY {p['buy']} of {p['buyers']}, "
           f"raw {pct(p['raw'])}, discounted {pct(p['discounted'])}; likely buyer type: {result['likely_type']}")
+    show_corrected((None, p.get("corrected")))
     for o in result["objections"]:
         print(f"\n{o['reason']} ({o['count']})")
         for b in o["buyers"]:
@@ -665,8 +698,9 @@ def cmd_objections(args):
             for r in sorted(passed, key=lambda r: r["buyer_id"]) if r["reason"] == top["reason"]]))
     s = result["buy_share"]
     meta = rnd.meta
+    predicted = add_corrected({k: s[k] for k in ("buyers", "buy", "raw", "discounted")}, rnd, result["rows"])
     return {"round": meta["label"], "offer": meta["offer"], "price": meta["price"], "currency": meta["currency"],
-            "predicted": {k: s[k] for k in ("buyers", "buy", "raw", "discounted")},
+            "predicted": predicted,
             "likely_type": result["buyer_types"][0]["segment"] if result["buyer_types"] else None,
             "objections": objections}, 0
 
@@ -719,6 +753,7 @@ def show_compare(result):
     for key, x in (("A", a), ("B", b)):
         print(f"{key} {x['label']}: BUY {x['buy']} of {x['buyers']}, raw {pct(x['raw'])}, discounted "
               f"{pct(x['discounted'])}, at {x['price']:g} {x['currency']}. Card: \"{x['offer']}\"")
+    show_corrected(*((x["label"], x.get("corrected")) for x in (a, b)))
     for key, x in (("A", a), ("B", b)):
         if x["missing"]:
             print(f"Missing in {key} {x['label']} (dealt a card, no scored answer): {id_list(x['missing'])}")
@@ -747,7 +782,9 @@ def cmd_compare(args):
     round_a, round_b = two_rounds(args, "the two rounds belong to different panels; split one panel's buyers "
                                         "between them")
     result = diff.compare_halves(round_a, round_b, WEIGHTS)
-    result["a"]["missing"], result["b"]["missing"] = dealt_without_row(round_a), dealt_without_row(round_b)
+    for half, rnd in (("a", round_a), ("b", round_b)):
+        result[half]["missing"] = dealt_without_row(rnd)
+        add_corrected(result[half], rnd, rnd.rows())
     if args.out:
         write_json(args.out, result)
     return result, 0

@@ -285,9 +285,10 @@ KINDS = {k.name: k for k in (
          extra=test_errors),
     Kind("real", {"label": TEXT, "test": TEXT, "round": TEXT, "date": TEXT, "source": TEXT, "price": NUMBER,
                   "currency": TEXT}, extra=real_errors, folder="real"),
-    # grounding.jsonl: one line per real test compared, written by `ground`, read for the corrected figure
-    Kind("grounding", {"label": TEXT, "test": TEXT, "round": TEXT, "date": TEXT, "ratio": NUMBER}, lines=True,
-         key=("label",), extra=grounding_errors),
+    # .buyer-panel/grounding.jsonl: one line per real test compared, for the whole project, each naming its panel;
+    # written by `ground`, read for the corrected figure
+    Kind("grounding", {"panel": TEXT, "label": TEXT, "test": TEXT, "round": TEXT, "date": TEXT, "ratio": NUMBER},
+         lines=True, key=("panel", "label"), extra=grounding_errors),
 )}
 
 
@@ -447,6 +448,11 @@ class Round:
 def panel_of(round_dir):
     """The panel folder a round folder sits in: P/rounds/<label>/ -> P."""
     return os.path.normpath(os.path.join(round_dir, os.pardir, os.pardir))
+
+
+def project_of(panel):
+    """The ledger folder that holds every panel of the project: .buyer-panel/<slug>/ -> .buyer-panel."""
+    return os.path.dirname(os.path.normpath(os.path.abspath(panel)))
 
 
 def load_round(round_dir, buyers_path=None):

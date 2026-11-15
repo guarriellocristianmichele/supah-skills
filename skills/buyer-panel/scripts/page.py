@@ -3,6 +3,7 @@ import html
 import json
 import os
 
+from ground import corrected_figure
 from records import NOTHING, OFFER, PRICE_ANSWERS, panel_of, read_json
 from tally import pct, price_curves, summary
 
@@ -16,6 +17,9 @@ def simulated_line(buyers, model):
 def page_data(rnd, weights):
     result = summary(rnd, weights)
     rows = result.pop("rows")
+    corrected = corrected_figure(rnd.dir, rows, weights)
+    if corrected:
+        result["corrected"] = corrected
     # Checks may come from a summary.json written by a later step, or from `panel.py checks --out`; both optional.
     checks = (read_json(os.path.join(rnd.dir, "summary.json")) or {}).get("checks")
     if checks is None:
@@ -246,6 +250,14 @@ def page_html(data):
         ("BUY share", f"{share_['buy']} of {share_['buyers']}: raw {pct(share_['raw'])}, "
                       f"discounted {pct(share_['discounted'])} "
                       f"<span class=\"scheme\">({esc(share_['weights']['scheme'])})</span>"),
+    ]
+    c = s.get("corrected")
+    if c:
+        figure = "n/a" if c["figure"] is None else f"{pct(c['figure'])} {esc(c['measure'])}"
+        summary.append(("Corrected", f"{figure}, discounted x {c['ratio']:g} from grounding {esc(c['grounding'])} "
+                                     f"of panel {esc(c['panel'])} ({esc(c['test'])}, {c['acted']} of {c['reached']}, "
+                                     f"{esc(c['date'])})"))
+    summary += [
         ("Top reasons to pass", reason_list(s["pass_reasons"])),
         ("Top reasons to buy", reason_list(s["buy_reasons"])),
         ("Buyer types most likely to buy", ", ".join(

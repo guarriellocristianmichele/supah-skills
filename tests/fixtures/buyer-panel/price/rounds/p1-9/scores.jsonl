@@ -1,0 +1,7 @@
+{"buyer_id": "b01", "round": "p1-9", "intent": 5, "reason": "saves-time", "quote": "I stop losing Friday afternoons to my sheet"}
+{"buyer_id": "b02", "round": "p1-9", "intent": 5, "reason": "saves-time", "quote": "I forget timers all the time"}
+{"buyer_id": "b03", "round": "p1-9", "intent": 2, "reason": "already-paid", "quote": "We already pay for Toggl"}
+{"buyer_id": "b04", "round": "p1-9", "intent": 3, "reason": "better-quotes", "quote": "would help me quote better"}
+{"buyer_id": "b05", "round": "p1-9", "intent": 1, "reason": "no-need", "quote": "Our ERP already does timesheets"}
+{"buyer_id": "b06", "round": "p1-9", "intent": 2, "reason": "cheap-enough", "quote": "I might try it on one project"}
+{"buyer_id": "b07", "round": "p1-9", "intent": 1, "reason": "no-need", "quote": "I do not need a tracker at any price"}

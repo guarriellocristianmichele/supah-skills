@@ -1,0 +1,7 @@
+{"buyer_id": "b01", "round": "p1-24", "intent": 4, "reason": "saves-time", "quote": "It would still save my Fridays, so probably yes"}
+{"buyer_id": "b02", "round": "p1-24", "intent": 2, "reason": "saves-time", "quote": "I would probably cancel after a month"}
+{"buyer_id": "b03", "round": "p1-24", "intent": 1, "reason": "already-paid", "quote": "Twice what we pay for Toggl"}
+{"buyer_id": "b04", "round": "p1-24", "intent": 2, "reason": "better-quotes", "quote": "I doubt I would keep it past the trial"}
+{"buyer_id": "b05", "round": "p1-24", "intent": 1, "reason": "no-need", "quote": "Our ERP already does timesheets"}
+{"buyer_id": "b06", "round": "p1-24", "intent": 2, "reason": "too-expensive", "quote": "I would rather pay for Harvest"}
+{"buyer_id": "b07", "round": "p1-24", "intent": 1, "reason": "too-expensive", "quote": "Twenty-four a month for a school teacher? No."}

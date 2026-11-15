@@ -22,6 +22,7 @@ Interviews run through [orchestrate](../orchestrate/README.md) when it is instal
 ```text
 /buyer-panel a time tracker that starts itself when you open a client's files
 /buyer-panel
+/buyer-panel price 9 14 24
 ```
 
 It is user-invoked, so it costs nothing in sessions where you don't call it.
@@ -34,7 +35,9 @@ It is user-invoked, so it costs nothing in sessions where you don't call it.
 - The script turns the round into the raw BUY share next to a discounted one (the weighting scheme is named), the top five reasons with counts, the three buyer types most likely to buy, and the price range as an upper bound with out-of-order answers dropped and counted.
 - The report is a Markdown file with the full buyer table, a verdict, and the first real test for this week: five interviews, a smoke test or a pre-sale.
 
-The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks whether to commit it or keep it out of git. The modes that reuse the same buyers in later rounds (`fix`, `price`, `pitch`, `compare`, `competitor`, `test`, `ground`) are listed in the skill and arrive in later versions.
+The panel lives in `.buyer-panel/<idea>/` in your project; on first use it asks whether to commit it or keep it out of git. The modes that reuse the same buyers in later rounds (`fix`, `pitch`, `compare`, `competitor`, `test`, `ground`) are listed in the skill and arrive in later versions.
+
+`/buyer-panel price [low mid high]` runs the same buyers at three prices, each in its own round with fresh contexts. Without prices it proposes three from the first round's price range and asks you to confirm them. For each price it shows raw and discounted buyers and the revenue (price times discounted buyers), names the price that earns most, and says when counting raw buyers alone would have picked another one. Since synthetic buyers overstate what they would pay, the report treats the pick as an upper bound and ends with the real test that would confirm it: a pre-sale at that price, or a smoke test that shows two prices to two halves of the visitors.
 
 ## What it will not claim
 
@@ -51,4 +54,5 @@ Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s 
 - Chiede 30, 100 o 200 acquirenti (100 di default), divisi in segmenti con quote e budget presi dalla ricerca; lo script scarta chi manca di un campo.
 - Ogni acquirente vede l'idea come il prodotto di un'altra azienda, accanto ai concorrenti veri e a "non compro niente", in un ordine casuale registrato. Prima reagisce a parole, poi sceglie, dice a cosa rinuncerebbe per pagare e risponde alle quattro domande di prezzo di Van Westendorp.
 - Un giudice separato, che legge solo le reazioni, le colloca su cinque frasi di riferimento fisse. Lo script calcola la quota di acquisto grezza e quella scontata, i motivi principali con i conteggi, i tre tipi di acquirente più propensi e la fascia di prezzo come limite superiore.
+- `/buyer-panel price [basso medio alto]` ripropone gli stessi acquirenti a tre prezzi, ognuno in un giro a sé; senza prezzi ne propone tre dalla fascia del primo giro e te li fa confermare. Per ogni prezzo mostra acquirenti grezzi e scontati e il ricavo (prezzo per acquirenti scontati), e indica il prezzo che rende di più come limite superiore, con il test reale che lo conferma.
 - Il report in Markdown chiude con un verdetto e il primo test reale della settimana. Il panel resta in `.buyer-panel/` nel progetto, e la skill ti chiede se metterlo nel commit.

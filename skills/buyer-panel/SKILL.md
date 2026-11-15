@@ -26,7 +26,7 @@ Read the mode's file and follow it to its completion criterion. The first word o
 |---|---|---|
 | `run [idea]` (default) | `${CLAUDE_SKILL_DIR}/RUN.md` | the panel (brief, plan, buyers), round `r1` and its report |
 | `fix [reason]` | `${CLAUDE_SKILL_DIR}/FIX.md` (not yet available) | screening rounds, a full round, the diff |
-| `price [low mid high]` | `${CLAUDE_SKILL_DIR}/PRICE.md` (not yet available) | three price rounds, revenue per price |
+| `price [low mid high]` | `${CLAUDE_SKILL_DIR}/PRICE.md` | three price rounds, revenue per price |
 | `pitch [type]` | `${CLAUDE_SKILL_DIR}/PITCH.md` (not yet available) | a pitch with traced quotes, its try-out round |
 | `compare A B` | `${CLAUDE_SKILL_DIR}/COMPARE.md` (not yet available) | two half-panel rounds |
 | `competitor` | `${CLAUDE_SKILL_DIR}/COMPETITOR.md` (not yet available) | a round with a competitor added or repriced |

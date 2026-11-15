@@ -29,9 +29,10 @@ aggregate  turns one round (round.json, answers, scores) into numbers: raw and d
            weighting scheme named, reasons with counts, buyer types, and the Van Westendorp price range with
            out-of-order answers dropped and counted. Buyers default to ROUND_DIR/../../buyers.jsonl. With a
            grounding.jsonl in the panel, it adds the corrected figure from the latest grounding.
-checks     flags a round that should not be trusted: intent spread too low, reactions too alike, praise too
-           dense, BUY share above the plausible bound, the option shown first chosen too often (thresholds and
-           sources in READING.md); prints the report's Checks section and, on a failure, its verdict line.
+checks     flags a round that should not be trusted: intent spread too low, one reason tag given by too many
+           buyers, reactions in the same words, praise too dense, BUY share above the plausible bound, the
+           option shown first chosen too often (thresholds and sources in READING.md); prints the report's
+           Checks section and, on a failure, its verdict line.
 diff       compares two rounds of the same panel over the buyers answered and scored in both: PASS to BUY
            and back, every change of option (between competitors too), choices per option, BUY share,
            intent, new and gone top reasons, and the card price and price range moved.

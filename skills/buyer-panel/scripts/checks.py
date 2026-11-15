@@ -5,7 +5,8 @@ import re
 from records import OFFER
 
 MIN_SPREAD = 0.8
-MAX_SIMILARITY = 0.5
+MAX_TOP_REASON = 0.6      # share of buyers giving the most common reason tag
+MAX_OVERLAP = 0.5         # mean word overlap between two reactions
 MAX_PRAISE = 2.0          # praise words per 100 words of reaction
 MAX_BUY_SHARE = 0.5       # raw share choosing the offer
 MAX_FIRST_TIMES_CHANCE = 2  # the option shown first, chosen this many times as often as chance gives
@@ -24,7 +25,8 @@ outstanding perfect perfectly phenomenal remarkable revolutionary spectacular st
 bellissimo bellissima eccezionale fantastico fantastica fantastici geniale incredibile magnifico magnifica
 meraviglioso meravigliosa ottimo ottima perfetto perfetta perfetti stupendo stupenda
 """.split())
-LABELS = {"spread": "intent spread", "similarity": "reason similarity", "praise": "praise words",
+LABELS = {"spread": "intent spread", "similarity": "reason similarity", "overlap": "reaction overlap",
+          "praise": "praise words",
           "buy_share": "BUY share", "order": "first-option choice"}
 SEGMENTS = {"descriptive_only": True,
             "why": "Buyer types are descriptive, not findings: synthetic panels flatten and misportray groups "
@@ -36,7 +38,18 @@ def words(text):
     return WORD.findall(text.lower())
 
 
-def similarity(texts):
+def top_reason(rows):
+    """(share of buyers giving the most common reason tag, that tag); on a tie the first tag in name order."""
+    if len(rows) < 2:
+        return None, None
+    counts = {}
+    for r in rows:
+        counts[r["reason"]] = counts.get(r["reason"], 0) + 1
+    tag = min(counts, key=lambda t: (-counts[t], t))
+    return round(counts[tag] / len(rows), 3), tag
+
+
+def overlap(texts):
     """Mean overlap (Jaccard) of the content words of every pair of reactions."""
     sets = [set(words(t)) - STOP_WORDS for t in texts]
     pairs = [(a, b) for i, a in enumerate(sets) for b in sets[i + 1:]]
@@ -79,11 +92,14 @@ def check(name, what, value, threshold, passed):
 def run_checks(rnd):
     rows = rnd.rows()
     reactions = [rnd.answers[r["buyer_id"]]["reaction"] for r in rows]
+    top_share, tag = top_reason(rows)
     found = [
         check("spread", "standard deviation of intent", spread(rows), f">= {MIN_SPREAD:g}",
               lambda v: v >= MIN_SPREAD),
-        check("similarity", "mean word overlap between two reactions", similarity(reactions),
-              f"<= {MAX_SIMILARITY:g}", lambda v: v <= MAX_SIMILARITY),
+        dict(check("similarity", "share of buyers giving the most common reason tag", top_share,
+                   f"<= {MAX_TOP_REASON:g}", lambda v: v <= MAX_TOP_REASON), reason=tag),
+        check("overlap", "mean word overlap between two reactions", overlap(reactions),
+              f"<= {MAX_OVERLAP:g}", lambda v: v <= MAX_OVERLAP),
         check("praise", "praise words per 100 words of reaction", praise(reactions), f"<= {MAX_PRAISE:g}",
               lambda v: v <= MAX_PRAISE),
         check("buy_share", "raw share choosing the offer",

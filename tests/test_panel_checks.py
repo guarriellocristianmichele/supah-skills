@@ -32,13 +32,18 @@ class NormalRound(unittest.TestCase):
         self.assertEqual(self.checks["spread"]["value"], 1.278)
         self.assertTrue(self.checks["spread"]["passed"])
 
+    def test_similarity_is_the_top_reason_tags_share(self):
+        # saves-time, already-paid and no-need 2 of 7 each; on a tie the first tag in name order is named
+        self.assertEqual((self.checks["similarity"]["value"], self.checks["similarity"]["reason"]),
+                         (0.286, "already-paid"))
+
 
 def fixture_round(label):
     return os.path.join(CHECKS, "rounds", label)
 
 
 class UniformRound(unittest.TestCase):
-    """Every buyer judged 3; four buyers wrote reaction A, three wrote B, which differs by one word."""
+    """Every buyer judged 3 and tagged price-drop, in reactions that share little beyond "if the price drops"."""
 
     @classmethod
     def setUpClass(cls):
@@ -52,10 +57,34 @@ class UniformRound(unittest.TestCase):
     def test_spread_is_zero(self):
         self.assertEqual(self.checks["spread"]["value"], 0)
 
-    def test_similarity_is_the_mean_word_overlap_between_reactions(self):
-        # without the stop words i, it, if, the, a: A = looks useful might try price drops little, B the same
-        # with bit for little; A-A and B-B pairs (6 + 3) overlap 1, A-B pairs (12) overlap 6/8; (9 + 9) / 21
-        self.assertEqual(self.checks["similarity"]["value"], 0.857)
+    def test_similarity_is_the_share_of_buyers_giving_the_top_reason(self):
+        # price-drop for all 7
+        self.assertEqual(self.checks["similarity"]["value"], 1)
+        self.assertEqual(self.checks["similarity"]["reason"], "price-drop")
+
+    def test_reactions_in_their_own_words_pass_the_overlap_check(self):
+        self.assertTrue(self.checks["overlap"]["passed"])
+
+
+class EchoRound(unittest.TestCase):
+    """One reaction repeated by every buyer, judged as the normal round was: intents and tags vary."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result, cls.code = run_json("checks", fixture_round("echo"))
+        cls.checks = by_name(cls.result)
+
+    def test_fails_only_the_overlap_check(self):
+        self.assertEqual(self.code, 1, self.result)
+        self.assertEqual(self.result["failed"], ["overlap"])
+
+    def test_overlap_is_the_mean_word_overlap_between_reactions(self):
+        # every pair of reactions is the same sentence: overlap 1
+        self.assertEqual(self.checks["overlap"]["value"], 1)
+
+    def test_varied_reasons_pass_the_similarity_check(self):
+        # saves-time, already-paid and no-need 2 each, better-quotes 1: the top tag holds 2 of 7
+        self.assertEqual(self.checks["similarity"]["value"], 0.286)
 
 
 class AgreeableRound(unittest.TestCase):
@@ -124,7 +153,7 @@ class ReportOutput(unittest.TestCase):
         out = run("checks", fixture_round("uniform"))
         self.assertEqual(out.returncode, 1)
         rows = [x for x in out.stdout.splitlines() if x.startswith("| ")]
-        self.assertEqual(len(rows), 1 + 5)                       # header and one row per check
+        self.assertEqual(len(rows), 1 + 6)                       # header and one row per check
         self.assertIn("| spread | standard deviation of intent | 0 | >= 0.8 | FAIL |", rows)
         self.assertIn("Do not trust this round: intent spread, reason similarity failed.", out.stdout)
 

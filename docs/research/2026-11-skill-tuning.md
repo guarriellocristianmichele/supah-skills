@@ -47,3 +47,26 @@ The runs found defects no wording change fixes, since all three versions hit the
 3. TELLS.md disagreed with the scanner. It listed designed tiers without saying calibration admits many rules a tier lower, and it lacked `ecco-opener`, `summary-closer` and `bold-heading`. Four sweeps out of six reported the mismatch.
 
 The third is fixed with V1, and `tests/test_scan.py` now fails when a scanner rule is missing from TELLS.md. The first two change the scanner and go in their own change, with fixtures and a recalibration (ADR 0007).
+
+## Lot 2: orchestrate
+
+Tasks: a fresh job of six units (word count and H2 headings of six READMEs), and a resume from a state left mid-run: one orphan worker `running` under an ended session with two checkpoints, an open STOPPED block, two units never assigned. Both checkpoints in the seeded state close a placeholder line (`H2: (as counted)`) that fails the done criterion. Subagents can dispatch their own background workers, so these runs went through dispatch, the watchdog and calibration, not the inline path.
+
+Reading the skill found two gaps. Step 5 calibrates from the free RAM at dispatch and the peak worker count, but `state.json` stored neither, so both were lost on resume. And a finished worker's units without a checkpoint were never returned to `pending`, so the job could not complete.
+
+| Run | Tokens | Tools | Seconds | Units done | Calibration inputs in state |
+|---|---|---|---|---|---|
+| current, fresh | 90,334 | 18 | 123 | 6/6 | invented by the agent |
+| variant, fresh | 89,056 | 15 | 116 | 6/6 | `dispatch_avail_mb`, `peak_workers` |
+| current, resume | 93,956 | 19 | 188 | 6/6, placeholders redone | kept while running, then deleted |
+| variant, resume | 92,736 | 19 | 158 | 6/6, placeholders merged | `dispatch_avail_mb`, `peak_workers` |
+| final, resume | 95,373 | 20 | 136 | 6/6, placeholders redone | `dispatch_avail_mb`, `peak_workers` |
+
+Neither the current skill nor the first variant says what to do with a checkpoint whose result fails the done criterion: one run redid the units, the other merged the placeholders. The final version says it, together with the other rules the runs had to improvise:
+
+- `state.json` carries `dispatch_avail_mb` and `peak_workers`, and step 5 calibrates from them; inline runs skip calibration.
+- A finished worker's units without a checkpoint return to `pending`, and a unit returned twice becomes `failed:<reason>`. A checkpoint whose result fails the done criterion does not count.
+- Between notifications the orchestrator ends its turn instead of polling; one run had looped in Python because `sleep` is blocked.
+- An orphan's STOPPED block gets the reason `orphan: session <id> ended`; all three resume runs had made one up.
+
+The description, the one part loaded every session, lost its STOPPED_AGENTS_WORK.md clause. Token use again does not separate the versions.

@@ -23,7 +23,7 @@ The directory that holds an audit's state across sessions (`.slop-audit/` for co
 _Avoid_: cache, report, state file
 
 **Batch**:
-A small group of findings in one area and one category, fixed and reverted together, and published as one issue.
+A small group of findings fixed and reverted together, and published as one issue: in a code plan, one category in one area; in a design plan, a token/component, surface or handoff batch.
 _Avoid_: ticket (the tracker's word), PR, chunk
 
 **Fallout**:
@@ -81,6 +81,18 @@ _Avoid_: verify, diff, rescan (the rescan is its input)
 **Restyle**:
 A craft run on an existing surface (`craft <surface>`), usually a sweep's or plan's `handoff`: the brief is read from the page, content and behaviour stay unchanged, and the direction is checked against the lane the page sat in.
 _Avoid_: redesign, reskin, makeover
+
+**Token/component batch**:
+A design plan's batch that replaces copies across surfaces (repeated class strings, duplicate CSS blocks, untokened colours) with one token or component, in three steps: expand adds it, migrate swaps it in a few surfaces at a time, contract removes what the copies left. Planned before every other kind.
+_Avoid_: refactor, design-system ticket
+
+**Surface batch**:
+A design plan's batch holding one surface's reflexes, judgment-only finds and copy, fixed in one sweep.
+_Avoid_: page fix, route ticket
+
+**Handoff batch**:
+A design plan's batch naming one lane and every surface that sits in it, worked by a restyle instead of patches.
+_Avoid_: redesign ticket, lane fix
 
 ### Buyer panel
 

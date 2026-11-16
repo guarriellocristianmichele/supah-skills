@@ -1,7 +1,7 @@
 ---
 name: ai-slop-design
-description: Build pages whose look comes from their subject, and sweep frontend code for design reflexes (purple gradients, gradient text, icon-card grids, glass panels, eyebrows, glued arrows…) found by a deterministic scanner and judged one by one. Modes craft <brief>, sweep [file…] and audit [path] (a whole platform, read-only).
-argument-hint: "craft <brief> | sweep [file…] | audit [path]"
+description: Build pages whose look comes from their subject, and sweep frontend code for design reflexes (purple gradients, gradient text, icon-card grids, glass panels, eyebrows, glued arrows…) found by a deterministic scanner and judged one by one. Modes craft <brief>, craft <surface> (restyle an existing page), sweep [file…] and audit [path] (a whole platform, read-only).
+argument-hint: "craft <brief> | craft <surface> | sweep [file…] | audit [path]"
 disable-model-invocation: true
 allowed-tools: Bash(python *designscan.py*) Bash(git ls-files *) Bash(git rev-parse *) Bash(git status *)
 ---
@@ -25,6 +25,7 @@ Read the mode's file and follow it to its completion criterion. Every mode start
 | mode | file | writes |
 |---|---|---|
 | `craft <brief>` | `${CLAUDE_SKILL_DIR}/CRAFT.md` | the new page, `.slop-design/history.md` |
+| `craft <surface>` | `${CLAUDE_SKILL_DIR}/CRAFT.md` (Restyle) | the surface's files, `.slop-design/history.md` |
 | `sweep [file…]` | `${CLAUDE_SKILL_DIR}/SWEEP.md` | the swept files |
 | `audit [path]` | `${CLAUDE_SKILL_DIR}/AUDIT.md` | `.slop-design/` only, never a source file |
 
@@ -35,7 +36,7 @@ No mode given: show this table and ask which one.
 Every hit gets one:
 
 - **reflex**: nothing in the brief, the brand or the content asked for it; fix it.
-- **chosen**: something did; keep it with a reason: `brief` (the brief asks for it), `brand` (the existing identity uses it), `sequence` (01/02/03 marks a real order), `content` (the content needs it), `a11y` (it serves accessibility), or `handoff` (the whole page sits in a lane and needs a new direction from craft, not a patch).
+- **chosen**: something did; keep it with a reason: `brief` (the brief asks for it), `brand` (the existing identity uses it), `sequence` (01/02/03 marks a real order), `content` (the content needs it), `a11y` (it serves accessibility), or `handoff` (the whole page sits in a lane and needs a new direction from `craft <surface>`, not a patch).
 - **fp**: the pattern matched but the code is not doing what the rule names (a status dot that is not decoration, a spinner's border that is not a stripe).
 
 A keep file is a TSV in the scratchpad, one line per kept hit: `rule<TAB>match<TAB>reason`, with the `match` exactly as the scanner printed it. Hits it lists count as resolved.

@@ -74,6 +74,10 @@ _Avoid_: trend, aesthetic, vibe
 A route or page plus the components only it reaches; components reached by several surfaces, or by none a static read can find, form the `shared` unit, so every frontend file belongs to exactly one unit. The unit an audit judges and counts coverage by.
 _Avoid_: page (one surface may render several), screen, view
 
+**Restyle**:
+A craft run on an existing surface (`craft <surface>`), usually a sweep's or plan's `handoff`: the brief is read from the page, content and behaviour stay unchanged, and the direction is checked against the lane the page sat in.
+_Avoid_: redesign, reskin, makeover
+
 ### Buyer panel
 
 **Panel**:

@@ -99,3 +99,16 @@ The outputs tie, so the shorter text wins except where the current one is wrong.
 A second round on the genre most prone to tells, a 150-word LinkedIn launch post, compared none, current and a short prose line ("state each point plainly"): 0 open hits in all three.
 
 On these tasks the model writes no catalogued tell with or without the prose line, so the line spent about 45 tokens a session for nothing measurable; the code line did change the code. The prose line is now "state each point plainly", and the tells are left to the PostToolUse hook, which names each one when the text is saved. The file went from 665 to 495 characters (about 166 to 124 tokens by the characters ÷ 4 estimate). One run per cell is a small sample: the evidence is that no arm wrote a tell, not that the line can never help.
+
+## Lot 5: doc-truth
+
+The trial repository has five commits and a README written against the first: a script renamed on purpose, a make target dropped on purpose, an environment variable dropped on purpose, a flag lost in a commit titled "tidy argument parsing", a wrong anchor, a link to a file that never existed, a state file the code never writes, and a default port the doc gets wrong. Fixing the script name brings two flags into reach: `--port`, which the wrapper forwards to the program that defines it, and the lost `--dry-run`. The current skill and a variant each ran twice.
+
+| Run | Tokens | Tools | Seconds | Answer key (6 checks) | Code and history untouched |
+|---|---|---|---|---|---|
+| current, a | 78,696 | 10 | 107 | 6/6 | yes |
+| current, b | 76,491 | 11 | 87 | 6/6 | yes |
+| variant, a | 76,569 | 11 | 92 | 6/6 | yes |
+| variant, b | 75,827 | 7 | 94 | 6/6 | yes |
+
+All four runs also read `pip install -e .` against a repository with no packaging and fixed it. The variant's three additions (a forwarded flag counts as fp, W findings get verdicts too, a doc fix can surface new claims) changed nothing: the current skill's runs did all three on their own, so they were dropped. One gap showed up in all four runs. A code regression stays in the doc as a promise, yet the rescan must exit 0, and the skill described the keep file for false positives only; every run put the claim there with a reason it wrote itself. The rule is now written down: the claim goes in the keep file with reason `regression <commit>`. Under orchestrate each worker keeps its own keep file, while `doctruth.py` takes one `--keep`, so the workers' files are concatenated before the rescan.

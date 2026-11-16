@@ -2,7 +2,7 @@
 (BUYERS.md, "The variety check"): each threshold with its source and its reason. Stdlib only."""
 import re
 
-from records import OFFER, normalise
+from records import NOTHING, OFFER, normalise
 
 MIN_SPREAD = 0.8
 MAX_TOP_REASON = 0.6      # share of buyers giving the most common reason tag
@@ -10,6 +10,8 @@ MAX_OVERLAP = 0.5         # mean word overlap between two reactions
 MAX_PRAISE = 2.0          # praise words per 100 words of reaction
 MAX_BUY_SHARE = 0.5       # raw share choosing the offer
 MAX_FIRST_TIMES_CHANCE = 2  # the option shown first, chosen this many times as often as chance gives
+MIN_KEEP = 0.5            # buyers who pay for an option shown and still take an option, not nothing
+MIN_KEEP_BUYERS = 3       # fewer such buyers than this: the keep rate is not measured
 WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")
 # function words left out of the overlap, so two reactions are alike for what they say, not for "the" and "I"
 STOP_WORDS = frozenset("""
@@ -27,7 +29,7 @@ meraviglioso meravigliosa ottimo ottima perfetto perfetta perfetti stupendo stup
 """.split())
 LABELS = {"spread": "intent spread", "similarity": "reason similarity", "overlap": "reaction overlap",
           "praise": "praise words",
-          "buy_share": "BUY share", "order": "first-option choice"}
+          "buy_share": "BUY share", "order": "first-option choice", "keep": "keep rate"}
 SEGMENTS = {"descriptive_only": True,
             "why": "Buyer types are descriptive, not findings: synthetic panels flatten and misportray groups "
                    "(Wang, Morgenstern and Dickerson), and in Bisbee et al. 32% of the coefficients that differed "
@@ -84,6 +86,33 @@ def spread(rows):
     return round((sum((x - mean) ** 2 for x in intents) / len(intents)) ** 0.5, 3)
 
 
+def names_option(solution, option):
+    """True when the words of an option id ("Toggl", "google-sheets") appear in a row in the solution's text."""
+    want, have = words(option.replace("-", " ")), words(solution.replace("-", " "))
+    return bool(want) and any(have[i:i + len(want)] == want for i in range(len(have) - len(want) + 1))
+
+
+def paying_users(rnd, rows):
+    """Rows of buyers who last paid something and whose current solution names an alternative on the cards."""
+    found = []
+    for r in rows:
+        buyer = rnd.buyers[r["buyer_id"]]
+        names = [o for o in r["options"] if o not in (OFFER, NOTHING)]
+        if buyer["last_spend"] > 0 and any(names_option(buyer["current_solution"], o) for o in names):
+            found.append(r)
+    return found
+
+
+def keep_rate(rnd, rows):
+    """(share of paying users who take an option rather than nothing, the buyer ids who chose nothing);
+    (None, []) below MIN_KEEP_BUYERS."""
+    users = paying_users(rnd, rows)
+    if len(users) < MIN_KEEP_BUYERS:
+        return None, []
+    left = [r["buyer_id"] for r in users if r["choice"] == NOTHING]
+    return round(1 - len(left) / len(users), 3), left
+
+
 def check(name, what, value, threshold, passed):
     return {"name": name, "what": what, "value": value, "threshold": threshold,
             "passed": value is not None and passed(value)}
@@ -113,6 +142,11 @@ def run_checks(rnd, advisory=False):
     found.append(dict(check("order", "share choosing the option shown first", first,
                             f"< {MAX_FIRST_TIMES_CHANCE:g} x chance ({bound})", lambda v: v < bound),
                       chance=chance))
+    kept, left = keep_rate(rnd, rows)
+    keep_check = check("keep", f"share of buyers paying for an option shown who still take one "
+                               f"(measured from {MIN_KEEP_BUYERS} such buyers)", kept, f">= {MIN_KEEP:g}",
+                       lambda v: v >= MIN_KEEP)
+    found.append(dict(keep_check, passed=kept is None or keep_check["passed"], buyers=left))   # too few: not measured
     failed = [c["name"] for c in found if not c["passed"]]
     named = ", ".join(LABELS[n] for n in failed)
     if not failed:
@@ -179,3 +213,17 @@ def run_variety(buyers, plan):
     verdict = (f"Rewrite the buyers before any interview: {', '.join(VARIETY_LABELS[x] for x in failed)} failed."
                if failed else None)
     return {"buyers": n, "checks": found, "failed": failed, "verdict_line": verdict}
+
+
+def reach(buyers, plan, brief):
+    """How many buyers have a budget at or above the brief's price, in all and by segment: a fact the user weighs
+    before any interview (RUN.md step 7), never a check. None when the brief's currency is not the plan's."""
+    if brief["currency"] != plan["currency"]:
+        return None
+    price = brief["price"]
+    segments = [{"name": seg["name"],
+                 "buyers": sum(b["segment"] == seg["name"] for b in buyers),
+                 "reached": sum(b["segment"] == seg["name"] and b["budget"] >= price for b in buyers)}
+                for seg in plan["segments"]]
+    return {"price": price, "currency": brief["currency"], "buyers": len(buyers),
+            "reached": sum(b["budget"] >= price for b in buyers), "segments": segments}

@@ -131,6 +131,32 @@ class OrderBiasedRound(unittest.TestCase):
         self.assertEqual(by_name(result)["order"]["value"], 0)
 
 
+KEEP = os.path.join(FIXTURES, "keep", "rounds")
+
+
+class KeepRate(unittest.TestCase):
+    """Five buyers: four pay for Toggl or Harvest (b04 names Harvest beside a spreadsheet), b05 pays nothing."""
+
+    def test_paying_buyers_who_all_walk_away_fail_only_the_keep_check(self):
+        result, code = run_json("checks", os.path.join(KEEP, "walkaway"))
+        keep = by_name(result)["keep"]
+        self.assertEqual((code, result["failed"]), (1, ["keep"]), result)
+        self.assertEqual((keep["value"], keep["buyers"]), (0, ["b01", "b02", "b03", "b04"]))
+        self.assertEqual(result["verdict_line"], "Do not trust this round: keep rate failed.")
+        self.assertIn("Paying buyers who chose nothing: b01, b02, b03, b04", run("checks", os.path.join(KEEP, "walkaway")).stdout)
+
+    def test_keeping_a_tool_or_switching_to_the_offer_counts_as_staying(self):
+        # b01 keeps Toggl, b02 keeps Harvest, b03 takes the offer, b04 chooses nothing: 3 of 4
+        result, code = run_json("checks", os.path.join(KEEP, "kept"))
+        keep = by_name(result)["keep"]
+        self.assertEqual((code, keep["value"], keep["buyers"], keep["passed"]), (0, 0.75, ["b04"], True))
+
+    def test_fewer_than_three_paying_users_is_not_measured_and_passes(self):
+        # the normal round: only b03 (Toggl) and b06 (Harvest) pay for an option shown
+        keep = by_name(run_json("checks", NORMAL_R1)[0])["keep"]
+        self.assertEqual((keep["value"], keep["passed"]), (None, True))
+
+
 class Page(unittest.TestCase):
     def test_the_page_shows_the_checks_the_round_wrote(self):
         with tempfile.TemporaryDirectory() as d:
@@ -153,7 +179,7 @@ class ReportOutput(unittest.TestCase):
         out = run("checks", fixture_round("uniform"))
         self.assertEqual(out.returncode, 1)
         rows = [x for x in out.stdout.splitlines() if x.startswith("| ")]
-        self.assertEqual(len(rows), 1 + 6)                       # header and one row per check
+        self.assertEqual(len(rows), 1 + 7)                       # header and one row per check
         self.assertIn("| spread | standard deviation of intent | 0 | >= 0.8 | FAIL |", rows)
         self.assertIn("Do not trust this round: intent spread, reason similarity failed.", out.stdout)
 

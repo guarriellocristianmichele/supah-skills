@@ -34,6 +34,8 @@ Buyers are written once per panel and never edited after the first round, so rou
 
 Segments of one or two buyers are not measured for spread, and the check reads `n/a` when no segment has three.
 
+With `brief.json` in the panel folder, `variety` also prints the **reach**: how many buyers, in all and by segment, have a budget at or above the brief's price. It never fails: a panel can rightly hold buyers who cannot pay. It is the user's to weigh before the interviews (RUN.md step 7), because buyers read their budget as a cap, and a plan of budgets below the price decides the round before any card is shown.
+
 ## What not to write
 
 - Any hint of who is asking, that the idea is the user's, or that the panel is about this idea: buyers describe a market, not an audience for one product.

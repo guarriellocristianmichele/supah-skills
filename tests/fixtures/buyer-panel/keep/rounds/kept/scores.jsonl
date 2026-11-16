@@ -1,0 +1,5 @@
+{"buyer_id": "b01", "round": "kept", "intent": 2, "reason": "already-paid", "quote": "holds my history"}
+{"buyer_id": "b02", "round": "kept", "intent": 1, "reason": "already-paid", "quote": "split my hours"}
+{"buyer_id": "b03", "round": "kept", "intent": 4, "reason": "saves-time", "quote": "fixes what my designers forget"}
+{"buyer_id": "b04", "round": "kept", "intent": 3, "reason": "bad-timing", "quote": "partners pick tools in January"}
+{"buyer_id": "b05", "round": "kept", "intent": 5, "reason": "no-need", "quote": "Paper is enough"}

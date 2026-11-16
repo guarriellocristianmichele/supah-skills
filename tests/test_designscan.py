@@ -1,6 +1,7 @@
 """Tests for skills/ai-slop-design/scripts/designscan.py. Run: python -m unittest discover -s tests"""
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -11,12 +12,12 @@ SCAN = os.path.join(ROOT, "skills", "ai-slop-design", "scripts", "designscan.py"
 FIX = os.path.join(ROOT, "tests", "fixtures", "design")
 
 
-def run(*args, env=None):
+def run(*args, env=None, cwd=None):
     base = dict(os.environ, SUPAH_DESIGN_NO_CALIBRATION="1")  # designed tiers; calibration is tested on its own
     base.pop("SUPAH_DESIGN_CALIBRATION", None)
     base.update(env or {})
     return subprocess.run([sys.executable, SCAN, *args], capture_output=True, text=True, encoding="utf-8",
-                          env=base, timeout=60)
+                          env=base, cwd=cwd, timeout=60)
 
 
 def scan(path, *extra, env=None):
@@ -29,6 +30,11 @@ def write(d, name, text):
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
     return path
+
+
+def doc(*parts):
+    with open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
+        return f.read()
 
 
 def rules(result, tiers="SM"):
@@ -226,7 +232,8 @@ class Regressions(unittest.TestCase):
     def test_duplication_match_survives_a_partial_fix(self):
         six = "".join(".c%d { color: #2f6b4f; }\n" % i for i in range(6))
         five = "".join(".c%d { color: #2f6b4f; }\n" % i for i in range(5))
-        colour = lambda text: [m for r, m in self.hits("a.css", text) if r == "untokened-colour"]  # noqa: E731
+        def colour(text):
+            return [m for r, m in self.hits("a.css", text) if r == "untokened-colour"]
         self.assertEqual(colour(six), colour(five))
 
     def test_verdict_takes_every_pair_so_duplication_is_judged_across_files(self):
@@ -242,11 +249,754 @@ class Regressions(unittest.TestCase):
         self.assertEqual(sorted((r[1], r[4]) for r in rows), [("repeated-class-string", "reflex")] * 2)
 
 
+PLATFORMS = os.path.join(FIX, "platforms")
+
+
+def inventory(name):
+    root = os.path.join(PLATFORMS, name)
+    out = run("surfaces", root)
+    data = json.loads(out.stdout)
+    def rel(f):
+        return os.path.relpath(f, root).replace("\\", "/")
+    units = {u["unit"]: (u["kind"], sorted(rel(f) for f in u["files"])) for u in data["units"]}
+    return data, units, out.returncode
+
+
+class Surfaces(unittest.TestCase):
+    """The inventory an audit fans out over: every frontend file in exactly one unit."""
+
+    def test_next_routes_own_their_components_and_shared_takes_the_rest(self):
+        data, units, code = inventory("next")
+        self.assertEqual((code, data["framework"], data["fallback"]), (0, "nextjs", None))
+        self.assertEqual(units, {
+            "/": ("route", ["app/Hero.tsx", "app/page.tsx"]),
+            "/about": ("route", ["app/(marketing)/about/page.tsx"]),
+            "/pricing": ("route", ["app/pricing/PlanCard.tsx", "app/pricing/page.tsx"]),
+            "shared": ("shared", ["app/globals.css", "app/layout.tsx", "components/Button.tsx",
+                                  "components/Unused.tsx", "next.config.mjs"]),
+        })
+        shared = [u for u in data["units"] if u["kind"] == "shared"][0]
+        self.assertEqual(sorted(os.path.basename(f) for f in shared["unreached"]), ["Unused.tsx", "next.config.mjs"])
+
+    def test_sveltekit_layouts_reach_the_routes_below_them(self):
+        data, units, code = inventory("sveltekit")
+        self.assertEqual((code, data["framework"], data["fallback"]), (0, "sveltekit", None))
+        self.assertEqual(units, {
+            "/": ("route", ["src/routes/+page.svelte"]),
+            "/about": ("route", ["src/routes/about/+page.svelte", "src/routes/about/+page.ts"]),
+            "/dashboard": ("route", ["src/lib/Chart.svelte", "src/routes/(app)/+layout.svelte",
+                                     "src/routes/(app)/dashboard/+page.svelte"]),
+            "shared": ("shared", ["src/app.css", "src/lib/Card.svelte", "src/routes/+layout.svelte",
+                                  "svelte.config.js"]),
+        })
+
+    def test_no_route_convention_falls_back_to_directories(self):
+        data, units, code = inventory("plain")
+        self.assertEqual((code, data["framework"], data["fallback"]), (0, None, "directories"))
+        self.assertEqual(units, {
+            ".": ("directory", ["main.js"]),
+            "marketing": ("directory", ["marketing/Banner.vue"]),
+            "styles": ("directory", ["styles/base.css"]),
+            "widgets": ("directory", ["widgets/Clock.tsx", "widgets/Weather.tsx"]),
+        })
+
+    def tree(self, files):
+        d = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, d)
+        for name, text in files.items():
+            os.makedirs(os.path.dirname(os.path.join(d, name)), exist_ok=True)
+            write(d, name, text)
+        out = run("surfaces", d)
+        data = json.loads(out.stdout)
+        def rel(f):
+            return os.path.relpath(f, d).replace("\\", "/")
+        return data["framework"], {u["unit"]: sorted(rel(f) for f in u["files"]) for u in data["units"]}
+
+    def test_nuxt_pages_reach_auto_imported_components_by_name(self):
+        framework, units = self.tree({
+            "package.json": '{"dependencies": {"nuxt": "3.13.0"}}',
+            "app.vue": "<template><NuxtPage /></template>\n",
+            "pages/index.vue": "<template><BaseButton /></template>\n",
+            "pages/shop/[id].vue": "<template><base-button /><ProductGallery /></template>\n",
+            "components/base/Button.vue": "<template><button /></template>\n",
+            "components/ProductGallery.vue": "<template><div /></template>\n",
+        })
+        self.assertEqual((framework, units), ("nuxt", {
+            "/": ["pages/index.vue"],
+            "/shop/[id]": ["components/ProductGallery.vue", "pages/shop/[id].vue"],
+            "shared": ["app.vue", "components/base/Button.vue"],
+        }))
+
+    def test_astro_pages_and_react_router_file_routes(self):
+        framework, units = self.tree({
+            "package.json": '{"dependencies": {"astro": "4.16.0"}}',
+            "src/pages/index.astro": "---\nimport Base from '../layouts/Base.astro';\n---\n<Base />\n",
+            "src/pages/blog/[slug].astro": "---\nimport Base from '../../layouts/Base.astro';\n---\n<Base />\n",
+            "src/layouts/Base.astro": "<html><slot /></html>\n",
+        })
+        self.assertEqual((framework, units), ("astro", {
+            "/": ["src/pages/index.astro"], "/blog/[slug]": ["src/pages/blog/[slug].astro"],
+            "shared": ["src/layouts/Base.astro"]}))
+        framework, units = self.tree({
+            "package.json": '{"dependencies": {"react-router": "7.0.0"}}',
+            "app/root.tsx": "export default function Root() { return null; }\n",
+            "app/routes/_index.tsx": "import { Nav } from '~/components/Nav';\n",
+            "app/routes/blog.$slug.tsx": "export default function Post() { return null; }\n",
+            "app/components/Nav.tsx": "export function Nav() { return null; }\n",
+        })
+        self.assertEqual((framework, units), ("react-router", {
+            "/": ["app/components/Nav.tsx", "app/routes/_index.tsx"], "/blog/:slug": ["app/routes/blog.$slug.tsx"],
+            "shared": ["app/root.tsx"]}))
+
+    def test_a_directory_above_the_unit_size_splits_and_vendored_files_are_left_out(self):
+        with tempfile.TemporaryDirectory() as d:
+            for sub in ("forms", "cards"):
+                os.makedirs(os.path.join(d, "components", sub))
+                for i in range(25):
+                    write(os.path.join(d, "components", sub), "C%d.tsx" % i, "export {};\n")
+            os.makedirs(os.path.join(d, "vendor"))
+            write(os.path.join(d, "vendor"), "lib.js", "export {};\n")
+            write(d, "app.min.js", "x;\n")
+            out = run("surfaces", d)
+            data = json.loads(out.stdout)
+        sizes = {u["unit"]: len(u["files"]) for u in data["units"]}
+        self.assertEqual(sizes, {"components/cards": 25, "components/forms": 25})
+        self.assertEqual(sorted((os.path.basename(s["file"]), s["reason"]) for s in data["skipped"]),
+                         [("app.min.js", "minified"), ("lib.js", "vendored or generated")])
+
+
+class HitsFile(unittest.TestCase):
+    """The audit writes its one scan to the ledger, grouped by unit, and each worker reads only its unit."""
+
+    def test_hits_grouped_by_surface_match_a_plain_scan_of_the_same_files(self):
+        with tempfile.TemporaryDirectory() as d:
+            inv, hits = os.path.join(d, "surfaces.json"), os.path.join(d, "hits.json")
+            run("surfaces", os.path.join(PLATFORMS, "next"), "--out", inv)
+            out = run("--surfaces", inv, "--out", hits)
+            with open(inv, encoding="utf-8") as f:
+                units = json.load(f)["units"]
+            with open(hits, encoding="utf-8") as f:
+                grouped = json.load(f)
+        files = [f for u in units for f in u["files"]]
+        plain = json.loads(run("--json", *files).stdout)
+        self.assertEqual(out.returncode, 1)
+        self.assertEqual([(u["unit"], [r["file"] for r in u["files"]]) for u in grouped["units"]],
+                         [(u["unit"], u["files"]) for u in units])
+        self.assertEqual([r for u in grouped["units"] for r in u["files"]], plain)
+        home = [u for u in grouped["units"] if u["unit"] == "/"][0]
+        self.assertIn("gradient-text", {h["rule"] for r in home["files"] for h in r["hits"]})
+
+    def test_a_worker_reads_its_unit_without_the_duplication_hits(self):
+        with tempfile.TemporaryDirectory() as d:
+            for sub, name in (("checkout", "dup-a.tsx"), ("account", "dup-b.tsx"), ("styles", "dup.css")):
+                os.makedirs(os.path.join(d, sub))
+                with open(os.path.join(FIX, name), encoding="utf-8") as f:
+                    write(os.path.join(d, sub), name, f.read())
+            inv, hits = os.path.join(d, "surfaces.json"), os.path.join(d, "hits.json")
+            run("surfaces", d, "--out", inv)
+            summary = run("--surfaces", inv, "--out", hits).stdout
+            unit = run("hits", hits, "checkout")
+            missing = run("hits", hits, "nowhere")
+        self.assertIn("repeated-class-string", summary)
+        results = json.loads(unit.stdout)
+        self.assertEqual([os.path.basename(r["file"]) for r in results], ["dup-a.tsx"])
+        self.assertNotIn("duplication", {h["category"] for r in results for h in r["hits"]})
+        self.assertEqual(missing.returncode, 2)
+
+    def test_a_route_unit_is_found_without_its_slash_and_through_a_git_bash_path_rewrite(self):
+        with tempfile.TemporaryDirectory() as d:
+            inv, hits = os.path.join(d, "surfaces.json"), os.path.join(d, "hits.json")
+            run("surfaces", os.path.join(PLATFORMS, "next"), "--out", inv)
+            run("--surfaces", inv, "--out", hits)
+            lookups = {arg: run("hits", hits, arg) for arg in (
+                "/pricing", "pricing", "C:/Program Files/Git/pricing", "/", "C:/Program Files/Git/")}
+        pricing = lookups["/pricing"]
+        self.assertEqual(pricing.returncode, 0)
+        self.assertIn("PlanCard.tsx", pricing.stdout)
+        for arg in ("pricing", "C:/Program Files/Git/pricing"):
+            self.assertEqual((lookups[arg].returncode, lookups[arg].stdout), (0, pricing.stdout), arg)
+        home = lookups["/"]
+        self.assertIn("Hero.tsx", home.stdout)
+        self.assertEqual((lookups["C:/Program Files/Git/"].returncode, lookups["C:/Program Files/Git/"].stdout),
+                         (0, home.stdout))
+        judge = doc("skills", "ai-slop-design", "AUDIT.md").split("5. **Judge by surface**", 1)[1].split("\n6. ", 1)[0]
+        self.assertIn('hits .slop-design/hits.json "<unit name>"', judge)
+        self.assertIn("`pricing` for `/pricing`", judge)
+
+
+HOME_PAGE =('<h1 className="bg-gradient-to-r from-pink-500 to-orange-400 bg-clip-text text-transparent">Hi</h1>\n'
+             '<button className="transition-all">Go</button>\n')
+LEDGER = """# Findings
+
+### DS-001 · surface · status: open
+Surface: pages
+Hit: gradient-text · `bg-gradient-to-r from-pink-500 to-orange-400 bg-clip-text text-transparent`
+Where: pages/Home.tsx:1
+Scanned: a3f8d70
+Fix: solid ink on the heading.
+
+### DS-002 · motion · status: open
+Surface: pages
+Hit: transition-all · `transition-all`
+Where: pages/Home.tsx:2
+Scanned: a3f8d70
+Fix: name the properties that move.
+"""
+
+
+class Reconcile(unittest.TestCase):
+    """A re-run audit compares a fresh scan with the ledger, so findings close, reopen or stay open."""
+
+    def reconcile(self, now, findings=LEDGER, keep="", *extra, commit=False, dirty=None):
+        """Files as they are at the re-run, the ledger as the last audit left it; the reconcile JSON and exit code.
+        With commit, `now` is committed first and `dirty` written over it afterwards, uncommitted."""
+        with tempfile.TemporaryDirectory() as d:
+            for name, text in now.items():
+                os.makedirs(os.path.dirname(os.path.join(d, name)), exist_ok=True)
+                write(d, name, text)
+            os.makedirs(os.path.join(d, ".slop-design"))
+            write(d, ".slop-design/findings.md", findings)
+            write(d, ".slop-design/keep.tsv", keep)
+            if commit:
+                git = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+                for args in (["init", "-q"], ["add", "pages"], ["commit", "-q", "-m", "fixes"]):
+                    subprocess.run(git + args, cwd=d, check=True, capture_output=True)
+                self.sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=d, capture_output=True,
+                                          text=True).stdout.strip()
+            for name, text in (dirty or {}).items():
+                write(d, name, text)
+            self.counts = run("surfaces", "--out", ".slop-design/surfaces.json", cwd=d).stdout
+            self.summary = run("--surfaces", ".slop-design/surfaces.json", "--out", ".slop-design/hits.json",
+                               cwd=d).stdout
+            self.inventory = json.loads(doc(d, ".slop-design", "surfaces.json"))
+            self.hits = json.loads(doc(d, ".slop-design", "hits.json"))
+            out = run("reconcile", ".slop-design/findings.md", ".slop-design/hits.json",
+                      "--keep", ".slop-design/keep.tsv", "--json", *extra, cwd=d)
+            self.ledger = doc(d, ".slop-design", "findings.md")
+        self.assertEqual(out.stderr, "")
+        return json.loads(out.stdout), out.returncode
+
+    def test_write_takes_the_statuses_lines_and_commit_into_the_ledger(self):
+        page = '<p>Intro</p>\n<p>More</p>\n<button className="transition-all">Go</button>\n'
+        data, _ = self.reconcile({"pages/Home.tsx": page}, LEDGER, "", "--write", commit=True)
+        self.assertEqual(self.states(data), {"DS-001": ("fixed", "fixed"), "DS-002": ("open", "open")})
+        self.assertEqual(self.ledger, LEDGER.replace("surface · status: open", "surface · status: fixed")
+                         .replace("Where: pages/Home.tsx:2", "Where: pages/Home.tsx:3")
+                         .replace("Scanned: a3f8d70", "Scanned: " + self.sha))
+        self.reconcile({"pages/Home.tsx": page})
+        self.assertEqual(self.ledger, LEDGER)
+
+    def test_findings_in_uncommitted_files_are_not_pinned_to_the_commit(self):
+        other = '<button className="transition-all">Go</button>\n'
+        ledger = LEDGER + ("\n### DS-003 · motion · status: open\nSurface: pages\nHit: transition-all · `transition-all`\n"
+                           "Where: pages/Other.tsx:1\nScanned: a3f8d70\nFix: name the properties that move.\n")
+        data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE, "pages/Other.tsx": other}, ledger, "", "--write",
+                                 commit=True, dirty={"pages/Home.tsx": "<p>Intro</p>\n" + HOME_PAGE})
+        self.assertEqual(self.inventory["dirty"], ["pages/Home.tsx"])
+        self.assertIn("1 with uncommitted changes", self.counts)
+        self.assertEqual((self.hits["commit"], self.hits["dirty"]), (self.sha, ["pages/Home.tsx"]))
+        self.assertIn("uncommitted changes in 1 scanned file", self.summary)
+        self.assertEqual(data["dirty"], ["pages/Home.tsx"])
+        self.assertEqual({f["id"]: f["dirty"] for f in data["findings"]},
+                         {"DS-001": True, "DS-002": True, "DS-003": False})
+        scanned = dict(re.findall(r"### (DS-\d+)[^\n]*\n(?:.*\n)*?Scanned: (\S+)", self.ledger))
+        self.assertEqual(scanned, {"DS-001": self.sha + "-dirty", "DS-002": self.sha + "-dirty", "DS-003": self.sha})
+        data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE}, commit=True)
+        self.assertEqual((self.inventory["dirty"], self.hits["dirty"], data["dirty"]), ([], [], []))
+
+    def states(self, data):
+        return {f["id"]: (f["state"], f["status"]) for f in data["findings"]}
+
+    def test_a_fixed_hit_reports_fixed(self):
+        data, _ = self.reconcile({"pages/Home.tsx": '<h1 className="text-ink">Hi</h1>\n'
+                                                    '<button className="transition-all">Go</button>\n'})
+        self.assertEqual(self.states(data)["DS-001"], ("fixed", "fixed"))
+
+    def test_an_untouched_hit_stays_open_where_it_moved(self):
+        data, code = self.reconcile({"pages/Home.tsx": "<p>Intro</p>\n" + HOME_PAGE})
+        self.assertEqual(self.states(data), {"DS-001": ("open", "open"), "DS-002": ("open", "open")})
+        self.assertEqual([f["line"] for f in data["findings"]], [2, 3])
+        self.assertEqual((data["new"], code), ([], 1))
+
+    def test_a_hit_added_after_the_scan_is_new(self):
+        data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE, "settings/Panel.tsx": '<a href="#">Docs</a>\n'})
+        self.assertEqual([(n["unit"], n["file"], n["line"], n["rule"]) for n in data["new"]],
+                         [("settings", "settings/Panel.tsx", 1, "dead-link")])
+
+    def test_a_kept_hit_is_resolved(self):
+        keep = "dead-link\thref=\"#\"\tcontent\ntransition-all\ttransition-all\tbrand\n"
+        data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE, "settings/Panel.tsx": '<a href="#">Docs</a>\n'},
+                                 keep=keep)
+        self.assertEqual(data["new"], [])
+        self.assertEqual([(r["file"], r["rule"], r["reason"]) for r in data["resolved"]],
+                         [("settings/Panel.tsx", "dead-link", "content")])
+        self.assertEqual(self.states(data)["DS-002"], ("resolved", "rejected:kept"))
+
+    def test_a_fixed_finding_whose_hit_returns_reopens_and_a_rejected_one_stays(self):
+        ledger = LEDGER.replace("surface · status: open", "surface · status: fixed").replace(
+            "motion · status: open", "motion · status: rejected:brief")
+        data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE}, findings=ledger)
+        self.assertEqual(self.states(data), {"DS-001": ("open", "open"), "DS-002": ("open", "rejected:brief")})
+        data, _ = self.reconcile({"pages/Home.tsx": "<h1>Hi</h1>\n"}, findings=ledger)
+        self.assertEqual(self.states(data)["DS-002"], ("fixed", "rejected:brief"))
+
+    def test_a_duplication_group_is_one_finding_open_while_any_copy_is_left(self):
+        with open(os.path.join(FIX, "dup-a.tsx"), encoding="utf-8") as f:
+            dup = f.read()
+        ledger = ("### DS-003 · duplication · status: open\nSurface: shared\n"
+                  "Hit: repeated-class-string · `font-medium inline-flex items-center justify-center px-4 py-2 "
+                  "rounded-md text-sm`\nWhere: checkout/Pay.tsx:2, account/Save.tsx:2\nScanned: a3f8d70\n"
+                  "Fix: one Button component.\n")
+        data, _ = self.reconcile({"checkout/Pay.tsx": dup, "account/Save.tsx": dup}, findings=ledger)
+        self.assertEqual(self.states(data), {"DS-003": ("open", "open")})
+        self.assertEqual(data["findings"][0]["files"], ["account/Save.tsx", "checkout/Pay.tsx"])
+        self.assertEqual(data["new"], [])
+        plain = "export function Pay() {\n  return <Button>Pay</Button>;\n}\n"
+        data, _ = self.reconcile({"checkout/Pay.tsx": plain, "account/Save.tsx": plain}, findings=ledger)
+        self.assertEqual(self.states(data), {"DS-003": ("fixed", "fixed")})
+
+    def test_a_judgment_find_is_left_to_the_reader(self):
+        ledger = LEDGER + ("\n### DS-004 · layout · status: open\nSurface: pages\n"
+                           "Hit: judgment · hero, three cards, CTA band in that order\nWhere: pages/Home.tsx:1\n"
+                           "Scanned: a3f8d70\nFix: lead with the product.\n")
+        data, _ = self.reconcile({"pages/Home.tsx": '<h1 className="text-ink">Hi</h1>\n'}, findings=ledger)
+        self.assertEqual(self.states(data), {"DS-001": ("fixed", "fixed"), "DS-002": ("fixed", "fixed"),
+                                             "DS-004": ("unchecked", "open")})
+
+    def test_a_replan_keeps_planned_findings_planned_and_leaves_lanes_to_the_reader(self):
+        ledger = LEDGER.replace("motion · status: open", "motion · status: planned") + (
+            "\n### DS-005 · lane · status: planned\nSurface: pages\n"
+            "Hit: lane · SaaS card kit: identical rounded cards, one radius, one soft shadow\n"
+            "Where: pages/Home.tsx:1\nScanned: a3f8d70\nFix: craft /.\n")
+        data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE}, findings=ledger)
+        self.assertEqual(self.states(data), {"DS-001": ("open", "open"), "DS-002": ("open", "planned"),
+                                             "DS-005": ("unchecked", "planned")})
+        data, _ = self.reconcile({"pages/Home.tsx": "<h1>Hi</h1>\n"}, findings=ledger)
+        self.assertEqual(self.states(data)["DS-002"], ("fixed", "fixed"))
+        self.assertEqual(data["new"], [])
+
+
 class Docs(unittest.TestCase):
     def test_readme_states_the_rule_count(self):
         n = len(run("rules").stdout.splitlines()) - 2
         with open(os.path.join(ROOT, "skills", "ai-slop-design", "README.md"), encoding="utf-8") as f:
             self.assertIn("%d rules in" % n, f.read())
+
+    def test_modes_table_lists_audit_with_its_file(self):
+        with open(os.path.join(ROOT, "skills", "ai-slop-design", "SKILL.md"), encoding="utf-8") as f:
+            rows = [line.split("|") for line in f if line.startswith("| `")]
+        modes = {r[1].strip().split()[0].strip("`"): r[2].strip() for r in rows}
+        self.assertEqual(modes.get("audit"), "`${CLAUDE_SKILL_DIR}/AUDIT.md`")
+        self.assertTrue(os.path.exists(os.path.join(ROOT, "skills", "ai-slop-design", "AUDIT.md")))
+
+    def test_a_rerun_audit_reconciles_the_ledger_instead_of_a_verify_mode(self):
+        audit = doc("skills", "ai-slop-design", "AUDIT.md")
+        step = audit.split("4. **Scan once**", 1)[1].split("\n5. ", 1)[0]
+        self.assertIn("designscan.py reconcile .slop-design/findings.md .slop-design/hits.json "
+                      "--keep .slop-design/keep.tsv --write", step)
+        self.assertIn("There is no separate verify mode", audit)
+        self.assertIn("**Reconcile**:", doc("GLOSSARY.md"))
+        english, italian = doc("skills", "ai-slop-design", "README.md").split("## Italiano", 1)
+        self.assertIn("reconciles the ledger", english)
+        self.assertIn("Se rilanci `audit`", italian)
+        for name in ("SKILL.md", "README.md"):
+            self.assertIn("reconcile", doc("skills", "supah-help", name))
+
+    def test_craft_restyles_a_surface_and_keeps_its_content_and_behaviour(self):
+        craft = doc("skills", "ai-slop-design", "CRAFT.md")
+        restyle = craft.split("## Restyle", 1)[1]
+        self.assertIn("`craft <surface>`", restyle)
+        self.assertIn("brief is read from the surface", restyle)
+        self.assertIn("content and behaviour unchanged", craft.split("**Completion.**", 1)[1])
+
+    def test_restyle_direction_check_names_the_handoffs_lane(self):
+        check = doc("skills", "ai-slop-design", "CRAFT.md").split("6. **Check the direction**", 1)[1].split("\n7. ", 1)[0]
+        self.assertIn("the handoff's lane", check)
+
+    def test_handoffs_point_at_craft_surface(self):
+        self.assertIn("`craft <surface>`", doc("skills", "ai-slop-design", "SWEEP.md"))
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        self.assertIn("| `craft <surface>` |", skill)
+        self.assertIn("craft <surface>", skill.split("argument-hint:", 1)[1].split("\n", 1)[0])
+        self.assertIn("`handoff` (the whole page sits in a lane and needs a new direction from `craft <surface>`", skill)
+
+    def test_glossary_readme_and_router_name_the_restyle(self):
+        self.assertIn("**Restyle**:", doc("GLOSSARY.md"))
+        readme = doc("skills", "ai-slop-design", "README.md")
+        english, italian = readme.split("## Italiano", 1)
+        self.assertIn("craft <surface>", english)
+        self.assertIn("craft <surface>", italian)
+        for name in ("SKILL.md", "README.md"):
+            self.assertIn("/ai-slop-design craft <surface>", doc("skills", "supah-help", name))
+
+
+class Plan(unittest.TestCase):
+    """plan groups the ledger's open findings into batches that sweep, craft and publish read from plan.md."""
+
+    def plan(self):
+        return doc("skills", "ai-slop-design", "PLAN.md")
+
+    def test_modes_table_lists_plan_with_its_file(self):
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        rows = [line.split("|") for line in skill.splitlines() if line.startswith("| `")]
+        modes = {r[1].strip().split()[0].strip("`"): r for r in rows}
+        self.assertEqual(modes["plan"][2].strip(), "`${CLAUDE_SKILL_DIR}/PLAN.md`")
+        self.assertIn("`.slop-design/` only, never a source file", modes["plan"][3])
+        self.assertIn("plan", skill.split("argument-hint:", 1)[1].split("\n", 1)[0])
+        self.assertTrue(os.path.exists(os.path.join(ROOT, "skills", "ai-slop-design", "PLAN.md")))
+
+    def test_stale_findings_are_marked_before_batching(self):
+        plan = self.plan()
+        fresh = plan.split("2. **Freshness**", 1)[1].split("\n3. ", 1)[0]
+        self.assertLess(plan.index("2. **Freshness**"), plan.index("4. **Batch**"))
+        self.assertIn("designscan.py reconcile .slop-design/findings.md .slop-design/hits.json "
+                      "--keep .slop-design/keep.tsv --write", fresh)
+        self.assertIn("git diff --name-only <its Scanned sha>", fresh)
+        self.assertIn("set its status to `stale`", fresh)
+
+    def test_every_open_finding_is_in_exactly_one_batch_or_rejected_with_a_reason(self):
+        plan = self.plan()
+        completion = plan.split("**Completion.**", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("in the `Findings:` of exactly one batch or `rejected:<reason>`", completion)
+        self.assertIn("rejected with a reason in its status, never left out", plan)
+
+    def test_token_component_work_is_expand_then_migrate_then_contract(self):
+        batch = self.plan().split("4. **Batch**", 1)[1].split("\n5. ", 1)[0]
+        token = batch.split("- **token/component**", 1)[1].split("\n   - **", 1)[0]
+        expand, migrate, contract = (token.index(k) for k in ("**expand**", "**migrate**", "**contract**"))
+        self.assertLess(expand, migrate)
+        self.assertLess(migrate, contract)
+        self.assertIn("each depending on the expand", token)
+        self.assertIn("depends on every migrate batch of its group", token)
+        self.assertLess(batch.index("**token/component**"), batch.index("**surface**"))
+        self.assertLess(batch.index("**surface**"), batch.index("**handoff**"))
+
+    def test_plan_md_format_is_the_contract_for_sweep_craft_and_publish(self):
+        fmt = self.plan().split("## plan.md", 1)[1]
+        example = fmt.split("```markdown", 1)[1].split("```", 1)[0]
+        fields = ("Surfaces", "Files", "Findings", "Depends-on", "Change", "Checks", "Work", "Status", "Issue")
+        for block in example.split("\n## ")[1:]:
+            keys = [line.split(":", 1)[0] for line in block.splitlines()[1:] if line and not line.startswith("- ")]
+            self.assertEqual([k for k in keys if k in fields], list(fields), block.splitlines()[0])
+        self.assertIn("## B1 · token/component:expand", example)
+        handoff = example.split("· handoff ·", 1)[1]
+        self.assertIn("\nLane: ", handoff)
+        self.assertIn("Work: /ai-slop-design craft /about", handoff)
+        for kind in ("token/component:expand", "token/component:migrate", "token/component:contract",
+                     "`surface`", "`handoff`"):
+            self.assertIn(kind, fmt)
+        self.assertIn("never reused", self.plan())
+
+    def test_checks_rescan_content_and_render_on_every_batch(self):
+        checks = self.plan().split("5. **Checks**", 1)[1].split("\n6. ", 1)[0]
+        self.assertIn("`designscan.py --keep .slop-design/keep.tsv <files>` exits 0", checks)
+        self.assertIn("**content**", checks)
+        self.assertIn("390, 768 and 1440", checks)
+
+    def test_a_lane_is_a_finding_so_plan_can_batch_it(self):
+        merge = doc("skills", "ai-slop-design", "AUDIT.md").split("7. **Merge**", 1)[1].split("\n8. ", 1)[0]
+        self.assertIn("`Hit: lane · <lane>`", merge)
+        self.assertIn("`Hit: lane · ", doc("skills", "ai-slop-design", "SKILL.md"))
+
+    def test_readme_glossary_and_router_name_the_plan(self):
+        english, italian = doc("skills", "ai-slop-design", "README.md").split("## Italiano", 1)
+        self.assertIn("/ai-slop-design plan", english)
+        self.assertIn("- `plan`", english)
+        self.assertIn("- `plan`", italian)
+        glossary = doc("GLOSSARY.md")
+        for term in ("**Token/component batch**:", "**Surface batch**:", "**Handoff batch**:"):
+            self.assertIn(term, glossary)
+        for name in ("SKILL.md", "README.md"):
+            self.assertIn("/ai-slop-design plan", doc("skills", "supah-help", name))
+
+
+class SweepBatch(unittest.TestCase):
+    """sweep B<n> works one planned batch with the ledger's keep file; a plain sweep on a large repo asks first."""
+
+    def sweep(self):
+        return doc("skills", "ai-slop-design", "SWEEP.md")
+
+    def batch(self):
+        return self.sweep().split("## Batch", 1)[1].split("\n## ", 1)[0]
+
+    def test_surfaces_out_prints_the_counts_the_threshold_reads(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name, line in (("next", "3 surfaces, 1 shared unit, 10 frontend files (nextjs)"),
+                               ("plain", "4 surfaces, 0 shared units, 5 frontend files (directories)")):
+                out = os.path.join(d, name + ".json")
+                res = run("surfaces", os.path.join(PLATFORMS, name), "--out", out)
+                self.assertEqual((res.returncode, res.stdout.strip()), (0, line))
+                with open(out, encoding="utf-8") as f:
+                    self.assertEqual(json.load(f)["files"], int(line.split(", ")[2].split()[0]))
+
+    def test_modes_table_and_hint_list_sweep_b_n_after_plan(self):
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        rows = [line for line in skill.splitlines() if line.startswith("| `")]
+        keys = [r.split("|")[1].strip() for r in rows]
+        self.assertEqual(keys.index("`sweep B<n>`"), keys.index("`plan`") + 1)
+        row = rows[keys.index("`sweep B<n>`")].split("|")
+        self.assertEqual(row[2].strip(), "`${CLAUDE_SKILL_DIR}/SWEEP.md` (Batch)")
+        hint = skill.split("argument-hint:", 1)[1].split("\n", 1)[0]
+        self.assertIn("| plan | sweep B<n>", hint)
+        self.assertIn("sweep B<n>", skill.split("description:", 1)[1].split("\n", 1)[0])
+
+    def test_sweep_b_n_scopes_to_the_batch_files_and_the_ledger_keep_file(self):
+        batch = self.batch()
+        self.assertIn("`sweep B<n>`", batch)
+        self.assertIn("the batch's `Files:`", batch)
+        self.assertIn("`.slop-design/keep.tsv`", batch)
+        self.assertIn("not judged again", batch)
+        self.assertIn("`Depends-on:`", batch)
+
+    def test_the_batch_findings_become_fixed_after_the_rescan_exits_0(self):
+        sweep = self.sweep()
+        ledger = sweep.split("11. **Ledger**", 1)[1].split("\n**Completion.**", 1)[0]
+        self.assertLess(sweep.index("8. **Rescan**"), sweep.index("11. **Ledger**"))
+        self.assertIn("every ID in its `Findings:` to `fixed`", ledger)
+        self.assertIn("`Status: done`", ledger)
+        self.assertIn("never writes to the tracker", ledger)
+        completion = sweep.split("**Completion.**", 1)[1]
+        self.assertIn("`fixed` in `findings.md`", completion)
+
+    def test_only_sweep_writes_the_verdict_log(self):
+        self.assertIn("designscan.py verdict", self.sweep())
+        self.assertIn(".slop-design/keep.tsv", self.sweep().split("9. **Record**", 1)[1].split("\n10. ", 1)[0])
+        for name in ("AUDIT.md", "PLAN.md"):
+            self.assertNotIn("designscan.py verdict", doc("skills", "ai-slop-design", name))
+
+    def test_a_plain_sweep_above_the_threshold_asks_to_audit_first(self):
+        scope = self.sweep().split("1. **Scope**", 1)[1].split("\n2. ", 1)[0]
+        self.assertIn("designscan.py surfaces --out", scope)
+        self.assertIn("above 5 surfaces or 40 frontend files", scope)
+        options = scope.split("ask with options", 1)[1]
+        first, everything, one = (options.index(k) for k in
+                                  ("audit first (recommended", "sweep everything", "sweep one path"))
+        self.assertLess(first, everything)
+        self.assertLess(everything, one)
+        self.assertIn("At or below the threshold", scope)
+
+    def test_readme_glossary_and_router_name_the_batch_sweep(self):
+        english, italian = doc("skills", "ai-slop-design", "README.md").split("## Italiano", 1)
+        for text in (english, italian):
+            self.assertIn("sweep B<n>", text)
+        self.assertIn("5 surfaces or 40 frontend files", english)
+        self.assertIn("5 superfici o 40 file", italian)
+        self.assertIn("`sweep B<n>`", doc("GLOSSARY.md").split("**Batch**:", 1)[1].split("\n\n", 1)[0])
+        for name in ("SKILL.md", "README.md"):
+            router = doc("skills", "supah-help", name)
+            self.assertIn("/ai-slop-design sweep B<n>", router)
+            self.assertIn("5 surfaces or 40 frontend files", router)
+class Publish(unittest.TestCase):
+    """publish turns plan.md's batches into issues, one per batch plus a map, only after the drafts are approved."""
+
+    def publish(self):
+        return doc("skills", "ai-slop-design", "PUBLISH.md")
+
+    def step(self, n, name):
+        return self.publish().split(f"{n}. **{name}**", 1)[1].split(f"\n{n + 1}. ", 1)[0]
+
+    def test_modes_table_lists_publish_with_its_file(self):
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        rows = [line.split("|") for line in skill.splitlines() if line.startswith("| `")]
+        modes = {r[1].strip().split()[0].strip("`"): r for r in rows}
+        self.assertEqual(modes["publish"][2].strip(), "`${CLAUDE_SKILL_DIR}/PUBLISH.md`")
+        self.assertIn("never a source file", modes["publish"][3])
+        hint = skill.split("argument-hint:", 1)[1].split("\n", 1)[0]
+        self.assertIn("publish [B<n>…]", hint)
+        self.assertLess(hint.index("plan"), hint.index("publish"))
+        self.assertTrue(os.path.exists(os.path.join(ROOT, "skills", "ai-slop-design", "PUBLISH.md")))
+
+    def test_nothing_reaches_the_tracker_before_the_drafts_are_approved(self):
+        publish = self.publish()
+        self.assertLess(publish.index("4. **Draft**"), publish.index("5. **Approve**"))
+        self.assertLess(publish.index("5. **Approve**"), publish.index("6. **Publish**"))
+        approve = self.step(5, "Approve")
+        self.assertIn("nothing reaches the tracker", approve)
+        self.assertIn("before the user approves", approve)
+        self.assertIn("Ask with options: publish all (recommended)", approve)
+
+    def test_a_rerun_reuses_its_issues_by_marker_and_never_duplicates_one(self):
+        step = self.step(6, "Publish")
+        self.assertIn("search for the issue's marker among open and closed issues", step)
+        self.assertIn("--state all", step)
+        self.assertIn("instead of creating a second issue", step)
+        template = self.publish().split("## Issue template", 1)[1]
+        self.assertIn("<!-- ai-slop-design batch <B>", template)
+        self.assertIn("<!-- ai-slop-design map -->", template)
+        self.assertIn("exactly one issue, which its marker finds", self.publish())
+
+    def test_closed_issues_set_their_findings_fixed_or_wontfix_in_the_ledger(self):
+        publish = self.publish()
+        self.assertLess(publish.index("3. **Sync**"), publish.index("4. **Draft**"))
+        sync = self.step(3, "Sync")
+        completed, not_planned = sync.split("Closed as completed", 1)[1].split("Closed as not planned", 1)
+        self.assertIn("becomes `fixed` in `findings.md`", completed)
+        self.assertIn("`rejected:wontfix (#<n>)`", not_planned)
+
+    def test_without_github_the_batches_are_written_to_local_files(self):
+        route = self.step(2, "Route")
+        self.assertIn("`gh auth status` passes", route)
+        local = route.split("**local files** otherwise", 1)[1]
+        self.assertIn("`.slop-design/issues/<B>.md`", local)
+        ledger = doc("skills", "ai-slop-design", "SKILL.md").split("## Ledger", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("- `issues/`:", ledger)
+
+    def test_mattpocock_tracker_is_followed_and_its_formats_stay_theirs(self):
+        route = self.step(2, "Route")
+        self.assertIn("`docs/agents/issue-tracker.md` exists", route)
+        self.assertIn("never write them", route)
+        record = self.step(7, "Record")
+        self.assertIn("`/to-tickets` can split a token/component group", record)
+        self.assertIn("`/to-spec` can turn a handoff batch over more than one surface", record)
+        self.assertIn("this skill never runs them", record)
+        labels = self.step(4, "Draft")
+        self.assertIn("`ready-for-agent` only for a token/component or surface batch whose findings are all reflex "
+                      "verdicts from the scanner", labels)
+        self.assertIn("`needs-triage` for every other batch: a handoff batch", labels)
+        self.assertIn("a judgment, copy or lane finding", labels)
+        adr = doc("docs", "adr", "0015-design-audits-a-platform-by-surface-into-a-ledger.md")
+        self.assertIn("`ready-for-agent` only when every finding of a token/component or surface batch", adr)
+
+    def test_evidence_is_pinned_to_the_scanned_commit(self):
+        template = self.publish().split("## Issue template", 1)[1]
+        self.assertIn("pinned to the finding's `Scanned:` commit", template)
+        self.assertIn("/blob/<sha>/<path>#L", template)
+
+    def test_the_render_sample_is_drawn_from_route_surfaces_without_duplication_hits(self):
+        sample = doc("skills", "ai-slop-design", "AUDIT.md").split("8. **Render a sample**", 1)[1].split("\n9. ", 1)[0]
+        self.assertIn("route surfaces only (never `shared`, a directory unit or a `skipped:<reason>` row", sample)
+        self.assertIn("five routes with the most hits once the duplication hits are left out", sample)
+
+    def test_findings_read_in_uncommitted_files_get_no_permalink(self):
+        audit = doc("skills", "ai-slop-design", "AUDIT.md")
+        self.assertIn("`Scanned: <sha>-dirty`", audit.split("7. **Merge**", 1)[1].split("\n8. ", 1)[0])
+        self.assertIn("uncommitted", audit.split("4. **Scan once**", 1)[1].split("\n5. ", 1)[0])
+        self.assertIn("`Scanned: <sha>-dirty`", doc("skills", "ai-slop-design", "PLAN.md").split("2. **Freshness**", 1)[1]
+                      .split("\n3. ", 1)[0])
+        load = self.step(1, "Load")
+        self.assertIn("`Scanned: <sha>-dirty`", load)
+        self.assertIn("commit them and run `/ai-slop-design audit` again (recommended)", load)
+        template = self.publish().split("## Issue template", 1)[1]
+        self.assertIn("A `Scanned: <sha>-dirty` finding gets no permalink", template)
+        self.assertIn("`Scanned: <sha>-dirty`", doc("skills", "ai-slop-design", "SKILL.md").split("## Ledger", 1)[1])
+
+    def test_readme_glossary_and_router_name_publish(self):
+        english, italian = doc("skills", "ai-slop-design", "README.md").split("## Italiano", 1)
+        self.assertIn("/ai-slop-design publish", english)
+        self.assertIn("- `publish", english)
+        self.assertIn("- `publish", italian)
+        self.assertIn(".slop-design/issues/", english)
+        self.assertIn(".slop-design/issues/", italian)
+        glossary = doc("GLOSSARY.md")
+        for term in ("**Map issue**:", "**Issue marker**:"):
+            self.assertIn(term, glossary)
+        for name in ("SKILL.md", "README.md"):
+            self.assertIn("/ai-slop-design publish", doc("skills", "supah-help", name))
+
+
+class PlatformFlow(unittest.TestCase):
+    """audit → plan → publish → sweep B<n> or craft <surface> ships as one flow, routed and described end to end."""
+
+    FLOW = "`audit` → `plan` → `publish` → `sweep B<n>`"
+
+    def test_craft_surface_closes_its_handoff_batch_without_the_tracker(self):
+        craft = doc("skills", "ai-slop-design", "CRAFT.md")
+        record = craft.split("## Restyle", 1)[1].split("- **Record** (step 10)", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("handoff batch in `.slop-design/plan.md`", record)
+        self.assertIn("every ID in its `Findings:` to `fixed`", record)
+        self.assertIn("`Status: done`", record)
+        self.assertIn("last of its `Surfaces:`", record)
+        self.assertIn("never writes to the tracker", record)
+        self.assertIn("handoff batch `done`", craft.split("**Completion.**", 1)[1])
+        row = [line for line in doc("skills", "ai-slop-design", "SKILL.md").splitlines()
+               if line.startswith("| `craft <surface>` |")][0]
+        self.assertIn("handoff batch's statuses in `.slop-design/`", row)
+
+    def test_router_sends_a_whole_platform_through_audit_plan_publish_sweep(self):
+        for name in ("SKILL.md", "README.md"):
+            row = [line for line in doc("skills", "supah-help", name).splitlines()
+                   if line.startswith("|") and "whole platform" in line]
+            self.assertEqual(len(row), 1, name)
+            steps = [row[0].index(s) for s in ("/ai-slop-design audit", "/ai-slop-design plan",
+                                                "/ai-slop-design publish", "/ai-slop-design sweep B<n>")]
+            self.assertEqual(steps, sorted(steps), name)
+            self.assertIn("/ai-slop-design craft <surface>", row[0], name)
+
+    def test_readmes_describe_the_flow_end_to_end(self):
+        for parts in (("README.md",), ("skills", "ai-slop-design", "README.md")):
+            english, italian = doc(*parts).split("## Italiano", 1)
+            self.assertIn(self.FLOW, english, parts)
+            self.assertIn(self.FLOW, italian, parts)
+            self.assertIn("craft <surface>", english, parts)
+            self.assertIn("craft <surface>", italian, parts)
+
+
+class DuplicationOwnership(unittest.TestCase):
+    RULES = ("`repeated-class-string`", "`duplicate-css-block`", "`untokened-colour`")
+
+    def test_code_audit_hands_frontend_duplication_to_the_design_ledger(self):
+        audit = doc("skills", "ai-slop-audit", "AUDIT.md")
+        step = audit.split("- **duplication (textual)**", 1)[1].split("\n- **", 1)[0]
+        for rule in self.RULES:
+            self.assertIn(rule, step)
+        self.assertIn("`.slop-design/findings.md` exists", step)
+        self.assertIn("`handoff:ai-slop-design`", step)
+        self.assertIn("every file of the group is in the design inventory (`.slop-design/surfaces.json`)", step)
+        self.assertIn("Otherwise (no ledger, or a file of the group outside that inventory", step)
+        for parts in (("docs", "adr", "0015-design-audits-a-platform-by-surface-into-a-ledger.md"),
+                      ("docs", "adr", "0012-skills-reach-each-other-by-files-and-orchestrate.md")):
+            self.assertIn("every file of the group is in `.slop-design/surfaces.json`", doc(*parts), parts)
+
+    def test_call_graph_has_a_one_way_edge_from_the_code_audit_to_the_design_ledger(self):
+        adr = doc("docs", "adr", "0012-skills-reach-each-other-by-files-and-orchestrate.md")
+        graph = adr.split("## Call graph", 1)[1].split("\n## ", 1)[0]
+        edges = {line.split(" → ", 1)[0][2:]: line for line in graph.splitlines() if " → " in line}
+        self.assertIn("ai-slop-design's ledger", edges["ai-slop-audit"])
+        self.assertNotIn("ai-slop-audit", edges["ai-slop-design"])
+
+    def test_design_companions_keep_component_work_in_the_design_audit(self):
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        note = skill.split("- **ai-slop-audit**:", 1)[1].split("\n- **", 1)[0]
+        self.assertIn("`handoff:ai-slop-design`", note)
+        self.assertIn("token/component batch", note)
+        self.assertIn("never calls it", note)
+
+    def test_readme_glossary_and_router_name_the_handoff(self):
+        english, italian = doc("skills", "ai-slop-audit", "README.md").split("## Italiano", 1)
+        self.assertIn("handoff:ai-slop-design", english)
+        self.assertIn("handoff:ai-slop-design", italian)
+        self.assertIn("`handoff:ai-slop-design`", doc("GLOSSARY.md").split("**Handoff**:", 1)[1].split("\n\n", 1)[0])
+        self.assertIn("`handoff:ai-slop-design`", doc("skills", "supah-help", "SKILL.md"))
+
+    def test_glossary_tells_the_senses_of_handoff_apart(self):
+        entry = doc("GLOSSARY.md").split("**Handoff**:", 1)[1].split("\n\n", 1)[0]
+        for sense in ("- _Status_", "- _Keep reason_", "- _Batch kind_"):
+            self.assertIn(sense, entry)
+        self.assertEqual(doc("GLOSSARY.md").count("**Handoff**:"), 1)
+
+
+class ProseScannerEdge(unittest.TestCase):
+    """The audit reaches ai-slop-prose's scanner by its script path, read-only, and may run it without a prompt."""
+
+    def test_allowed_tools_cover_the_prose_scanner_the_audit_runs(self):
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        allowed = skill.split("allowed-tools:", 1)[1].split("\n", 1)[0]
+        self.assertIn("Bash(python *scan.py --json *)", allowed)
+        self.assertIn("scripts/scan.py --json <files>`", doc("skills", "ai-slop-design", "AUDIT.md"))
+
+    def test_call_graph_names_the_script_path_and_read_only_json(self):
+        adr = doc("docs", "adr", "0012-skills-reach-each-other-by-files-and-orchestrate.md")
+        graph = adr.split("## Call graph", 1)[1].split("\n## ", 1)[0]
+        edge = [line for line in graph.splitlines() if line.startswith("- ai-slop-design → ")][0]
+        self.assertIn("`scripts/scan.py --json`", edge)
+        self.assertIn("read-only JSON", edge)
+
+
+class Usage(unittest.TestCase):
+    def test_help_documents_reconcile_write(self):
+        out = run("--help").stdout
+        self.assertIn("reconcile FINDINGS HITS [--keep FILE] [--json] [--write]", out)
+        self.assertIn("--write rewrites FINDINGS", out)
 
 
 class Verdicts(unittest.TestCase):

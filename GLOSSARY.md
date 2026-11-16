@@ -19,12 +19,20 @@ Any way code gets used: static or dynamic import, string reference, entrypoint, 
 _Avoid_: usage, caller (a caller is one kind of reach path)
 
 **Ledger**:
-The `.slop-audit/` directory that holds an audit's state across sessions; the single source of truth for findings and batches.
+The directory that holds an audit's state across sessions (`.slop-audit/` for code, `.slop-design/` for design); the single source of truth for findings and batches.
 _Avoid_: cache, report, state file
 
 **Batch**:
-A small group of findings in one area and one category, fixed and reverted together, and published as one issue.
+A small group of findings fixed and reverted together, and published as one issue: in a code plan, one category in one area; in a design plan, a token/component, surface or handoff batch, worked by `sweep B<n>` (a handoff batch by `craft <surface>`).
 _Avoid_: ticket (the tracker's word), PR, chunk
+
+**Map issue**:
+The one issue per plan that lists every published batch in order with its blockers, under the plan's coverage and finding counts; each batch's issue links to it.
+_Avoid_: epic, tracking issue
+
+**Issue marker**:
+The hidden comment that ends a published issue and names the skill, the batch and its findings (`<!-- ai-slop-design batch B4 · DS-021 -->`), by which a re-run publish finds the issue again instead of opening a second.
+_Avoid_: tag, label (labels are the tracker's)
 
 **Fallout**:
 Imports, types and exports that become unused because of a fix, removed with it.
@@ -35,7 +43,10 @@ A point where data enters from outside the code's control (user input, network, 
 _Avoid_: edge, input layer
 
 **Handoff**:
-A finding whose cure is a new interface rather than a removal, passed to design work instead of being fixed.
+Work passed to whoever owns its cure instead of being patched where it was found. Three senses, told apart by where the word sits:
+- _Status_ (`handoff:<skill>` on a code audit finding): the cure is a new interface rather than a removal, so the finding goes to design work (`handoff:improve-codebase-architecture`, `handoff:design`); or another skill owns it, as frontend duplication is marked `handoff:ai-slop-design` once the design audit's ledger exists and its inventory holds every file of the group.
+- _Keep reason_ (`handoff` after a `chosen` verdict in a design keep file): the whole page sits in a lane and needs a new direction from `craft <surface>`, not a patch.
+- _Batch kind_ (`handoff` in a design plan's batch heading): one lane and every surface in it, worked by a restyle; see **Handoff batch**.
 _Avoid_: rejection, deferral
 
 ### Prose
@@ -69,6 +80,30 @@ _Avoid_: theme, style, moodboard
 **Lane**:
 A saturated aesthetic family a page can fall into even when it avoids every catalogued reflex (cream + serif + clay; near-black + one neon accent; broadsheet hairlines; neo-brutalist offset shadows; the SaaS card kit).
 _Avoid_: trend, aesthetic, vibe
+
+**Surface**:
+A route or page plus the components only it reaches; components reached by several surfaces, or by none a static read can find, form the `shared` unit, so every frontend file belongs to exactly one unit. The unit an audit judges and counts coverage by.
+_Avoid_: page (one surface may render several), screen, view
+
+**Reconcile**:
+The step of a re-run design audit that compares a fresh scan with the ledger's findings and keep file: a finding whose hit is gone is fixed, one still there is open, one a keep line now covers is resolved, and a hit no finding or keep line covers is new. It replaces a separate verify mode.
+_Avoid_: verify, diff, rescan (the rescan is its input)
+
+**Restyle**:
+A craft run on an existing surface (`craft <surface>`), usually a sweep's or plan's `handoff`: the brief is read from the page, content and behaviour stay unchanged, and the direction is checked against the lane the page sat in.
+_Avoid_: redesign, reskin, makeover
+
+**Token/component batch**:
+A design plan's batch that replaces copies across surfaces (repeated class strings, duplicate CSS blocks, untokened colours) with one token or component, in three steps: expand adds it, migrate swaps it in a few surfaces at a time, contract removes what the copies left. Planned before every other kind.
+_Avoid_: refactor, design-system ticket
+
+**Surface batch**:
+A design plan's batch holding one surface's reflexes, judgment-only finds and copy, fixed in one sweep.
+_Avoid_: page fix, route ticket
+
+**Handoff batch**:
+A design plan's batch naming one lane and every surface that sits in it, worked by a restyle instead of patches.
+_Avoid_: redesign ticket, lane fix
 
 ### Buyer panel
 

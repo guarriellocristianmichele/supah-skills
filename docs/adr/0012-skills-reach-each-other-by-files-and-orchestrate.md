@@ -13,13 +13,13 @@ Every companion is optional: each step says what to do when the target is not in
 Calls go one way; no skill calls back into its caller.
 
 - buyer-panel → orchestrate (interviews in batches of buyers), ai-slop-prose (the report, the pitch, the test kit), ai-slop-design (the smoke-test page in `test`)
-- ai-slop-design → ai-slop-prose (visible copy), orchestrate (sweeps of more than 3 files, craft variants)
-- ai-slop-audit → mutation-check (tautological tests), ai-slop-design's scanner (frontend duplication), orchestrate (module scan)
+- ai-slop-design → ai-slop-prose (visible copy; an audit runs only its scanner script, `scripts/scan.py --json`, from where it is installed: read-only JSON, no rewrite), orchestrate (sweeps of more than 3 files, craft variants, an audit's surfaces)
+- ai-slop-audit → mutation-check (tautological tests), ai-slop-design's scanner (frontend duplication), ai-slop-design's ledger (reads `.slop-design/findings.md` and `.slop-design/surfaces.json`: when the findings exist and every file of the group is in `.slop-design/surfaces.json`, frontend duplication is marked `handoff:ai-slop-design`), orchestrate (module scan)
 - ai-slop-prose → orchestrate (sweeps of more than 3 files)
 - doc-truth → orchestrate (more than 3 files)
 - supah-help → reads every SKILL.md, calls none
 
-Not edges: ai-slop-design lists cross-module component work for the user to run with `/ai-slop-audit`, and never calls it, so the audit's use of the design scanner stays one-way. mutation-check does not fan out, because it changes the file under test in place and two runs on one checkout would see each other's mutants. context-audit reads one set of transcripts and settings, which is one unit. buyer-panel's judge runs in its own subagent context, not as a skill.
+Not edges: ai-slop-design never calls ai-slop-audit nor reads `.slop-audit/`; cross-module component work stays in its own audit as a token/component batch, and only work outside the frontend files is listed for the user to run with `/ai-slop-audit`, so the code audit's use of the design scanner and ledger stays one-way. mutation-check does not fan out, because it changes the file under test in place and two runs on one checkout would see each other's mutants. context-audit reads one set of transcripts and settings, which is one unit. buyer-panel's judge runs in its own subagent context, not as a skill.
 
 ## Considered options
 

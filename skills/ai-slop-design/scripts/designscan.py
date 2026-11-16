@@ -16,6 +16,10 @@
       and print a summary per unit plus the duplication groups. Exit codes as for a scan.
   designscan.py hits HITS [UNIT]
       The summary again, or one unit's results as JSON without its duplication hits.
+  designscan.py reconcile FINDINGS HITS [--keep FILE] [--json]
+      Compare a fresh hits file with the ledger's findings.md and keep file: each finding is
+      fixed (its hit is gone), open (still there) or resolved (kept since), with the status it
+      takes; hits no finding or keep line covers are new. Exit 1 while any is open or new.
   designscan.py verdict ORIG FILE [ORIG FILE...] [--keep FILE]
       Record a verdict for every hit in ORIG: fixed in FILE = reflex, kept = chosen
       (or reflex for reason `handoff`), kept with reason `fp` = fp. Appends to the verdict log.
@@ -1254,6 +1258,159 @@ def cmd_hits(argv):
     return 0
 
 
+# --- reconcile ----------------------------------------------------------------------------
+# A re-run audit compares a fresh hits file with the ledger's findings and keep file, so a
+# finding whose hit is gone closes, a returning one reopens, and a hit nobody judged is new.
+
+FINDING = re.compile(r"^### (DS-\d+) · ([^·\n]+?) · status: (\S+)[ \t]*$", re.M)
+
+
+def norm(path):
+    return posixpath.normpath(path.strip().replace("\\", "/"))
+
+
+def parse_findings(text):
+    """Finding blocks of findings.md (schema in SKILL.md, Ledger), in file order."""
+    heads = list(FINDING.finditer(text))
+    found = []
+    for i, m in enumerate(heads):
+        body = text[m.end():heads[i + 1].start() if i + 1 < len(heads) else len(text)]
+        field = {k.lower(): v.strip() for k, v in re.findall(r"^(Surface|Hit|Where|Scanned):[ \t]*(.*)$", body, re.M)}
+        rule, _, match = field.get("hit", "").partition(" · ")
+        match = match.strip()
+        if len(match) >= 2 and match[0] == match[-1] == "`":
+            match = match[1:-1]
+        where = []
+        for part in field.get("where", "").split(","):
+            path, _, line = part.strip().rpartition(":")
+            where.append((norm(path), int(line)) if path and line.isdigit() else (norm(part), 0))
+        found.append({"id": m.group(1), "category": m.group(2).strip(), "was": m.group(3), "rule": rule.strip(),
+                      "match": match, "surface": field.get("surface", ""), "scanned": field.get("scanned", ""),
+                      "where": [w for w in where if w[0] not in ("", ".")]})
+    return found
+
+
+def next_status(was, state):
+    """The status a finding takes from what the fresh scan shows; rejected findings and unchecked ones keep theirs."""
+    if was.startswith("rejected") or state == "unchecked":
+        return was
+    if state == "fixed":
+        return "fixed"
+    if state == "resolved":
+        return "rejected:kept"
+    return "open" if was in ("fixed", "stale") else was
+
+
+def reconcile(findings, data, keep):
+    fresh = []  # (unit, file, hit), unclaimed until a finding takes it
+    for u in data["units"]:
+        for r in u["files"]:
+            fresh += [(u["unit"], r["file"], h) for h in r["hits"]]
+    taken = set()
+
+    def claim(i):
+        taken.add(i)
+        return fresh[i]
+
+    out = []
+    for f in findings:
+        entry = {k: f[k] for k in ("id", "was", "rule", "match", "surface", "scanned")}
+        entry.update(file=f["where"][0][0] if f["where"] else None, line=None)
+        if f["rule"] not in RULES:
+            entry["state"] = "unchecked"  # judgment-only and copy finds: no pattern can tell
+        elif RULES[f["rule"]][0] == "duplication":
+            # one finding per group: open while the repetition is anywhere, whichever files still carry it
+            mine = [claim(i) for i, (_, _, h) in enumerate(fresh)
+                    if i not in taken and (h["rule"], h["match"]) == (f["rule"], f["match"])]
+            entry["state"] = "open" if mine else "fixed"
+            entry["files"] = sorted({norm(path) for _, path, _ in mine})
+        else:
+            files = {path for path, _ in f["where"]}
+            candidates = [i for i, (_, path, h) in enumerate(fresh) if i not in taken and norm(path) in files
+                          and (h["rule"], h["match"]) == (f["rule"], f["match"])]
+            if candidates:
+                line = f["where"][0][1] if f["where"] else 0
+                i = min(candidates, key=lambda i: (abs(fresh[i][2]["line"] - line), i))
+                _, path, h = claim(i)
+                reason = keep.get((h["rule"], h["match"])) or h.get("kept")
+                entry.update(state="resolved" if reason else "open", line=h["line"])
+                if reason:
+                    entry["reason"] = reason
+            else:
+                entry["state"] = "fixed"
+        entry["status"] = next_status(f["was"], entry["state"])
+        out.append(entry)
+    new, resolved = [], []
+    for i, (unit, path, h) in enumerate(fresh):
+        if i in taken:
+            continue
+        item = {"unit": unit, "file": path, "line": h["line"], "rule": h["rule"], "category": h["category"],
+                "tier": h["tier"], "match": h["match"]}
+        reason = keep.get((h["rule"], h["match"])) or h.get("kept")
+        if reason:
+            resolved.append(dict(item, reason=reason))
+        else:
+            new.append(item)
+    return {"commit": data.get("commit"), "findings": out, "new": new, "resolved": resolved}
+
+
+def write_findings(text, result):
+    """findings.md with each block's status, its Where line and its Scanned commit taken from the reconcile."""
+    by_id = {f["id"]: f for f in result["findings"]}
+    heads = list(FINDING.finditer(text))
+    parts, at = [], 0
+    for i, m in enumerate(heads):
+        end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+        f, body = by_id[m.group(1)], text[m.end():end]
+        parts += [text[at:m.start()], m.group(0).replace("status: " + m.group(3), "status: " + f["status"])]
+        if f["state"] != "unchecked" and result["commit"]:
+            body = re.sub(r"^(Scanned:[ \t]*)\S*", lambda s: s.group(1) + result["commit"], body, count=1, flags=re.M)
+        if f["line"] is not None:
+            body = re.sub(r"^(Where:[ \t]*[^,\n]+:)\d+[ \t]*$", lambda s: "%s%d" % (s.group(1), f["line"]), body,
+                          count=1, flags=re.M)
+        parts.append(body)
+        at = end
+    return "".join(parts) + text[at:]
+
+
+def reconcile_summary(result, path):
+    changed = [f for f in result["findings"] if f["status"] != f["was"]]
+    counts = {}
+    for f in result["findings"]:
+        counts[f["state"]] = counts.get(f["state"], 0) + 1
+    lines = ["%s: %d findings (%s), %d status changes, %d new hits, %d kept hits resolved, scanned at %s" % (
+        path, len(result["findings"]), ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "none",
+        len(changed), len(result["new"]), len(result["resolved"]), result["commit"] or "no commit")]
+    lines += ["  %s  %s -> %s  (%s)" % (f["id"], f["was"], f["status"], f["state"]) for f in changed]
+    if result["new"]:
+        lines.append("new hits, to judge:")
+        lines += ["  %s  %s:%d  %s %s  %s" % (n["unit"], n["file"], n["line"], n["tier"], n["rule"], n["match"])
+                  for n in result["new"]]
+    return "\n".join(lines)
+
+
+def cmd_reconcile(argv):
+    p = argparse.ArgumentParser(prog="designscan.py reconcile",
+                                description="compare a fresh hits file with the ledger's findings and keep file")
+    p.add_argument("findings", help="the ledger's findings.md")
+    p.add_argument("hits", help="a hits file written by --surfaces ... --out after the fixes")
+    p.add_argument("--keep", help="the ledger's keep file")
+    p.add_argument("--json", action="store_true", help="print every finding and hit as JSON")
+    p.add_argument("--write", action="store_true",
+                   help="update findings.md in place: statuses, lines and the commit the fresh scan confirmed")
+    a = p.parse_args(argv)
+    text = read(a.findings)
+    findings = parse_findings(text)
+    with open(a.hits, encoding="utf-8") as f:
+        data = json.load(f)
+    result = reconcile(findings, data, load_keep(a.keep))
+    if a.write:
+        with open(a.findings, "w", encoding="utf-8", newline="\n") as f:
+            f.write(write_findings(text, result))
+    print(json.dumps(result, ensure_ascii=False, indent=1) if a.json else reconcile_summary(result, a.findings))
+    return 1 if result["new"] or any(f["state"] == "open" for f in result["findings"]) else 0
+
+
 # --- verdicts -----------------------------------------------------------------------------
 # The log is evidence for the maintainer (ADR 0011): it never changes a tier at scan time.
 
@@ -1339,6 +1496,8 @@ def main():
         return cmd_surfaces(sys.argv[2:])
     if sys.argv[1:2] == ["hits"]:
         return cmd_hits(sys.argv[2:])
+    if sys.argv[1:2] == ["reconcile"]:
+        return cmd_reconcile(sys.argv[2:])
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("files", nargs="*")
     p.add_argument("--json", action="store_true")

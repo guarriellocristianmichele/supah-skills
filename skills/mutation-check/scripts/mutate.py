@@ -156,7 +156,7 @@ def selector(lines, function, source, path):
 
 
 def mutants(path, lines=None, function=None):
-    with open(path, encoding="utf-8") as f:
+    with open(path, encoding="utf-8", newline="") as f:  # keep CRLF: restore() writes these exact characters back
         source = f.read()
     keep = selector(lines, function, source, path)
     if path.endswith(PY):

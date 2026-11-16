@@ -120,6 +120,23 @@ class T(unittest.TestCase):
 '''
 
 
+class LineEndings(unittest.TestCase):
+    def test_crlf_file_is_restored_byte_for_byte(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "calc.py")
+            crlf = CODE.replace("\n", "\r\n").encode("utf-8")
+            with open(path, "wb") as f:
+                f.write(crlf)
+            git(d, "init", "-q")
+            git(d, "config", "core.autocrlf", "false")
+            git(d, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+            git(d, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+            out = run(d, "run", "calc.py", "--json", "--max", "3", "--test", '"%s" -c "import calc"' % sys.executable)
+            self.assertIn(out.returncode, (0, 1), out.stderr)
+            with open(path, "rb") as f:
+                self.assertEqual(f.read(), crlf)
+
+
 class BytecodeCache(unittest.TestCase):
     """Same-size mutants written within one second must not run the previous mutant's cached .pyc."""
 

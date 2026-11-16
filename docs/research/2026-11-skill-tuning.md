@@ -119,7 +119,7 @@ From this lot on, the current skill runs first, and a variant is written only fo
 
 **context-audit.** A synthetic Claude Code home (`--home`) holds two sessions, two always-on plugins whose hooks contradict `AGENTS.md` (a skill before every reply against acting when ready; fragments in every file against full sentences in docs), two TDD skills from different owners, a review pair that serves different steps, four stale references, a memory that restates an `AGENTS.md` rule, a Python 3.7 target the repo's `pyproject.toml` already breaks, and prompts that must never be quoted. Two runs (83,527 and 84,485 tokens) found every item, called the review pair `fp`, quoted no prompt and left `settings.json` to the user. Both had to place the stale references and sediment somewhere, since the report's five sections had no room for them: one added a sixth section, the other folded them into the fixes. The report now has a sixth section for them. Both also reported two sessions where the step asks for three; the step now says all of them when there are fewer.
 
-**supah-help.** A router with no script or state, so the trial compared answers. Its "Why" cells restated how each routed skill works, although the skill already tells the agent to read every recommended SKILL.md, which decides; the platform-audit cell alone was about 250 words. A variant cut each reason to one sentence (2,001 to 1724 words, keeping the phrases the router tests require) and fixed two facts: the skills that call `orchestrate` (the row said "the two skills above", which were doc-truth and mutation-check, and mutation-check does not) and the state folders (`.slop-design/` and `.buyer-panel/` were missing).
+**supah-help.** A router with no script or state, so the trial compared answers. Its "Why" cells restated how each routed skill works, although the skill already tells the agent to read every recommended SKILL.md, which decides; the platform-audit cell alone was about 250 words. A variant cut each reason to one sentence (2,001 to 1,724 words, keeping the phrases the router tests require) and fixed two facts: the skills that call `orchestrate` (the row said "the two skills above", which were doc-truth and mutation-check, and mutation-check does not) and the state folders (`.slop-design/` and `.buyer-panel/` were missing).
 
 | Question | Current | Variant |
 |---|---|---|
@@ -127,3 +127,22 @@ From this lot on, the current skill runs first, and a variant is written only fo
 | is a padel booking app worth building, and what to charge (en) | 85,351 tokens; buyer-panel run, read the report, price, test, ground | 79,585 tokens; run, price, test, without `ground` |
 
 Both versions read the routed skills and gave the same flows; the variant's answers are shorter. With quality tied, the shorter version wins.
+
+## Lot 7: ai-slop-audit
+
+One chain on a small Python shop with planted slop and an answer key: a try/except that only rethrows, a forwarding wrapper, a one-implementation interface with its factory, restating comments, a duplicated helper, two dead functions, a test that asserts its own mock, and a trap, `round_up`, which looks unused but `hooks.json` reaches by name through `importlib`. Each mode ran in a fresh agent on the ledger the previous one left, as separate sessions would.
+
+| Mode | Tokens | Tools | Seconds | Result |
+|---|---|---|---|---|
+| audit | 99,084 | 17 | 212 | all 8 planted findings, the trap rejected as reached via `hooks.json`, plus two the seed did not plant (`round_up` reimplements `math.ceil`; a plugin loader with one value) |
+| plan | 87,320 | 11 | 135 | baseline in `checks.md`, 10 findings in 9 one-category batches, characterization tests where none existed |
+| fix B2 | 89,101 | 14 | 107 | characterization tests green before the change, the rethrow removed, checks green after |
+
+`fix B2` ran instead of B1 on purpose: B2 depends on B1 and needs a characterization test, so it exercises more of `FIX.md`. Building the repo exposed a script bug: `codescan.py` given a folder crashed with a traceback (`PermissionError` on Windows); a folder now expands to its source files. The runs improvised four things, now written down:
+
+- `fix` did not check `depends-on`, and went ahead with B1 unfixed; a batch whose dependency is not fixed now asks first (fix that batch first, recommended, or go ahead naming the lines both touch).
+- Removing the rethrow uncovered a scanner hit that an existing planned finding already names; such a hit no longer counts as worse than baseline, any other new one does.
+- `fix` does not commit, while the next `fix` needs a clean tree; the report now ends with the commit to make.
+- `AUDIT.md` said what to do for a tautological test with `mutation-check` installed but not without it, which AGENTS.md requires; the agent replaced the function in memory and showed the test still passed, and that is now the rule.
+
+The chain was not re-run after the edits: each rule writes down what the run did on its own.

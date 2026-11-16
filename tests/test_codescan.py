@@ -76,6 +76,14 @@ class JavaScript(unittest.TestCase):
         self.assertEqual((code, r["hits"]), (0, []))
 
 
+class Directories(unittest.TestCase):
+    def test_a_directory_is_scanned_file_by_file(self):
+        out = run("--json", FIX)
+        self.assertEqual(out.stderr, "")
+        files = {os.path.basename(r["file"]) for r in json.loads(out.stdout)}
+        self.assertTrue({"slop.py", "human.py", "slop.ts"} <= files, files)
+
+
 class Calibration(unittest.TestCase):
     def test_every_rule_has_a_calibrated_tier(self):
         sys.path.insert(0, os.path.dirname(SCAN))

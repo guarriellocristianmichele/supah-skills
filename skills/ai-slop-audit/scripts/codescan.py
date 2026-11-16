@@ -288,6 +288,23 @@ def load_keep(path):
     return keep
 
 
+SOURCE = (".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts")
+SKIP_DIRS = {"node_modules", "__pycache__", "venv", "dist", "build", "vendor"}
+
+
+def expand(paths):
+    """Files as given; a directory becomes its source files, skipping hidden, vendored and built folders."""
+    for path in paths:
+        if not os.path.isdir(path):
+            yield path
+            continue
+        for folder, dirs, names in os.walk(path):
+            dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS)
+            for name in sorted(names):
+                if name.endswith(SOURCE):
+                    yield os.path.join(folder, name)
+
+
 def open_hits(result):
     return [h for h in result["hits"] if not h["kept"] and h["tier"] in ("S", "M")]
 
@@ -308,7 +325,7 @@ def main():
     a = p.parse_args()
     keep = load_keep(a.keep)
     results = []
-    for path in a.files:
+    for path in expand(a.files):
         with open(path, encoding="utf-8", errors="replace") as f:
             results.append(scan_text(f.read(), path, keep))
     if a.json:

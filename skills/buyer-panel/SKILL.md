@@ -64,9 +64,8 @@ Mode files name these by their bold label and say which round they apply to.
 Each companion is optional; the steps say what to do without it.
 
 - **orchestrate**: interviews fan out through it (RUN.md step 9) in small batches mixed across segments, each worker in a fresh context writing only its batch's answers. Without it, interview one buyer at a time and write each answer before reading the next buyer; the round records `interviews: inline`, and the report states that independence was partial.
-- **ai-slop-prose**: sweeps every report (shared steps, sweep) with purpose `panel report`, and the pitch (PITCH.md step 4) with purpose `pitch`. Without it, the report goes out unswept and says so in its method section.
+- **ai-slop-prose**: sweeps every report (shared steps, sweep) with purpose `panel report`, the pitch (PITCH.md step 4) with purpose `pitch`, and in `test` the interview script and the landing brief (TEST.md step 7). Without it, each file goes out unswept and says so.
 - **ai-slop-design**: the smoke-test landing page in `test` goes to its `craft` mode, read from its folder (TEST.md step 5). Without it, the landing brief is saved and the user is told to run `/ai-slop-design craft` with it.
-- **ai-slop-prose in `test`**: it sweeps the interview script and the landing brief (TEST.md step 7). Without it, each file says it was not swept.
 - **A subagent tool** (Claude Code's Agent tool): the judge (RUN.md step 10) and the devil's advocate (step 12) each run in their own context. Without one, judge after every interview is written, reading only `judge-input.jsonl`, and write the critique reading only the files CRITIQUE.md lists; the method section says so.
 - **The Artifact tool**: publishes a round's page (RUN.md step 15) as a private page the user can share. Without it, the page stays a local HTML file that opens in any browser.
 - **A browser tool**: market research (competitors' pricing pages, category spend, reviews). Open it only after the user allows it on screen, once per session, asking with options:

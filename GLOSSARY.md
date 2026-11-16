@@ -77,7 +77,7 @@ A fixed set of synthetic buyers for one idea, built once from a segment plan and
 _Avoid_: survey, focus group, sample (they imply real people)
 
 **Buyer**:
-One model-written person of a panel: segment, budget, habits, current solution, last spend and one honest objection, unchanged across rounds.
+One model-written person of a panel: segment, budget, habits, current solution, last spend, a need that would make them look for something new and one honest objection, unchanged across rounds.
 _Avoid_: persona, respondent, customer (respondent stays only inside quoted research note headings)
 
 **Round**:

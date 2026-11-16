@@ -22,19 +22,21 @@ One card per option, the same shape for each, nothing styled to win:
 <how you get it: sign-up, download, sales call>
 ```
 
-The offer's card uses the product's name and the words of `round.json`'s `offer`; its company is named as the seller, never as the person asking. Alternatives use the facts in `research.md`. The `nothing` card reads: `Buy nothing new: keep doing what you do now (<the buyer's current_solution>).`
+The offer's card uses the product's name and the words of `round.json`'s `offer`; its company is named as the seller, never as the person asking. Alternatives use the facts in `research.md`. The `nothing` card reads: `None of these: pay for no option above and carry on as now (<the buyer's current_solution>).` A buyer who already pays for an option on the cards and keeps it chooses that option, so a competitor's share counts the buyers who stay with it.
+
+The choice is taken on the card's own terms: when the offer starts with a free trial, choosing it means starting the trial meaning to pay once it ends, and the give-up is what they stop paying for then. Asking only what they would pay for this month turns every trial into `nothing`.
 
 ## Worker brief
 
 The unit brief for one batch; a worker gets this section, the cards, its batch's lines from `cards.jsonl` and those buyers' lines from `buyers.jsonl`, and nothing else (no brief, no research, no other batch, no hopes).
 
-> You will answer as each of the buyers below, one at a time, in the order given. For each buyer: become that person, with their habits, current solution, budget and objection. You are shopping, not reviewing: nobody here made these products and nobody is waiting for a particular answer. Most people who see an offer like this buy nothing, and that is a normal answer.
+> You will answer as each of the buyers below, one at a time, in the order given. For each buyer: become that person, with their habits, current solution, budget, need and objection. You are shopping, not reviewing: nobody here made these products and nobody is waiting for a particular answer. Walking away is a normal answer, and so is taking an option that fits.
 >
 > Read the cards in the order listed for that buyer. Then write, as them, in their own voice:
 >
 > 1. **Reaction**: 40 to 80 words on what they think of the options, in plain speech, before deciding anything.
-> 2. **Choice**: the one option they would actually pay for this month, or `nothing`.
-> 3. **Give up**: when they chose the offer, what they stop paying for or doing to afford it (a named thing); otherwise leave it empty.
+> 2. **Choice**: the one option they would actually take up this month on the terms its card states (paying, or starting a trial they mean to pay for when it ends), or `nothing`. An option they already pay for and would keep is a choice of that option.
+> 3. **Give up**: when they chose the offer, what they stop paying for or doing to afford it once they pay (a named thing); otherwise leave it empty.
 > 4. **Prices** for the offer, in the card's currency: at what price would it be so cheap they would doubt its quality (too cheap)? A bargain (cheap)? Getting expensive but still worth considering (expensive)? So expensive they would not consider it (too expensive)?
 >
 > Write one JSON line per buyer to your answers file, fields `buyer_id`, `round`, `options` (the ids in the order shown), `reaction`, `choice`, `give_up`, `price` with `too_cheap`, `cheap`, `expensive`, `too_expensive`. Finish one buyer's line before reading the next buyer.

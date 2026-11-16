@@ -16,7 +16,9 @@ Buyers are written once per panel and never edited after the first round, so rou
 - `habits`: one or two sentences of concrete behaviour where the product would fit (how often, with what, for whom), no adjectives about personality.
 - `current_solution`: what they use now, drawn from the research's alternatives in the proportions it suggests, plus `nothing`, a spreadsheet, paper or a person doing it by hand where that is real.
 - `last_spend`: what they last paid in the category, consistent with the budget and the current solution (0 is common and honest).
+- `need`: what would make this buyer look for something new now, specific to their situation and drawn from the research where it says so ("two artists left last year and the roster has gaps"); a need the current solution already covers well is honest too.
 - `objection`: one honest reason this buyer might not buy anything new, specific to their situation ("IT will not approve a new vendor"), never a generic "too expensive". No two buyers share an objection word for word.
+- `need` and `objection` weigh the same: the interview, not the record, decides which wins. A buyer written with only reasons to refuse repeats them back, whatever the card says.
 
 ## The variety check
 

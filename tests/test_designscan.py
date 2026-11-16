@@ -31,6 +31,11 @@ def write(d, name, text):
     return path
 
 
+def doc(*parts):
+    with open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
+        return f.read()
+
+
 def rules(result, tiers="SM"):
     return {h["rule"] for h in result["hits"] if h["tier"] in tiers}
 
@@ -247,6 +252,33 @@ class Docs(unittest.TestCase):
         n = len(run("rules").stdout.splitlines()) - 2
         with open(os.path.join(ROOT, "skills", "ai-slop-design", "README.md"), encoding="utf-8") as f:
             self.assertIn("%d rules in" % n, f.read())
+
+    def test_craft_restyles_a_surface_and_keeps_its_content_and_behaviour(self):
+        craft = doc("skills", "ai-slop-design", "CRAFT.md")
+        restyle = craft.split("## Restyle", 1)[1]
+        self.assertIn("`craft <surface>`", restyle)
+        self.assertIn("brief is read from the surface", restyle)
+        self.assertIn("content and behaviour unchanged", craft.split("**Completion.**", 1)[1])
+
+    def test_restyle_direction_check_names_the_handoffs_lane(self):
+        check = doc("skills", "ai-slop-design", "CRAFT.md").split("6. **Check the direction**", 1)[1].split("\n7. ", 1)[0]
+        self.assertIn("the handoff's lane", check)
+
+    def test_handoffs_point_at_craft_surface(self):
+        self.assertIn("`craft <surface>`", doc("skills", "ai-slop-design", "SWEEP.md"))
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        self.assertIn("| `craft <surface>` |", skill)
+        self.assertIn("craft <surface>", skill.split("argument-hint:", 1)[1].split("\n", 1)[0])
+        self.assertIn("`handoff` (the whole page sits in a lane and needs a new direction from `craft <surface>`", skill)
+
+    def test_glossary_readme_and_router_name_the_restyle(self):
+        self.assertIn("**Restyle**:", doc("GLOSSARY.md"))
+        readme = doc("skills", "ai-slop-design", "README.md")
+        english, italian = readme.split("## Italiano", 1)
+        self.assertIn("craft <surface>", english)
+        self.assertIn("craft <surface>", italian)
+        for name in ("SKILL.md", "README.md"):
+            self.assertIn("/ai-slop-design craft <surface>", doc("skills", "supah-help", name))
 
 
 class Verdicts(unittest.TestCase):

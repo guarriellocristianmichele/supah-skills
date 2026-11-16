@@ -70,6 +70,10 @@ _Avoid_: theme, style, moodboard
 A saturated aesthetic family a page can fall into even when it avoids every catalogued reflex (cream + serif + clay; near-black + one neon accent; broadsheet hairlines; neo-brutalist offset shadows; the SaaS card kit).
 _Avoid_: trend, aesthetic, vibe
 
+**Restyle**:
+A craft run on an existing surface (`craft <surface>`), usually a sweep's or plan's `handoff`: the brief is read from the page, content and behaviour stay unchanged, and the direction is checked against the lane the page sat in.
+_Avoid_: redesign, reskin, makeover
+
 ### Buyer panel
 
 **Panel**:

@@ -25,7 +25,7 @@ Read the mode's file and follow it to its completion criterion. Every mode start
 | mode | file | writes |
 |---|---|---|
 | `craft <brief>` | `${CLAUDE_SKILL_DIR}/CRAFT.md` | the new page, `.slop-design/history.md` |
-| `craft <surface>` | `${CLAUDE_SKILL_DIR}/CRAFT.md` (Restyle) | the surface's files, `.slop-design/history.md` |
+| `craft <surface>` | `${CLAUDE_SKILL_DIR}/CRAFT.md` (Restyle) | the surface's files, `.slop-design/history.md`; its handoff batch's statuses in `.slop-design/` |
 | `sweep [file…]` | `${CLAUDE_SKILL_DIR}/SWEEP.md` | the swept files |
 | `audit [path]` | `${CLAUDE_SKILL_DIR}/AUDIT.md` | `.slop-design/` only, never a source file |
 | `plan` | `${CLAUDE_SKILL_DIR}/PLAN.md` | `.slop-design/` only, never a source file |
@@ -56,7 +56,7 @@ An audit adds the rest, in the same roles as ai-slop-audit's ledger and in forma
 - `keep.tsv`: the persistent keep file, same format as above; sweep reads it, so a hit judged once is not judged again.
 - `findings.md`: one block per reflex, IDs `DS-001` upward, never reused. Status `open` → `planned` → `fixed`; `stale` or `rejected:<reason>` from any state. A re-run audit moves them with `designscan.py reconcile` (AUDIT.md step 4): a finding whose hit is gone becomes `fixed`, one whose hit is back `open`, one a keep line now covers `rejected:kept`.
 - `report.md`: the last audit's report.
-- `plan.md`: the batches `B1` upward that `plan` writes and `sweep B<n>`, `craft <surface>` and `publish` read; `sweep B<n>` sets a batch's `Status: done` and its findings `fixed`. The format is in PLAN.md.
+- `plan.md`: the batches `B1` upward that `plan` writes and `sweep B<n>`, `craft <surface>` and `publish` read; `sweep B<n>`, or `craft <surface>` on a handoff batch's last surface, sets a batch's `Status: done` and its findings `fixed`. The format is in PLAN.md.
 - `issues/`: without a tracker, `publish` writes one `B<n>.md` per batch and `map.md` here instead of opening issues.
 
 ```

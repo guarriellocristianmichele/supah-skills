@@ -49,7 +49,7 @@ The skill is user-invoked (`disable-model-invocation: true`): it runs only when 
 | `/ai-slop-audit verify` | everything since the baseline commit | ledger only | every check ran; the report starts `VERIFIED` or `FAILED: n items` |
 | `/ai-slop-audit` | ledger | nothing | prints the argument hint and the current status |
 
-`fix` accepts finding IDs (`SLOP-012`, `SLOP-012,SLOP-014`), one batch (`B3`), or a published batch's issue number (`#123`). Naming the ID is the approval: nothing else changes.
+`fix` accepts finding IDs (`SLOP-012`, `SLOP-012,SLOP-014`), one batch (`B3`), or a published batch's issue number (`#123`). Naming the ID is the approval: nothing else changes. A batch whose `depends-on` is not fixed yet asks first, and each fix ends with the commit to make, because the next one needs a clean tree.
 
 ## A typical run
 
@@ -112,6 +112,7 @@ The fourteen categories, each with the evidence it requires, are in [`AUDIT.md`]
 
 ```sh
 python skills/ai-slop-audit/scripts/codescan.py src/**/*.py   # exit 1 when an S or M hit is open
+python skills/ai-slop-audit/scripts/codescan.py src           # a folder: its source files, skipping hidden, vendored and built folders
 python skills/ai-slop-audit/scripts/codescan.py rules         # every rule with its tier
 ```
 
@@ -167,7 +168,7 @@ Skill di Claude Code che trova e rimuove la complessità inutile in un'intera co
 
 ### Scanner del codice
 
-`scripts/codescan.py` trova i pattern meccanici in Python, JavaScript e TypeScript: placeholder, commenti che ripetono la riga sotto o raccontano una modifica, catch che rilanciano e basta, eccezioni generiche ingoiate, controlli di tipo che ripetono l'annotazione, wrapper che inoltrano. L'audit lo usa come primo passo e tratta ogni risultato come un candidato. I livelli vengono dalla lettura di campioni di risultati, non da quanto un pattern sia tipico dell'AI: un catch che rilancia e basta è inutile chiunque l'abbia scritto. Sul codice di Sonnet 5.5 questi pattern quasi non compaiono; il suo slop sta nel design, che l'audit giudica con i percorsi di raggiungibilità.
+`scripts/codescan.py` trova i pattern meccanici in Python, JavaScript e TypeScript: placeholder, commenti che ripetono la riga sotto o raccontano una modifica, catch che rilanciano e basta, eccezioni generiche ingoiate, controlli di tipo che ripetono l'annotazione, wrapper che inoltrano. L'audit lo usa come primo passo e tratta ogni risultato come un candidato. Accetta file o cartelle; da una cartella salta quelle nascoste, vendorizzate e di build. I livelli vengono dalla lettura di campioni di risultati, non da quanto un pattern sia tipico dell'AI: un catch che rilancia e basta è inutile chiunque l'abbia scritto. Sul codice di Sonnet 5.5 questi pattern quasi non compaiono; il suo slop sta nel design, che l'audit giudica con i percorsi di raggiungibilità.
 
 ### Stato tra sessioni
 
@@ -183,4 +184,4 @@ La skill funziona da sola: `publish` crea le issue su GitHub con `gh`, oppure fi
 
 ### Regole fisse
 
-Nessuna modifica al codice fuori da `fix`; nessuna dipendenza aggiunta; nessun test eliminato senza dimostrare che il suo comportamento resta verificato; i controlli ai confini di fiducia (input, rete, file, autenticazione) restano dove sono.
+Nessuna modifica al codice fuori da `fix`, che chiede prima di lavorare un lotto con dipendenze non ancora sistemate e chiude indicando il commit da fare; nessuna dipendenza aggiunta; nessun test eliminato senza dimostrare che il suo comportamento resta verificato; i controlli ai confini di fiducia (input, rete, file, autenticazione) restano dove sono.

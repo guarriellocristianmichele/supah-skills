@@ -1,5 +1,5 @@
 {
- "built": "2026-11-13",
+ "built": "2026-11-16",
  "alpha": 0.005,
  "documents": 5702,
  "buckets": [
@@ -327,10 +327,10 @@
   "vague-attribution/en": {
    "designed": "M",
    "tier": "W",
-   "human_rate": 0.0036,
-   "human_upper95": 0.0083,
-   "ai_rate": 0.0035,
-   "lr": 1.05,
+   "human_rate": 0.0078,
+   "human_upper95": 0.0139,
+   "ai_rate": 0.0129,
+   "lr": 1.65,
    "admitted": "W"
   },
   "accent-error/it": {

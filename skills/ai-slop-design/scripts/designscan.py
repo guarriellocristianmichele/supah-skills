@@ -10,7 +10,8 @@
       Inventory of surfaces as JSON: the framework detected from package.json (Next.js, Nuxt,
       SvelteKit, Astro, react-router), each route with the files only it reaches, the shared unit
       (files reached by several routes or by none), or units by directory when no route convention
-      matches. Every frontend file is in exactly one unit.
+      matches. Every frontend file is in exactly one unit. With --out the JSON goes to FILE and
+      one line is printed: surfaces, shared units, frontend files and the framework.
   designscan.py --surfaces INVENTORY --out HITS [--keep FILE]
       Scan every file of the inventory in one run, write the results grouped by unit to HITS
       and print a summary per unit plus the duplication groups. Exit codes as for a scan.
@@ -1186,12 +1187,17 @@ def surfaces(root):
 def cmd_surfaces(argv):
     p = argparse.ArgumentParser(prog="designscan.py surfaces", description="inventory of surfaces, as JSON")
     p.add_argument("root", nargs="?", default=".")
-    p.add_argument("--out", help="write the inventory to this file instead of printing it")
+    p.add_argument("--out", help="write the inventory to this file and print one line of counts")
     a = p.parse_args(argv)
-    text = json.dumps(surfaces(a.root), ensure_ascii=False, indent=1)
+    inv = surfaces(a.root)
+    text = json.dumps(inv, ensure_ascii=False, indent=1)
     if a.out:
         with open(a.out, "w", encoding="utf-8", newline="\n") as f:
             f.write(text + "\n")
+        shared = sum(u["kind"] == "shared" for u in inv["units"])
+        print("%d surfaces, %d shared unit%s, %d frontend files (%s)" % (
+            len(inv["units"]) - shared, shared, "" if shared == 1 else "s", inv["files"],
+            inv["fallback"] or inv["framework"]))
     else:
         print(text)
     return 0

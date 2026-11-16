@@ -1,7 +1,7 @@
 ---
 name: ai-slop-design
-description: Build pages whose look comes from their subject, and sweep frontend code for design reflexes (purple gradients, gradient text, icon-card grids, glass panels, eyebrows, glued arrows…) found by a deterministic scanner and judged one by one. Modes craft <brief>, craft <surface> (restyle an existing page), sweep [file…], audit [path] (a whole platform, read-only; a re-run reconciles and resumes), plan (open findings into token/component, surface and handoff batches) and publish [B<n>…] (one issue per batch plus a map, after you approve the drafts).
-argument-hint: "craft <brief> | craft <surface> | sweep [file…] | audit [path] | plan | publish [B<n>…]"
+description: Build pages whose look comes from their subject, and sweep frontend code for design reflexes (purple gradients, gradient text, icon-card grids, glass panels, eyebrows, glued arrows…) found by a deterministic scanner and judged one by one. Modes craft <brief>, craft <surface> (restyle an existing page), sweep [file…], audit [path] (a whole platform, read-only; a re-run reconciles and resumes), plan (open findings into token/component, surface and handoff batches), sweep B<n> (fix one planned batch and close its findings) and publish [B<n>…] (one issue per batch plus a map, after you approve the drafts).
+argument-hint: "craft <brief> | craft <surface> | sweep [file…] | audit [path] | plan | sweep B<n> | publish [B<n>…]"
 disable-model-invocation: true
 allowed-tools: Bash(python *designscan.py*) Bash(git ls-files *) Bash(git rev-parse *) Bash(git status *) Bash(git diff *)
 ---
@@ -29,6 +29,7 @@ Read the mode's file and follow it to its completion criterion. Every mode start
 | `sweep [file…]` | `${CLAUDE_SKILL_DIR}/SWEEP.md` | the swept files |
 | `audit [path]` | `${CLAUDE_SKILL_DIR}/AUDIT.md` | `.slop-design/` only, never a source file |
 | `plan` | `${CLAUDE_SKILL_DIR}/PLAN.md` | `.slop-design/` only, never a source file |
+| `sweep B<n>` | `${CLAUDE_SKILL_DIR}/SWEEP.md` (Batch) | the batch's files; its statuses in `.slop-design/` |
 | `publish [B<n>…]` | `${CLAUDE_SKILL_DIR}/PUBLISH.md` | the issue tracker or `.slop-design/issues/`, and `.slop-design/`; never a source file |
 
 No mode given: show this table and ask which one.
@@ -41,7 +42,7 @@ Every hit gets one:
 - **chosen**: something did; keep it with a reason: `brief` (the brief asks for it), `brand` (the existing identity uses it), `sequence` (01/02/03 marks a real order), `content` (the content needs it), `a11y` (it serves accessibility), or `handoff` (the whole page sits in a lane and needs a new direction from `craft <surface>`, not a patch).
 - **fp**: the pattern matched but the code is not doing what the rule names (a status dot that is not decoration, a spinner's border that is not a stripe).
 
-A keep file is a TSV in the scratchpad, one line per kept hit: `rule<TAB>match<TAB>reason`, with the `match` exactly as the scanner printed it. Hits it lists count as resolved.
+A keep file is a TSV in the scratchpad (for an audit or a batch, the ledger's `keep.tsv`), one line per kept hit: `rule<TAB>match<TAB>reason`, with the `match` exactly as the scanner printed it. Hits it lists count as resolved.
 
 ## Ledger
 
@@ -55,7 +56,7 @@ An audit adds the rest, in the same roles as ai-slop-audit's ledger and in forma
 - `keep.tsv`: the persistent keep file, same format as above; sweep reads it, so a hit judged once is not judged again.
 - `findings.md`: one block per reflex, IDs `DS-001` upward, never reused. Status `open` → `planned` → `fixed`; `stale` or `rejected:<reason>` from any state. A re-run audit moves them with `designscan.py reconcile` (AUDIT.md step 4): a finding whose hit is gone becomes `fixed`, one whose hit is back `open`, one a keep line now covers `rejected:kept`.
 - `report.md`: the last audit's report.
-- `plan.md`: the batches `B1` upward that `plan` writes and `sweep B<n>`, `craft <surface>` and `publish` read; the format is in PLAN.md.
+- `plan.md`: the batches `B1` upward that `plan` writes and `sweep B<n>`, `craft <surface>` and `publish` read; `sweep B<n>` sets a batch's `Status: done` and its findings `fixed`. The format is in PLAN.md.
 - `issues/`: without a tracker, `publish` writes one `B<n>.md` per batch and `map.md` here instead of opening issues.
 
 ```

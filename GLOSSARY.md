@@ -35,7 +35,7 @@ A point where data enters from outside the code's control (user input, network, 
 _Avoid_: edge, input layer
 
 **Handoff**:
-A finding whose cure is a new interface rather than a removal, passed to design work instead of being fixed.
+A finding whose cure is a new interface rather than a removal, passed to design work instead of being fixed; also a finding another skill owns, such as frontend duplication marked `handoff:ai-slop-design` once the design audit's ledger exists.
 _Avoid_: rejection, deferral
 
 ### Prose

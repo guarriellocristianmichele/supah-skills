@@ -85,3 +85,17 @@ Computing the answer key exposed a bug in `mutate.py`: Python trusts a cached `.
 | variant, dirty | 82,292 | 16 | 170 | same | yes, stash popped |
 
 The outputs tie, so the shorter text wins except where the current one is wrong. Its completion criterion asked for `git status` to show the file clean, which on a file with uncommitted changes rewards leaving them in a stash; the criterion now asks for the same changes as before the run, with the stash popped. Step 3 asks with options (stash, recommended, or commit) instead of telling the agent to commit or stash, and a `timeout` counts as killed. The rewording of the tautology rule was dropped: both versions already ran the test file alone.
+
+## Lot 4: slop-guard
+
+`rules.md` is the one text here loaded in every session. Its prose line listed the tells to avoid ("not X, but Y", em dashes, "In conclusion", delve-type words…), which `writing-for-agents` warns can prime the very patterns it names. Three arms wrote the same pieces with the rules as session context: none (control), the current rules, and a rewrite that states each rule positively. Agents returned their text in the reply and wrote no file, so the PostToolUse hook played no part: the runs measure the first draft, which is what the session rules act on.
+
+| Task | None | Current | Positive |
+|---|---|---|---|
+| 250-word engineering blog post (en) | 0 open hits | 0 | 0 |
+| 250-word agency blog post (it) | 0 | 0 | 0 |
+| `slugify()` and its tests | 0 codescan hits, tests pass; type and range checks for inputs the caller controls | 0, tests pass, no such checks | 0, tests pass, no such checks |
+
+A second round on the genre most prone to tells, a 150-word LinkedIn launch post, compared none, current and a short prose line ("state each point plainly"): 0 open hits in all three.
+
+On these tasks the model writes no catalogued tell with or without the prose line, so the line spent about 45 tokens a session for nothing measurable; the code line did change the code. The prose line is now "state each point plainly", and the tells are left to the PostToolUse hook, which names each one when the text is saved. The file went from 665 to 495 characters (about 166 to 124 tokens by the characters ÷ 4 estimate). One run per cell is a small sample: the evidence is that no arm wrote a tell, not that the line can never help.

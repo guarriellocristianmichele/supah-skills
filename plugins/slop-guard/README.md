@@ -16,10 +16,10 @@ Use `--scope project` (after `claude plugin marketplace add guarriellocristianmi
 
 | Hook | When | Cost |
 |---|---|---|
-| `SessionStart` | new session, resume, `/clear`, after compaction | about 150 tokens of rules from [`hooks/rules.md`](hooks/rules.md) |
+| `SessionStart` | new session, resume, `/clear`, after compaction | about 120 tokens of rules from [`hooks/rules.md`](hooks/rules.md) |
 | `PostToolUse` on `Write`, `Edit`, `MultiEdit` | Claude saves prose (`.md`, `.mdx`, `.markdown`, `.txt`, `.rst`) or code (Python, JavaScript, TypeScript) | nothing when the new text is clean; one line otherwise |
 
-The rules cover code (the categories of [ai-slop-audit](../../skills/ai-slop-audit/AUDIT.md)) and prose (the strongest tells of [ai-slop-prose](../../skills/ai-slop-prose/TELLS.md)). They apply to code and files, never to chat replies.
+The rules cover code (the categories of [ai-slop-audit](../../skills/ai-slop-audit/AUDIT.md)); for prose they ask for plain statements and leave the tells of [ai-slop-prose](../../skills/ai-slop-prose/TELLS.md) to the second hook, which names each one when Claude saves. Listing the tells at session start changed nothing measurable in trials (docs/research/2026-11-skill-tuning.md), so the rules leave them out. They apply to code and files, never to chat replies.
 
 The second hook checks only what Claude just wrote, so text and code a person wrote earlier are left alone. Prose goes through the ai-slop-prose scanner; code goes through the ai-slop-audit code scanner, which reads the saved file (an edit alone often does not parse) and keeps the hits on the new lines. Only required fixes are reported (S and M tiers after calibration, and for prose your recorded verdicts), grouped, at most six:
 
@@ -41,7 +41,7 @@ Plugin di Claude Code con due hook che tengono l'AI slop fuori da ciò che Claud
 
 Installazione: `claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`, oppure `--scope project` per condividerlo nel repo. skills.sh installa solo skill, quindi qui non serve. Richiede Python 3.10+ e bash (su Windows Git Bash, che Claude Code usa già).
 
-- A inizio sessione, dopo `/clear` e dopo una compattazione aggiunge circa 150 token di regole su codice e testi. Valgono per codice e file, mai per le risposte in chat.
+- A inizio sessione, dopo `/clear` e dopo una compattazione aggiunge circa 120 token di regole sul codice e una riga sui testi: i tell dei testi li segnala il secondo hook, quando Claude salva. Valgono per codice e file, mai per le risposte in chat.
 - Quando Claude salva un testo (Markdown, txt, rst) o del codice (Python, JavaScript, TypeScript), lo scanner controlla solo la parte appena scritta. Se è pulita non succede nulla; altrimenti Claude riceve una riga con i segnali da correggere, al massimo sei.
 - Salta gli altri tipi di file e i documenti per agenti (`SKILL.md`, `AGENTS.md`, `CLAUDE.md`, `.claude/`, i file accanto a un `SKILL.md`).
 

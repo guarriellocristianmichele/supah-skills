@@ -242,7 +242,7 @@ User-invoked skills run only when you type them. Model-invoked skills can be typ
 
 ### Hooks (Claude Code, opt-in)
 
-- [slop-guard](./plugins/slop-guard/README.md): a separate plugin, not a skill. At session start it adds about 150 tokens of rules for code and prose; after each write to a Markdown or text file it scans only the new text and, when it finds a tell, sends Claude one line naming it. Clean writes cost nothing. Install with `claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`; skills.sh doesn't install hooks.
+- [slop-guard](./plugins/slop-guard/README.md): a separate plugin, not a skill. At session start it adds about 120 tokens of rules for code and prose; after each write to a Markdown or text file it scans only the new text and, when it finds a tell, sends Claude one line naming it. Clean writes cost nothing. Install with `claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`; skills.sh doesn't install hooks.
 
 ### How the skills work together
 
@@ -297,7 +297,7 @@ Servono Python 3.10 o superiore (solo libreria standard) e git.
 - `context-audit` (la avvii tu, `/context-audit`) misura quanto contesto carica ogni sessione di Claude Code prima che tu scriva, diviso per plugin, e trova istruzioni, memorie e plugin che si contraddicono o frenano lo sviluppo.
 - `doc-truth` (la avvii tu, `/doc-truth`) confronta ogni affermazione della documentazione con il repository (link, ancore, script, flag, variabili d'ambiente) e corregge il documento o segnala il codice.
 - `supah-help` (la avvii tu, `/supah-help`) ti dice quale skill o percorso usare nella tua situazione, i comandi in ordine e il perché di ogni passo.
-- `slop-guard` è un plugin di hook per Claude Code, da installare a parte (`claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`). A inizio sessione aggiunge circa 150 token di regole su codice e testi; dopo ogni scrittura in un file Markdown o di testo controlla solo il testo nuovo e, se trova un segnale, lo segnala a Claude in una riga. Le scritture pulite non costano nulla. skills.sh non installa hook.
+- `slop-guard` è un plugin di hook per Claude Code, da installare a parte (`claude plugin install slop-guard --marketplace guarriellocristianmichele/supah-skills --scope user`). A inizio sessione aggiunge circa 120 token di regole su codice e testi; dopo ogni scrittura in un file Markdown o di testo controlla solo il testo nuovo e, se trova un segnale, lo segnala a Claude in una riga. Le scritture pulite non costano nulla. skills.sh non installa hook.
 
 ### Come lavorano insieme
 

@@ -42,7 +42,7 @@ class ScanDetects(unittest.TestCase):
         for rule in ("chat-residue", "staged-opener", "not-x-its-y", "countdown", "self-question",
                      "inflated", "ing-tail", "importance-flag", "tradeoff-denial", "filler-transition",
                      "signposted-ending", "copula-avoidance", "marked-word", "bold-lead-bullet",
-                     "title-case", "fragment-run", "em-dash"):
+                     "title-case", "fragment-run", "em-dash", "vague-attribution"):
             self.assertIn(rule, rules(r), rule)
 
     def test_italian_slop(self):
@@ -140,6 +140,11 @@ class Compare(unittest.TestCase):
         for token in ("https://example.org/s", "`deploy.sh`", "Acme Corp"):
             self.assertIn(token, out.stdout)
         self.assertNotIn("| number | 38", out.stdout)
+
+    def test_fixed_capitals_are_not_lost_names(self):
+        # sentence-casing a Title Case heading or lowering a capital after a colon keeps the words
+        out = run("compare", os.path.join(FIX, "compare-case-original.md"), os.path.join(FIX, "compare-case-rewrite.md"))
+        self.assertEqual(out.returncode, 0, out.stdout)
 
     def test_identical_files_pass(self):
         path = os.path.join(FIX, "slop-en.md")

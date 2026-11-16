@@ -103,7 +103,7 @@ RULES = [
     ("promotional", "significance", "M", "it", r"\b(all'avanguardia|mozzafiato|di livello mondiale|un'ampia gamma di|imperdibile|rivoluzionari[oa])\b", I),
 
     # attribution: vague sources and hedges
-    ("vague-attribution", "attribution", "M", "en", r"\b(Experts (argue|say|believe|note|agree)|Observers have|Industry (reports|experts|observers)|Critics (argue|say)|Many (experts|believe|argue)|Studies (show|suggest)|Research (shows|suggests))\b", 0),
+    ("vague-attribution", "attribution", "M", "en", r"\b([Ee]xperts (argue|say|believe|note|agree)|[Oo]bservers have|[Ii]ndustry (reports|experts|observers)|[Cc]ritics (argue|say)|[Mm]any (experts|believe|argue)|[Ss]tudies (show|suggest)|[Rr]esearch (shows|suggests))\b", 0),
     ("vague-attribution", "attribution", "M", "it", r"\b([Gg]li esperti (sostengono|affermano|ritengono)|[Ss]econdo (molti|diversi) esperti|[Ss]tudi (dimostrano|mostrano|suggeriscono)|[Mm]olti (ritengono|sostengono))\b", 0),
     ("source-gap", "attribution", "M", "en", r"\b(not widely documented|in the provided sources|based on (the )?available information|while specific details are limited)\b", I),
     ("stacked-hedge", "attribution", "M", "en", r"\b(could|may|might) (potentially|possibly|arguably|perhaps)\b|\barguably (perhaps|potentially)\b", I),
@@ -468,7 +468,10 @@ def compare(original, rewrite):
     missing = []
     for kind, pattern in FACT_PATTERNS:
         for token in sorted(set(re.findall(pattern, a))):
-            if token not in b:
+            # a name survives a case fix (Title Case heading, capital after a colon) when its words remain
+            kept = (re.search(rf"(?<!\w){re.escape(token)}(?!\w)", b, re.IGNORECASE) if kind == "name"
+                    else token in b)
+            if not kept:
                 missing.append((kind, token))
     if missing:
         print("| kind | missing from rewrite |\n|---|---|")

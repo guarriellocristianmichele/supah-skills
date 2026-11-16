@@ -19,7 +19,7 @@ Any way code gets used: static or dynamic import, string reference, entrypoint, 
 _Avoid_: usage, caller (a caller is one kind of reach path)
 
 **Ledger**:
-The `.slop-audit/` directory that holds an audit's state across sessions; the single source of truth for findings and batches.
+The directory that holds an audit's state across sessions (`.slop-audit/` for code, `.slop-design/` for design); the single source of truth for findings and batches.
 _Avoid_: cache, report, state file
 
 **Batch**:
@@ -69,6 +69,10 @@ _Avoid_: theme, style, moodboard
 **Lane**:
 A saturated aesthetic family a page can fall into even when it avoids every catalogued reflex (cream + serif + clay; near-black + one neon accent; broadsheet hairlines; neo-brutalist offset shadows; the SaaS card kit).
 _Avoid_: trend, aesthetic, vibe
+
+**Surface**:
+A route or page plus the components only it reaches; components reached by several surfaces, or by none a static read can find, form the `shared` unit, so every frontend file belongs to exactly one unit. The unit an audit judges and counts coverage by.
+_Avoid_: page (one surface may render several), screen, view
 
 **Restyle**:
 A craft run on an existing surface (`craft <surface>`), usually a sweep's or plan's `handoff`: the brief is read from the page, content and behaviour stay unchanged, and the direction is checked against the lane the page sat in.

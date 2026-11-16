@@ -247,11 +247,171 @@ class Regressions(unittest.TestCase):
         self.assertEqual(sorted((r[1], r[4]) for r in rows), [("repeated-class-string", "reflex")] * 2)
 
 
+PLATFORMS = os.path.join(FIX, "platforms")
+
+
+def inventory(name):
+    root = os.path.join(PLATFORMS, name)
+    out = run("surfaces", root)
+    data = json.loads(out.stdout)
+    rel = lambda f: os.path.relpath(f, root).replace("\\", "/")  # noqa: E731
+    units = {u["unit"]: (u["kind"], sorted(rel(f) for f in u["files"])) for u in data["units"]}
+    return data, units, out.returncode
+
+
+class Surfaces(unittest.TestCase):
+    """The inventory an audit fans out over: every frontend file in exactly one unit."""
+
+    def test_next_routes_own_their_components_and_shared_takes_the_rest(self):
+        data, units, code = inventory("next")
+        self.assertEqual((code, data["framework"], data["fallback"]), (0, "nextjs", None))
+        self.assertEqual(units, {
+            "/": ("route", ["app/Hero.tsx", "app/page.tsx"]),
+            "/about": ("route", ["app/(marketing)/about/page.tsx"]),
+            "/pricing": ("route", ["app/pricing/PlanCard.tsx", "app/pricing/page.tsx"]),
+            "shared": ("shared", ["app/globals.css", "app/layout.tsx", "components/Button.tsx",
+                                  "components/Unused.tsx", "next.config.mjs"]),
+        })
+        shared = [u for u in data["units"] if u["kind"] == "shared"][0]
+        self.assertEqual(sorted(os.path.basename(f) for f in shared["unreached"]), ["Unused.tsx", "next.config.mjs"])
+
+    def test_sveltekit_layouts_reach_the_routes_below_them(self):
+        data, units, code = inventory("sveltekit")
+        self.assertEqual((code, data["framework"], data["fallback"]), (0, "sveltekit", None))
+        self.assertEqual(units, {
+            "/": ("route", ["src/routes/+page.svelte"]),
+            "/about": ("route", ["src/routes/about/+page.svelte", "src/routes/about/+page.ts"]),
+            "/dashboard": ("route", ["src/lib/Chart.svelte", "src/routes/(app)/+layout.svelte",
+                                     "src/routes/(app)/dashboard/+page.svelte"]),
+            "shared": ("shared", ["src/app.css", "src/lib/Card.svelte", "src/routes/+layout.svelte",
+                                  "svelte.config.js"]),
+        })
+
+    def test_no_route_convention_falls_back_to_directories(self):
+        data, units, code = inventory("plain")
+        self.assertEqual((code, data["framework"], data["fallback"]), (0, None, "directories"))
+        self.assertEqual(units, {
+            ".": ("directory", ["main.js"]),
+            "marketing": ("directory", ["marketing/Banner.vue"]),
+            "styles": ("directory", ["styles/base.css"]),
+            "widgets": ("directory", ["widgets/Clock.tsx", "widgets/Weather.tsx"]),
+        })
+
+    def tree(self, files):
+        d = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, d)
+        for name, text in files.items():
+            os.makedirs(os.path.dirname(os.path.join(d, name)), exist_ok=True)
+            write(d, name, text)
+        out = run("surfaces", d)
+        data = json.loads(out.stdout)
+        rel = lambda f: os.path.relpath(f, d).replace("\\", "/")  # noqa: E731
+        return data["framework"], {u["unit"]: sorted(rel(f) for f in u["files"]) for u in data["units"]}
+
+    def test_nuxt_pages_reach_auto_imported_components_by_name(self):
+        framework, units = self.tree({
+            "package.json": '{"dependencies": {"nuxt": "3.13.0"}}',
+            "app.vue": "<template><NuxtPage /></template>\n",
+            "pages/index.vue": "<template><BaseButton /></template>\n",
+            "pages/shop/[id].vue": "<template><base-button /><ProductGallery /></template>\n",
+            "components/base/Button.vue": "<template><button /></template>\n",
+            "components/ProductGallery.vue": "<template><div /></template>\n",
+        })
+        self.assertEqual((framework, units), ("nuxt", {
+            "/": ["pages/index.vue"],
+            "/shop/[id]": ["components/ProductGallery.vue", "pages/shop/[id].vue"],
+            "shared": ["app.vue", "components/base/Button.vue"],
+        }))
+
+    def test_astro_pages_and_react_router_file_routes(self):
+        framework, units = self.tree({
+            "package.json": '{"dependencies": {"astro": "4.16.0"}}',
+            "src/pages/index.astro": "---\nimport Base from '../layouts/Base.astro';\n---\n<Base />\n",
+            "src/pages/blog/[slug].astro": "---\nimport Base from '../../layouts/Base.astro';\n---\n<Base />\n",
+            "src/layouts/Base.astro": "<html><slot /></html>\n",
+        })
+        self.assertEqual((framework, units), ("astro", {
+            "/": ["src/pages/index.astro"], "/blog/[slug]": ["src/pages/blog/[slug].astro"],
+            "shared": ["src/layouts/Base.astro"]}))
+        framework, units = self.tree({
+            "package.json": '{"dependencies": {"react-router": "7.0.0"}}',
+            "app/root.tsx": "export default function Root() { return null; }\n",
+            "app/routes/_index.tsx": "import { Nav } from '~/components/Nav';\n",
+            "app/routes/blog.$slug.tsx": "export default function Post() { return null; }\n",
+            "app/components/Nav.tsx": "export function Nav() { return null; }\n",
+        })
+        self.assertEqual((framework, units), ("react-router", {
+            "/": ["app/components/Nav.tsx", "app/routes/_index.tsx"], "/blog/:slug": ["app/routes/blog.$slug.tsx"],
+            "shared": ["app/root.tsx"]}))
+
+    def test_a_directory_above_the_unit_size_splits_and_vendored_files_are_left_out(self):
+        with tempfile.TemporaryDirectory() as d:
+            for sub in ("forms", "cards"):
+                os.makedirs(os.path.join(d, "components", sub))
+                for i in range(25):
+                    write(os.path.join(d, "components", sub), "C%d.tsx" % i, "export {};\n")
+            os.makedirs(os.path.join(d, "vendor"))
+            write(os.path.join(d, "vendor"), "lib.js", "export {};\n")
+            write(d, "app.min.js", "x;\n")
+            out = run("surfaces", d)
+            data = json.loads(out.stdout)
+        sizes = {u["unit"]: len(u["files"]) for u in data["units"]}
+        self.assertEqual(sizes, {"components/cards": 25, "components/forms": 25})
+        self.assertEqual(sorted((os.path.basename(s["file"]), s["reason"]) for s in data["skipped"]),
+                         [("app.min.js", "minified"), ("lib.js", "vendored or generated")])
+
+
+class HitsFile(unittest.TestCase):
+    """The audit writes its one scan to the ledger, grouped by unit, and each worker reads only its unit."""
+
+    def test_hits_grouped_by_surface_match_a_plain_scan_of_the_same_files(self):
+        with tempfile.TemporaryDirectory() as d:
+            inv, hits = os.path.join(d, "surfaces.json"), os.path.join(d, "hits.json")
+            run("surfaces", os.path.join(PLATFORMS, "next"), "--out", inv)
+            out = run("--surfaces", inv, "--out", hits)
+            with open(inv, encoding="utf-8") as f:
+                units = json.load(f)["units"]
+            with open(hits, encoding="utf-8") as f:
+                grouped = json.load(f)
+        files = [f for u in units for f in u["files"]]
+        plain = json.loads(run("--json", *files).stdout)
+        self.assertEqual(out.returncode, 1)
+        self.assertEqual([(u["unit"], [r["file"] for r in u["files"]]) for u in grouped["units"]],
+                         [(u["unit"], u["files"]) for u in units])
+        self.assertEqual([r for u in grouped["units"] for r in u["files"]], plain)
+        home = [u for u in grouped["units"] if u["unit"] == "/"][0]
+        self.assertIn("gradient-text", {h["rule"] for r in home["files"] for h in r["hits"]})
+
+    def test_a_worker_reads_its_unit_without_the_duplication_hits(self):
+        with tempfile.TemporaryDirectory() as d:
+            for sub, name in (("checkout", "dup-a.tsx"), ("account", "dup-b.tsx"), ("styles", "dup.css")):
+                os.makedirs(os.path.join(d, sub))
+                with open(os.path.join(FIX, name), encoding="utf-8") as f:
+                    write(os.path.join(d, sub), name, f.read())
+            inv, hits = os.path.join(d, "surfaces.json"), os.path.join(d, "hits.json")
+            run("surfaces", d, "--out", inv)
+            summary = run("--surfaces", inv, "--out", hits).stdout
+            unit = run("hits", hits, "checkout")
+            missing = run("hits", hits, "nowhere")
+        self.assertIn("repeated-class-string", summary)
+        results = json.loads(unit.stdout)
+        self.assertEqual([os.path.basename(r["file"]) for r in results], ["dup-a.tsx"])
+        self.assertNotIn("duplication", {h["category"] for r in results for h in r["hits"]})
+        self.assertEqual(missing.returncode, 2)
+
+
 class Docs(unittest.TestCase):
     def test_readme_states_the_rule_count(self):
         n = len(run("rules").stdout.splitlines()) - 2
         with open(os.path.join(ROOT, "skills", "ai-slop-design", "README.md"), encoding="utf-8") as f:
             self.assertIn("%d rules in" % n, f.read())
+
+    def test_modes_table_lists_audit_with_its_file(self):
+        with open(os.path.join(ROOT, "skills", "ai-slop-design", "SKILL.md"), encoding="utf-8") as f:
+            rows = [line.split("|") for line in f if line.startswith("| `")]
+        modes = {r[1].strip().split()[0].strip("`"): r[2].strip() for r in rows}
+        self.assertEqual(modes.get("audit"), "`${CLAUDE_SKILL_DIR}/AUDIT.md`")
+        self.assertTrue(os.path.exists(os.path.join(ROOT, "skills", "ai-slop-design", "AUDIT.md")))
 
     def test_craft_restyles_a_surface_and_keeps_its_content_and_behaviour(self):
         craft = doc("skills", "ai-slop-design", "CRAFT.md")

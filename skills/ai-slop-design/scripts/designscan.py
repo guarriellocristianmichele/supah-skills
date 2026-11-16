@@ -6,6 +6,16 @@
       Exit 0 when nothing is left to resolve (no open S or M hit), else 1.
   designscan.py rules
       Print every rule with category and tier.
+  designscan.py surfaces [ROOT] [--out FILE]
+      Inventory of surfaces as JSON: the framework detected from package.json (Next.js, Nuxt,
+      SvelteKit, Astro, react-router), each route with the files only it reaches, the shared unit
+      (files reached by several routes or by none), or units by directory when no route convention
+      matches. Every frontend file is in exactly one unit.
+  designscan.py --surfaces INVENTORY --out HITS [--keep FILE]
+      Scan every file of the inventory in one run, write the results grouped by unit to HITS
+      and print a summary per unit plus the duplication groups. Exit codes as for a scan.
+  designscan.py hits HITS [UNIT]
+      The summary again, or one unit's results as JSON without its duplication hits.
   designscan.py verdict ORIG FILE [ORIG FILE...] [--keep FILE]
       Record a verdict for every hit in ORIG: fixed in FILE = reflex, kept = chosen
       (or reflex for reason `handoff`), kept with reason `fp` = fp. Appends to the verdict log.
@@ -22,7 +32,9 @@ import argparse
 import bisect
 import json
 import os
+import posixpath
 import re
+import subprocess
 import sys
 import time
 
@@ -932,6 +944,316 @@ def read(path):
         return f.read()
 
 
+# --- surfaces -----------------------------------------------------------------------------
+# A surface is a route or page plus the files only it reaches. Files reached by several
+# surfaces, or by none a static read can find, form the shared unit. Every frontend file
+# lands in exactly one unit, so an audit's coverage k/N means what it says.
+
+SKIP_DIRS = {"node_modules", "vendor", "vendors", "third_party", "dist", "build", "out", "coverage"}
+MAX_UNIT_FILES = 40  # a unit above this is split by directory, so one worker context holds it
+FRAMEWORKS = (("nextjs", ("next",)), ("nuxt", ("nuxt",)), ("sveltekit", ("@sveltejs/kit",)),
+              ("astro", ("astro",)), ("react-router", ("react-router", "react-router-dom", "@remix-run/react")))
+IMPORT = re.compile(r"""(?:\bimport\s*(?:[\w*{}\s,$]+?\s*from\s*)?|\bexport\s*[\w*{}\s,$]*?\s*from\s*|"""
+                    r"""\b(?:require|import)\s*\(\s*)["']([^"'\n]+)["']""")
+CSS_IMPORT = re.compile(r"""@(?:import|use|forward)\s+(?:url\(\s*)?["']([^"']+)["']""")
+HTML_REF = re.compile(r"""<(?:link|script)\b[^>]*?\b(?:href|src)\s*=\s*["']([^"'#?]+)""", re.I)
+ALIASES = (("~~/", ("",)), ("@@/", ("",)), ("@/", ("src/", "")), ("~/", ("src/", "app/", "")),
+           ("$lib/", ("src/lib/",)))
+
+
+def list_files(root):
+    """Frontend files under root, relative and with forward slashes, plus the ones left out and why."""
+    try:
+        out = subprocess.run(["git", "-C", root, "ls-files", "-co", "--exclude-standard", "-z"],
+                             capture_output=True, timeout=120)
+        names = out.stdout.decode("utf-8", "replace").split("\0") if out.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        names = None
+    if names is None:
+        names = []
+        for d, dirs, files in os.walk(root):
+            dirs[:] = [x for x in dirs if not x.startswith(".") and x != "node_modules"]
+            names += [os.path.relpath(os.path.join(d, f), root) for f in files]
+    kept, skipped = [], []
+    for name in sorted(n.replace("\\", "/") for n in names if n):
+        parts = name.split("/")
+        if os.path.splitext(name)[1].lower() not in EXTS or name.endswith(".d.ts") or                 any(p.startswith(".") or p == "node_modules" for p in parts[:-1]):
+            continue
+        if any(p in SKIP_DIRS for p in parts[:-1]):
+            skipped.append({"file": name, "reason": "vendored or generated"})
+        elif re.search(r"\.min\.(?:js|css)$", name):
+            skipped.append({"file": name, "reason": "minified"})
+        else:
+            kept.append(name)
+    return kept, skipped
+
+
+def detect_framework(root):
+    try:
+        with open(os.path.join(root, "package.json"), encoding="utf-8") as f:
+            pkg = json.load(f)
+    except (OSError, ValueError):
+        return None
+    deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+    return next((name for name, packages in FRAMEWORKS if any(p in deps for p in packages)), None)
+
+
+def route_id(segments):
+    """A route from directory segments, without route groups `(x)` and parallel slots `@x`."""
+    kept = [s for s in segments if s and not (s.startswith("(") and s.endswith(")")) and not s.startswith("@")]
+    return "/" + "/".join(kept)
+
+
+def under(directory, path):
+    return directory == "" or path.startswith(directory + "/")
+
+
+def find_routes(framework, files):
+    """(entries: route -> files, layouts: file -> directory whose routes it reaches) for a framework."""
+    entries, layouts = {}, {}
+    add = lambda route, f: entries.setdefault(route, []).append(f)  # noqa: E731
+    for f in files:
+        d, name = posixpath.split(f)
+        stem = name.split(".")[0]
+        if framework == "nextjs":
+            m = re.match(r"(?:src/)?app(?:/|$)(.*)", d)
+            if m and d.split("/")[0] in ("app", "src"):
+                rel = m.group(1)
+                if stem == "page":
+                    add(route_id(rel.split("/")), f)
+                elif stem in ("layout", "template", "loading", "error", "not-found", "default", "global-error"):
+                    layouts[f] = d
+            m = re.match(r"(?:src/)?pages(?:/(.*))?$", d)
+            if m and d.split("/")[0] in ("pages", "src"):
+                rel = (m.group(1) or "").split("/")
+                if stem in ("_app", "_document"):
+                    layouts[f] = d
+                elif rel[0] != "api":
+                    add(route_id(rel + ([] if stem == "index" else [stem])), f)
+        elif framework == "sveltekit":
+            m = re.match(r"src/routes(?:/(.*))?$", d)
+            if m:
+                if stem == "+page":
+                    add(route_id((m.group(1) or "").split("/")), f)
+                elif stem in ("+layout", "+error"):
+                    layouts[f] = d
+        elif framework == "nuxt":
+            m = re.match(r"(?:app/)?pages(?:/(.*))?$", d)
+            if m and name.endswith(".vue"):
+                add(route_id((m.group(1) or "").split("/") + ([] if stem == "index" else [stem])), f)
+            elif re.match(r"(?:app/)?layouts(?:/|$)", d) or f in ("app.vue", "error.vue", "app/app.vue",
+                                                                  "app/error.vue"):
+                layouts[f] = ""
+        elif framework == "astro":
+            m = re.match(r"src/pages(?:/(.*))?$", d)
+            if m and not any(s.startswith("_") for s in f.split("/")):
+                add(route_id((m.group(1) or "").split("/") + ([] if stem == "index" else [stem])), f)
+        elif framework == "react-router":
+            if f in ("app/root.tsx", "app/root.jsx"):
+                layouts[f] = ""
+            elif d == "app/routes" or (d.startswith("app/routes/") and stem == "route"):
+                flat = (posixpath.basename(d) if stem == "route" else name.rsplit(".", 1)[0]).split(".")
+                add("/" + "/".join(s.replace("$", ":").strip("_") for s in flat
+                                   if s not in ("_index", "route") and not s.startswith("_")), f)
+    return entries, layouts
+
+
+def resolve(spec, importer, known):
+    spec = spec.split("?")[0]
+    if spec.startswith(("./", "../")):
+        bases = [posixpath.join(posixpath.dirname(importer), spec)]
+    elif spec.startswith("/"):
+        bases = [spec[1:], "public/" + spec[1:]]
+    else:
+        bases = next(([t + spec[len(p):] for t in targets] for p, targets in ALIASES if spec.startswith(p)), [])
+    for base in (posixpath.normpath(b) for b in bases):
+        for candidate in [base] + [base + e for e in sorted(EXTS)] + [base + "/index" + e for e in sorted(EXTS)]:
+            if candidate in known:
+                return candidate
+    return None
+
+
+def pascal(text):
+    return "".join(p[:1].upper() + p[1:] for p in re.split(r"[-_]", text) if p)
+
+
+def nuxt_components(files):
+    """Nuxt auto-imports components by name: components/base/Button.vue is <BaseButton>."""
+    names = {}
+    for f in files:
+        m = re.match(r"(?:app/)?components/(.*)\.vue$", f)
+        if m:
+            *dirs, stem = m.group(1).split("/")
+            stem = re.sub(r"\.(?:client|server)$", "", stem)
+            prefix = "".join(pascal(d) for d in dirs)
+            own = pascal(stem) if stem != "index" else ""
+            names[own if own.startswith(prefix) and prefix else prefix + own] = f
+    return names
+
+
+def import_graph(root, files, framework):
+    known = set(files)
+    components = nuxt_components(files) if framework == "nuxt" else {}
+    graph = {}
+    for f in files:
+        text = read(os.path.join(root, f))
+        specs = [m.group(1) for pattern in (IMPORT, CSS_IMPORT, HTML_REF) for m in pattern.finditer(text)]
+        targets = {t for t in (resolve(s, f, known) for s in specs) if t and t != f}
+        if components and f.endswith(".vue"):
+            for tag in re.findall(r"<((?:Lazy)?[A-Z][A-Za-z0-9]*|[a-z][a-z0-9]*(?:-[a-z0-9]+)+)\b", text):
+                name = pascal(tag) if "-" in tag else tag
+                target = components.get(name) or components.get(re.sub(r"^Lazy", "", name))
+                if target and target != f:
+                    targets.add(target)
+        graph[f] = targets
+    return graph
+
+
+def split_by_directory(files, prefix=""):
+    """Group files by their next directory below prefix; groups above MAX_UNIT_FILES split again."""
+    groups = {}
+    for f in files:
+        rest = f[len(prefix):].split("/")
+        groups.setdefault(prefix + rest[0] if len(rest) > 1 else prefix.rstrip("/") or ".", []).append(f)
+    out = {}
+    for key, members in groups.items():
+        deeper = [f for f in members if "/" in f[len(key) + 1:]] if key != prefix.rstrip("/") and key != "." else []
+        if len(members) > MAX_UNIT_FILES and deeper:
+            out.update(split_by_directory(members, key + "/"))
+        else:
+            out[key] = members
+    return out
+
+
+def surfaces(root):
+    files, skipped = list_files(root)
+    framework = detect_framework(root)
+    entries, layouts = find_routes(framework, files)
+    units = []
+    if entries:
+        graph = import_graph(root, files, framework)
+        owner, reach = {}, {f: set() for f in files}
+        for route, roots in entries.items():
+            for f in roots:
+                owner[f] = route
+            dirs = {posixpath.dirname(f) for f in roots}
+            todo = list(roots) + [f for f, d in layouts.items() if any(under(d, x) for x in dirs)]
+            seen = set()
+            while todo:
+                f = todo.pop()
+                if f not in seen:
+                    seen.add(f)
+                    reach[f].add(route)
+                    todo += graph.get(f, ())
+        members = {route: list(roots) for route, roots in entries.items()}
+        shared, unreached = [], []
+        for f in files:
+            if f in owner:
+                continue
+            if len(reach[f]) == 1:
+                members[next(iter(reach[f]))].append(f)
+            else:
+                shared.append(f)
+                if not reach[f]:
+                    unreached.append(f)
+        for route in sorted(members):
+            units.append({"unit": route, "kind": "route", "entries": sorted(entries[route]),
+                          "files": sorted(members[route])})
+        groups = {"shared": shared} if len(shared) <= MAX_UNIT_FILES else \
+            {"shared:" + k: v for k, v in split_by_directory(shared).items()}
+        for name in sorted(groups):
+            if groups[name]:
+                units.append({"unit": name, "kind": "shared", "entries": [], "files": sorted(groups[name]),
+                              "unreached": sorted(set(groups[name]) & set(unreached))})
+    else:
+        base = "src/" if files and all(f.startswith("src/") for f in files) else ""
+        for name, members in sorted(split_by_directory(files, base).items()):
+            units.append({"unit": name, "kind": "directory", "entries": [], "files": sorted(members)})
+    shown = root.replace("\\", "/").rstrip("/")
+    path = lambda f: f if shown in ("", ".") else shown + "/" + f  # noqa: E731
+    for u in units:
+        for key in ("entries", "files", "unreached"):
+            if key in u:
+                u[key] = [path(f) for f in u[key]]
+    return {"root": root, "framework": framework, "fallback": None if entries else "directories",
+            "files": len(files), "units": units, "skipped": [dict(s, file=path(s["file"])) for s in skipped]}
+
+
+def cmd_surfaces(argv):
+    p = argparse.ArgumentParser(prog="designscan.py surfaces", description="inventory of surfaces, as JSON")
+    p.add_argument("root", nargs="?", default=".")
+    p.add_argument("--out", help="write the inventory to this file instead of printing it")
+    a = p.parse_args(argv)
+    text = json.dumps(surfaces(a.root), ensure_ascii=False, indent=1)
+    if a.out:
+        with open(a.out, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text + "\n")
+    else:
+        print(text)
+    return 0
+
+
+def scan_inventory(inventory_path, keep, out):
+    """One scan over every file of the inventory, so duplication counts across the whole platform."""
+    with open(inventory_path, encoding="utf-8") as f:
+        inv = json.load(f)
+    files = [f for u in inv["units"] for f in u["files"]]
+    results = iter(scan_many([(read(f), f) for f in files], keep))
+    try:
+        commit = subprocess.run(["git", "-C", inv["root"], "rev-parse", "--short", "HEAD"], capture_output=True,
+                                text=True, timeout=30).stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        commit = None
+    data = {"root": inv["root"], "framework": inv["framework"], "commit": commit,
+            "units": [{"unit": u["unit"], "kind": u["kind"], "files": [next(results) for _ in u["files"]]}
+                      for u in inv["units"]]}
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
+    print(hits_summary(data, out))
+    return 1 if any(open_hits(r) for u in data["units"] for r in u["files"]) else 0
+
+
+def hits_summary(data, path):
+    """Counts per unit, busiest first, and the duplication groups the caller fixes across units."""
+    rows, dup = [], {}
+    for u in data["units"]:
+        hits = [h for r in u["files"] for h in r["hits"]]
+        opened = [h for r in u["files"] for h in open_hits(r)]
+        rows.append((len(hits), u["unit"], u["kind"], len(u["files"]), len(opened)))
+        for r in u["files"]:
+            for h in r["hits"]:
+                if h["category"] == "duplication":
+                    dup.setdefault((h["rule"], h["match"]), set()).add(r["file"])
+    lines = ["%s: %d units, %d files, %d hits, %d open, scanned at %s" % (
+        path, len(rows), sum(r[3] for r in rows), sum(r[0] for r in rows), sum(r[4] for r in rows),
+        data.get("commit") or "no commit"), "| unit | kind | files | hits | open |", "|---|---|---|---|---|"]
+    lines += ["| %s | %s | %d | %d | %d |" % (unit, kind, n, hits, o)
+              for hits, unit, kind, n, o in sorted(rows, key=lambda r: (-r[0], r[1]))]
+    if dup:
+        lines.append("duplication across units (%d groups):" % len(dup))
+        lines += ["  %s  %d files  %s" % (rule, len(files), match[:80]) for (rule, match), files in sorted(dup.items())]
+    return "\n".join(lines)
+
+
+def cmd_hits(argv):
+    p = argparse.ArgumentParser(prog="designscan.py hits", description="read a hits file written with --out")
+    p.add_argument("file")
+    p.add_argument("unit", nargs="?", help="print this unit's results as JSON, duplication hits left out")
+    a = p.parse_args(argv)
+    with open(a.file, encoding="utf-8") as f:
+        data = json.load(f)
+    if a.unit is None:
+        print(hits_summary(data, a.file))
+        return 0
+    unit = next((u for u in data["units"] if u["unit"] == a.unit), None)
+    if unit is None:
+        print("no unit %r in %s" % (a.unit, a.file), file=sys.stderr)
+        return 2
+    results = [dict(r, hits=[h for h in r["hits"] if h["category"] != "duplication"]) for r in unit["files"]]
+    print(json.dumps(results, ensure_ascii=False, indent=1))
+    return 0
+
+
 # --- verdicts -----------------------------------------------------------------------------
 # The log is evidence for the maintainer (ADR 0011): it never changes a tier at scan time.
 
@@ -1013,12 +1335,22 @@ def main():
         return 0
     if sys.argv[1:2] == ["verdict"]:
         return cmd_verdict(sys.argv[2:])
+    if sys.argv[1:2] == ["surfaces"]:
+        return cmd_surfaces(sys.argv[2:])
+    if sys.argv[1:2] == ["hits"]:
+        return cmd_hits(sys.argv[2:])
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("files", nargs="+")
+    p.add_argument("files", nargs="*")
     p.add_argument("--json", action="store_true")
     p.add_argument("--keep")
+    p.add_argument("--surfaces", metavar="INVENTORY", help="scan every file of an inventory written by `surfaces`")
+    p.add_argument("--out", metavar="HITS", help="with --surfaces: write the hits grouped by unit, print a summary")
     a = p.parse_args()
     keep = load_keep(a.keep)
+    if bool(a.surfaces) != bool(a.out) or bool(a.surfaces) == bool(a.files):
+        p.error("give FILE... or --surfaces INVENTORY --out HITS")
+    if a.surfaces:
+        return scan_inventory(a.surfaces, keep, a.out)
     results = scan_many([(read(path), path) for path in a.files], keep)
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))

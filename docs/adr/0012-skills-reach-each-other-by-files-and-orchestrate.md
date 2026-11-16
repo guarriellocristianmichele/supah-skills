@@ -13,7 +13,7 @@ Every companion is optional: each step says what to do when the target is not in
 Calls go one way; no skill calls back into its caller.
 
 - buyer-panel → orchestrate (interviews in batches of buyers), ai-slop-prose (the report, the pitch, the test kit), ai-slop-design (the smoke-test page in `test`)
-- ai-slop-design → ai-slop-prose (visible copy), orchestrate (sweeps of more than 3 files, craft variants)
+- ai-slop-design → ai-slop-prose (visible copy; an audit runs only its scanner, read-only), orchestrate (sweeps of more than 3 files, craft variants, an audit's surfaces)
 - ai-slop-audit → mutation-check (tautological tests), ai-slop-design's scanner (frontend duplication), orchestrate (module scan)
 - ai-slop-prose → orchestrate (sweeps of more than 3 files)
 - doc-truth → orchestrate (more than 3 files)

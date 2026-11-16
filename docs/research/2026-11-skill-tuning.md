@@ -146,3 +146,11 @@ One chain on a small Python shop with planted slop and an answer key: a try/exce
 - `AUDIT.md` said what to do for a tautological test with `mutation-check` installed but not without it, which AGENTS.md requires; the agent replaced the function in memory and showed the test still passed, and that is now the rule.
 
 The chain was not re-run after the edits: each rule writes down what the run did on its own.
+
+## Lot 8: ai-slop-design and buyer-panel
+
+**ai-slop-design.** Two runs of the current skill, without a browser. `sweep` ran on the scanner's `slop.tsx` fixture as a page whose `DESIGN.md` names the purple-to-blue gradient as the logo (102,399 tokens): it fixed 31 of 38 hits, kept the gradient and the brand name as `chosen · brand`, left two placeholders that need real content for the user, rescanned to exit 0 and listed the copy for ai-slop-prose. `audit` ran on the scanner's three-route Next.js fixture (95,244 tokens): `COMPLETE: 4/4 surfaces`, eight findings, no source file touched, and two notes a reader needs (Tailwind is not installed, so the class strings render nothing; one component no route reaches). What the runs improvised was already settled: the scanner finds a unit through Git Bash's path rewrite, including the root route, and the audit writes the same checkpoints without orchestrate. No change.
+
+The sweep's `verdict` step wrote its 36 verdicts to the real per-user log, because the run did not set `SUPAH_DESIGN_HOME` as the prose runs set `SUPAH_PROSE_HOME`. They were removed from the log afterwards; later trials set both.
+
+**buyer-panel.** A real panel costs millions of tokens, so this lot is a static read and the script tests. Every step a file cites by number (`RUN.md` steps 3, 7, 9, 10, 11, 12, 14 and 15, `TEST.md` 5 and 7, `PITCH.md` 4) is the step it names, and the `test_panel*` tests pass. The companions listed ai-slop-prose twice, once for reports and pitches and once for `test`; they are now one entry.

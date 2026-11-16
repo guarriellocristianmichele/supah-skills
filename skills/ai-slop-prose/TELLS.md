@@ -2,6 +2,8 @@
 
 Eleven categories, swept in this order. `rule` names are scanner rule ids; tells without one are read for by the model. Tiers: **S** rewrite on one sighting; **M** rewrite unless a keep reason applies; **W** act only when the scanner flags its metric, then thin the pattern out instead of fixing each instance.
 
+The tiers below are the designed ones. Calibration admits many rules one tier lower for a language (`scripts/calibration.json`), and each hit carries the tier it was admitted at: that tier is the one to act on. A hit at W, or marked `auto:` or `learned:`, leaves the rescan clean; rewrite it when it is in fact a tell.
+
 Every fix states the point plainly, in the author's voice. A fix that swaps one tell for another (a contrast turned into a rhetorical question, a fragment into a colon reveal) is not done.
 
 ## 1. residue
@@ -9,6 +11,7 @@ Every fix states the point plainly, in the author's voice. A fix that swaps one 
 Leftovers of a chat, never meant for the reader.
 
 - S `chat-residue`: "I hope this helps", "Great question", "Let me know if…", "Certo! Ecco…", "Se vuoi, posso…", "Hai perfettamente ragione".
+- M `ecco-opener` (IT): a reply that opens by presenting itself, "Certo! Ecco una versione…", "Ecco come…".
 - S `ai-disclaimer`: "as of my last knowledge update", "As an AI language model", "Come modello linguistico".
 - S `placeholder`: `[Your Name]`, `[Inserisci data]`, `2025-xx-xx`, `INSERT_URL`.
 - S `citation-leak`: `contentReference[oaicite:1]`, `utm_source=chatgpt.com`, `turn0search3`.
@@ -22,7 +25,7 @@ Denying a claim nobody made in order to assert another.
 
 - S `not-x-its-y`: "It isn't just a tool — it's a mindset", "Non è solo una tendenza, è una rivoluzione".
 - S `not-just-x`: "not just X, but Y" (the correlative "not only X but also Y" is ordinary English and is not matched).
-- S `not-x-but-y`: the split form, "This isn't about speed. It's about trust.", "Non è X. È Y.", "not because X, but because Y", "Non si tratta di X, ma di Y". Calibration: 10 human vs 72 AI documents in English.
+- S `not-x-but-y`: the split form, "This isn't about speed. It's about trust.", "Non è X. È Y.", "not because X, but because Y", "Non si tratta di X, ma di Y".
 - M `rather-than-merely`: "rather than merely", "less a tool than a mirror".
 - M `countdown`: "Not a bug. Not a feature. A design flaw."
 - W `non-solo-ma-anche`: standard Italian correlative, suspicious only in clusters.
@@ -56,7 +59,7 @@ Fix: replace the claim of importance with the fact that makes it important, or c
 
 ## 5. vocabulary
 
-Words models over-use relative to human writers (Kobak et al. 2024, Liang et al. 2024, EQ-Bench).
+Words models over-use relative to human writers.
 
 - M `marked-word`: delve, tapestry, testament, underscore, showcase, meticulous, intricate, pivotal, seamless, multifaceted, transformative; arazzo, intricato, sinergia, olistico, poliedrico. Lists: `scripts/lexicon/*-marked.txt`.
 - W `style_words_per_1k`: density of the broader list (`*-style.txt`): crucial, comprehensive, foster, leverage, robust; cruciale, fondamentale, approfondire, panorama.
@@ -79,7 +82,8 @@ Fix: name the source, or state the claim as the author's own, or cut it. One hed
 
 Talking about the text instead of saying the thing.
 
-- M `signposted-ending`: "In conclusion", "In summary", "At the end of the day", "In conclusione", "In sintesi", "Non ci resta che".
+- M `signposted-ending`: "In conclusion", "In summary", "At the end of the day", "In sintesi", "Per riassumere", "Non ci resta che".
+- W `summary-closer` (IT): "In conclusione", "In definitiva", "Per concludere", "Riassumendo".
 - M `meta-text`: "In this article we will explore", "the table below compares", "In questo articolo vedremo".
 - M `filler-transition`: "It's worth noting", "Notably", "Interestingly" at sentence start.
 - M `analogy-opener`: "Think of it as", "Imagine a world where", "Immagina un mondo".
@@ -119,6 +123,7 @@ Fix: `scan.py fix` applies accents and spacing. Each dash becomes the mark the s
 ## 10. formatting
 
 - M `bold-lead-bullet`: bullets starting "**Label:** …".
+- M `bold-heading`: a bold line standing in for a heading.
 - M `emoji-marker`: emoji opening headings or bullets.
 - M `title-case` (EN), W (IT): "Understanding The Impact Of Remote Work". Italian capitalises only the first word and proper nouns.
 - W `bold_per_1k`: bold scattered through prose.
@@ -128,7 +133,7 @@ Fix: prose for arguments, lists for parallel items; bold only for what a skimmin
 
 ## 11. dilution
 
-Model-only: no regex catches these.
+Model-only: the scanner cannot see these.
 
 - One point stretched across paragraphs; the same idea restated in each section.
 - Synonym cycling: renaming one thing each sentence (the tool, the platform, the solution).

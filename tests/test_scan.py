@@ -155,6 +155,14 @@ class Rules(unittest.TestCase):
         for cat in cats:
             self.assertRegex(tells, rf"## \d+\. {cat}\n", cat)
 
+    def test_every_rule_is_listed_in_tells(self):
+        tells = read(os.path.join(ROOT, "skills", "ai-slop-prose", "TELLS.md"))
+        out = run("rules").stdout
+        rules = {line.split("|")[1].strip() for line in out.splitlines()
+                 if line.startswith("| ") and line.count("|") == 5 and "category" not in line}
+        for rule in rules:
+            self.assertIn(f"`{rule}`", tells, rule)
+
 
 if __name__ == "__main__":
     unittest.main()

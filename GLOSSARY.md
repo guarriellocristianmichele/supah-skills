@@ -74,6 +74,10 @@ _Avoid_: trend, aesthetic, vibe
 A route or page plus the components only it reaches; components reached by several surfaces, or by none a static read can find, form the `shared` unit, so every frontend file belongs to exactly one unit. The unit an audit judges and counts coverage by.
 _Avoid_: page (one surface may render several), screen, view
 
+**Reconcile**:
+The step of a re-run design audit that compares a fresh scan with the ledger's findings and keep file: a finding whose hit is gone is fixed, one still there is open, one a keep line now covers is resolved, and a hit no finding or keep line covers is new. It replaces a separate verify mode.
+_Avoid_: verify, diff, rescan (the rescan is its input)
+
 **Restyle**:
 A craft run on an existing surface (`craft <surface>`), usually a sweep's or plan's `handoff`: the brief is read from the page, content and behaviour stay unchanged, and the direction is checked against the lane the page sat in.
 _Avoid_: redesign, reskin, makeover

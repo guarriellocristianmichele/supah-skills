@@ -11,12 +11,12 @@ SCAN = os.path.join(ROOT, "skills", "ai-slop-design", "scripts", "designscan.py"
 FIX = os.path.join(ROOT, "tests", "fixtures", "design")
 
 
-def run(*args, env=None):
+def run(*args, env=None, cwd=None):
     base = dict(os.environ, SUPAH_DESIGN_NO_CALIBRATION="1")  # designed tiers; calibration is tested on its own
     base.pop("SUPAH_DESIGN_CALIBRATION", None)
     base.update(env or {})
     return subprocess.run([sys.executable, SCAN, *args], capture_output=True, text=True, encoding="utf-8",
-                          env=base, timeout=60)
+                          env=base, cwd=cwd, timeout=60)
 
 
 def scan(path, *extra, env=None):
@@ -400,6 +400,122 @@ class HitsFile(unittest.TestCase):
         self.assertEqual(missing.returncode, 2)
 
 
+HOME_PAGE = ('<h1 className="bg-gradient-to-r from-pink-500 to-orange-400 bg-clip-text text-transparent">Hi</h1>\n'
+             '<button className="transition-all">Go</button>\n')
+LEDGER = """# Findings
+
+### DS-001 · surface · status: open
+Surface: pages
+Hit: gradient-text · `bg-gradient-to-r from-pink-500 to-orange-400 bg-clip-text text-transparent`
+Where: pages/Home.tsx:1
+Scanned: a3f8d70
+Fix: solid ink on the heading.
+
+### DS-002 · motion · status: open
+Surface: pages
+Hit: transition-all · `transition-all`
+Where: pages/Home.tsx:2
+Scanned: a3f8d70
+Fix: name the properties that move.
+"""
+
+
+class Reconcile(unittest.TestCase):
+    """A re-run audit compares a fresh scan with the ledger, so findings close, reopen or stay open."""
+
+    def reconcile(self, now, findings=LEDGER, keep="", *extra, commit=False):
+        """Files as they are at the re-run, the ledger as the last audit left it; the reconcile JSON and exit code."""
+        with tempfile.TemporaryDirectory() as d:
+            for name, text in now.items():
+                os.makedirs(os.path.dirname(os.path.join(d, name)), exist_ok=True)
+                write(d, name, text)
+            os.makedirs(os.path.join(d, ".slop-design"))
+            write(d, ".slop-design/findings.md", findings)
+            write(d, ".slop-design/keep.tsv", keep)
+            if commit:
+                git = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+                for args in (["init", "-q"], ["add", "pages"], ["commit", "-q", "-m", "fixes"]):
+                    subprocess.run(git + args, cwd=d, check=True, capture_output=True)
+                self.sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=d, capture_output=True,
+                                          text=True).stdout.strip()
+            run("surfaces", "--out", ".slop-design/surfaces.json", cwd=d)
+            run("--surfaces", ".slop-design/surfaces.json", "--out", ".slop-design/hits.json", cwd=d)
+            out = run("reconcile", ".slop-design/findings.md", ".slop-design/hits.json",
+                      "--keep", ".slop-design/keep.tsv", "--json", *extra, cwd=d)
+            self.ledger = doc(d, ".slop-design", "findings.md")
+        self.assertEqual(out.stderr, "")
+        return json.loads(out.stdout), out.returncode
+
+    def test_write_takes_the_statuses_lines_and_commit_into_the_ledger(self):
+        page = '<p>Intro</p>\n<p>More</p>\n<button className="transition-all">Go</button>\n'
+        data, _ = self.reconcile({"pages/Home.tsx": page}, LEDGER, "", "--write", commit=True)
+        self.assertEqual(self.states(data), {"DS-001": ("fixed", "fixed"), "DS-002": ("open", "open")})
+        self.assertEqual(self.ledger, LEDGER.replace("surface · status: open", "surface · status: fixed")
+                         .replace("Where: pages/Home.tsx:2", "Where: pages/Home.tsx:3")
+                         .replace("Scanned: a3f8d70", "Scanned: " + self.sha))
+        self.reconcile({"pages/Home.tsx": page})
+        self.assertEqual(self.ledger, LEDGER)
+
+    def states(self, data):
+        return {f["id"]: (f["state"], f["status"]) for f in data["findings"]}
+
+    def test_a_fixed_hit_reports_fixed(self):
+        data, _ = self.reconcile({"pages/Home.tsx": '<h1 className="text-ink">Hi</h1>\n'
+                                                    '<button className="transition-all">Go</button>\n'})
+        self.assertEqual(self.states(data)["DS-001"], ("fixed", "fixed"))
+
+    def test_an_untouched_hit_stays_open_where_it_moved(self):
+        data, code = self.reconcile({"pages/Home.tsx": "<p>Intro</p>\n" + HOME_PAGE})
+        self.assertEqual(self.states(data), {"DS-001": ("open", "open"), "DS-002": ("open", "open")})
+        self.assertEqual([f["line"] for f in data["findings"]], [2, 3])
+        self.assertEqual((data["new"], code), ([], 1))
+
+    def test_a_hit_added_after_the_scan_is_new(self):
+        data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE, "settings/Panel.tsx": '<a href="#">Docs</a>\n'})
+        self.assertEqual([(n["unit"], n["file"], n["line"], n["rule"]) for n in data["new"]],
+                         [("settings", "settings/Panel.tsx", 1, "dead-link")])
+
+    def test_a_kept_hit_is_resolved(self):
+        keep = "dead-link\thref=\"#\"\tcontent\ntransition-all\ttransition-all\tbrand\n"
+        data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE, "settings/Panel.tsx": '<a href="#">Docs</a>\n'},
+                                 keep=keep)
+        self.assertEqual(data["new"], [])
+        self.assertEqual([(r["file"], r["rule"], r["reason"]) for r in data["resolved"]],
+                         [("settings/Panel.tsx", "dead-link", "content")])
+        self.assertEqual(self.states(data)["DS-002"], ("resolved", "rejected:kept"))
+
+    def test_a_fixed_finding_whose_hit_returns_reopens_and_a_rejected_one_stays(self):
+        ledger = LEDGER.replace("surface · status: open", "surface · status: fixed").replace(
+            "motion · status: open", "motion · status: rejected:brief")
+        data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE}, findings=ledger)
+        self.assertEqual(self.states(data), {"DS-001": ("open", "open"), "DS-002": ("open", "rejected:brief")})
+        data, _ = self.reconcile({"pages/Home.tsx": "<h1>Hi</h1>\n"}, findings=ledger)
+        self.assertEqual(self.states(data)["DS-002"], ("fixed", "rejected:brief"))
+
+    def test_a_duplication_group_is_one_finding_open_while_any_copy_is_left(self):
+        with open(os.path.join(FIX, "dup-a.tsx"), encoding="utf-8") as f:
+            dup = f.read()
+        ledger = ("### DS-003 · duplication · status: open\nSurface: shared\n"
+                  "Hit: repeated-class-string · `font-medium inline-flex items-center justify-center px-4 py-2 "
+                  "rounded-md text-sm`\nWhere: checkout/Pay.tsx:2, account/Save.tsx:2\nScanned: a3f8d70\n"
+                  "Fix: one Button component.\n")
+        data, _ = self.reconcile({"checkout/Pay.tsx": dup, "account/Save.tsx": dup}, findings=ledger)
+        self.assertEqual(self.states(data), {"DS-003": ("open", "open")})
+        self.assertEqual(data["findings"][0]["files"], ["account/Save.tsx", "checkout/Pay.tsx"])
+        self.assertEqual(data["new"], [])
+        plain = "export function Pay() {\n  return <Button>Pay</Button>;\n}\n"
+        data, _ = self.reconcile({"checkout/Pay.tsx": plain, "account/Save.tsx": plain}, findings=ledger)
+        self.assertEqual(self.states(data), {"DS-003": ("fixed", "fixed")})
+
+    def test_a_judgment_find_is_left_to_the_reader(self):
+        ledger = LEDGER + ("\n### DS-004 · layout · status: open\nSurface: pages\n"
+                           "Hit: judgment · hero, three cards, CTA band in that order\nWhere: pages/Home.tsx:1\n"
+                           "Scanned: a3f8d70\nFix: lead with the product.\n")
+        data, _ = self.reconcile({"pages/Home.tsx": '<h1 className="text-ink">Hi</h1>\n'}, findings=ledger)
+        self.assertEqual(self.states(data), {"DS-001": ("fixed", "fixed"), "DS-002": ("fixed", "fixed"),
+                                             "DS-004": ("unchecked", "open")})
+
+
 class Docs(unittest.TestCase):
     def test_readme_states_the_rule_count(self):
         n = len(run("rules").stdout.splitlines()) - 2
@@ -412,6 +528,19 @@ class Docs(unittest.TestCase):
         modes = {r[1].strip().split()[0].strip("`"): r[2].strip() for r in rows}
         self.assertEqual(modes.get("audit"), "`${CLAUDE_SKILL_DIR}/AUDIT.md`")
         self.assertTrue(os.path.exists(os.path.join(ROOT, "skills", "ai-slop-design", "AUDIT.md")))
+
+    def test_a_rerun_audit_reconciles_the_ledger_instead_of_a_verify_mode(self):
+        audit = doc("skills", "ai-slop-design", "AUDIT.md")
+        step = audit.split("4. **Scan once**", 1)[1].split("\n5. ", 1)[0]
+        self.assertIn("designscan.py reconcile .slop-design/findings.md .slop-design/hits.json "
+                      "--keep .slop-design/keep.tsv --write", step)
+        self.assertIn("There is no separate verify mode", audit)
+        self.assertIn("**Reconcile**:", doc("GLOSSARY.md"))
+        english, italian = doc("skills", "ai-slop-design", "README.md").split("## Italiano", 1)
+        self.assertIn("reconciles the ledger", english)
+        self.assertIn("Se rilanci `audit`", italian)
+        for name in ("SKILL.md", "README.md"):
+            self.assertIn("reconcile", doc("skills", "supah-help", name))
 
     def test_craft_restyles_a_surface_and_keeps_its_content_and_behaviour(self):
         craft = doc("skills", "ai-slop-design", "CRAFT.md")

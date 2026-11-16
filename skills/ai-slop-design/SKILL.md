@@ -1,6 +1,6 @@
 ---
 name: ai-slop-design
-description: Build pages whose look comes from their subject, and sweep frontend code for design reflexes (purple gradients, gradient text, icon-card grids, glass panels, eyebrows, glued arrows…) found by a deterministic scanner and judged one by one. Modes craft <brief>, craft <surface> (restyle an existing page), sweep [file…] and audit [path] (a whole platform, read-only).
+description: Build pages whose look comes from their subject, and sweep frontend code for design reflexes (purple gradients, gradient text, icon-card grids, glass panels, eyebrows, glued arrows…) found by a deterministic scanner and judged one by one. Modes craft <brief>, craft <surface> (restyle an existing page), sweep [file…] and audit [path] (a whole platform, read-only; a re-run reconciles and resumes).
 argument-hint: "craft <brief> | craft <surface> | sweep [file…] | audit [path]"
 disable-model-invocation: true
 allowed-tools: Bash(python *designscan.py*) Bash(git ls-files *) Bash(git rev-parse *) Bash(git status *)
@@ -51,7 +51,7 @@ An audit adds the rest, in the same roles as ai-slop-audit's ledger and in forma
 - `surfaces.json`: the scanner's inventory; `inventory.md`: `| unit | kind | files | category | status |`, status `pending`, `scanned@<sha>` or `skipped:<reason>`.
 - `hits.json`: the scanner's hits grouped by unit, written with `--out`.
 - `keep.tsv`: the persistent keep file, same format as above; sweep reads it, so a hit judged once is not judged again.
-- `findings.md`: one block per reflex, IDs `DS-001` upward, never reused. Status `open` → `planned` → `fixed`; `stale` or `rejected:<reason>` from any state.
+- `findings.md`: one block per reflex, IDs `DS-001` upward, never reused. Status `open` → `planned` → `fixed`; `stale` or `rejected:<reason>` from any state. A re-run audit moves them with `designscan.py reconcile` (AUDIT.md step 4): a finding whose hit is gone becomes `fixed`, one whose hit is back `open`, one a keep line now covers `rejected:kept`.
 - `report.md`: the last audit's report.
 
 ```

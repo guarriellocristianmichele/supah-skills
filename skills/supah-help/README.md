@@ -32,6 +32,7 @@ With no arguments it shows the situations and asks which one is yours. It is use
 | sharing the cleanup with a team or agents | `/ai-slop-audit publish`, then `fix #<n>` or `/implement #<n>` |
 | a new site or page that must not look generated | `/ai-slop-design craft <brief>` |
 | a site that looks generated, low-contrast text, copy-pasted styles | `/ai-slop-design sweep <files>` |
+| a page a sweep handed off because it sits in a whole lane | `/ai-slop-design craft <surface>` |
 | is my idea worth building? | `/buyer-panel <idea>`, then the real test it names |
 | what would remove the top objection? | `/buyer-panel fix [reason]` after a first panel |
 | which of two offers or names, or what if a competitor cuts its price | `/buyer-panel compare A B`, `/buyer-panel competitor` |

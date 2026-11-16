@@ -3,7 +3,7 @@ name: ai-slop-design
 description: Build pages whose look comes from their subject, and sweep frontend code for design reflexes (purple gradients, gradient text, icon-card grids, glass panels, eyebrows, glued arrows…) found by a deterministic scanner and judged one by one. Modes craft <brief>, craft <surface> (restyle an existing page), sweep [file…], audit [path] (a whole platform, read-only; a re-run reconciles and resumes), plan (open findings into token/component, surface and handoff batches), sweep B<n> (fix one planned batch and close its findings) and publish [B<n>…] (one issue per batch plus a map, after you approve the drafts).
 argument-hint: "craft <brief> | craft <surface> | sweep [file…] | audit [path] | plan | sweep B<n> | publish [B<n>…]"
 disable-model-invocation: true
-allowed-tools: Bash(python *designscan.py*) Bash(git ls-files *) Bash(git rev-parse *) Bash(git status *) Bash(git diff *)
+allowed-tools: Bash(python *designscan.py*) Bash(python *scan.py --json *) Bash(git ls-files *) Bash(git rev-parse *) Bash(git status *) Bash(git diff *)
 ---
 
 # AI slop design
@@ -68,14 +68,14 @@ Scanned: a3f8d70
 Fix: one line from the rule's fix direction in REFLEXES.md.
 ```
 
-`Hit:` carries the rule and the match exactly as the scanner printed it; a judgment-only find has `Hit: judgment · <what was seen>`, a copy reflex `Hit: copy · <the string>`, a surface that sits in a lane `Hit: lane · <the lane as REFLEXES.md names it>`, a duplication group names every file in `Where:`.
+`Hit:` carries the rule and the match exactly as the scanner printed it; a judgment-only find has `Hit: judgment · <what was seen>`, a copy reflex `Hit: copy · <the string>`, a surface that sits in a lane `Hit: lane · <the lane as REFLEXES.md names it>`, a duplication group names every file in `Where:`. `Scanned: <sha>-dirty` marks a finding read in a file with uncommitted changes at that commit, so no permalink is pinned to it.
 
 ## Companions
 
 Each companion is optional; the steps say what to do without it.
 
 - **orchestrate**: sweeps of more than 3 files, craft variants and an audit's surfaces fan out through it (SWEEP.md step 3, CRAFT.md step 6, AUDIT.md step 5), sized to free memory, with checkpoints to resume from.
-- **ai-slop-audit**: frontend duplication is this skill's. A fix that needs a new shared component or token across surfaces is a finding of this skill's audit, planned as a token/component batch; a sweep lists it in the report for `/ai-slop-design audit`. Only work outside the frontend files (shared logic, a backend module) is listed for the user to run with `/ai-slop-audit audit <path>`; this skill never calls it nor reads its ledger. Its audit reads this scanner's duplication hits as evidence, and when `.slop-design/findings.md` exists marks `repeated-class-string`, `duplicate-css-block` and `untokened-colour` `handoff:ai-slop-design`, so each copy is reported once, here.
+- **ai-slop-audit**: frontend duplication is this skill's. A fix that needs a new shared component or token across surfaces is a finding of this skill's audit, planned as a token/component batch; a sweep lists it in the report for `/ai-slop-design audit`. Only work outside the frontend files (shared logic, a backend module) is listed for the user to run with `/ai-slop-audit audit <path>`; this skill never calls it nor reads its ledger. Its audit reads this scanner's duplication hits as evidence, and when `.slop-design/findings.md` exists marks a `repeated-class-string`, `duplicate-css-block` or `untokened-colour` group whose files are all in `.slop-design/surfaces.json` `handoff:ai-slop-design`, so each copy is reported once, here.
 - **impeccable**: when `PRODUCT.md` or `DESIGN.md` exist (root, `docs/` or `.agents/context/`), read them for users, brand and tokens. Read only; their format stays theirs.
 - **ai-slop-prose**: the words on the page are its job. When it is installed, run its sweep on the same files (it reads only visible strings); otherwise list the copy you would hand it. An audit runs only its scanner, in JSON mode, and rewrites nothing.
 - **A browser tool**: research (current work in the category, competitors, font catalogues, stock photos) and screenshots of the page being built or swept, or of an audit's sample of surfaces. Open it only after the user allows it on screen, once per session, asking with options:

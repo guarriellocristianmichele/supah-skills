@@ -662,6 +662,92 @@ class Plan(unittest.TestCase):
             self.assertIn("/ai-slop-design plan", doc("skills", "supah-help", name))
 
 
+class Publish(unittest.TestCase):
+    """publish turns plan.md's batches into issues, one per batch plus a map, only after the drafts are approved."""
+
+    def publish(self):
+        return doc("skills", "ai-slop-design", "PUBLISH.md")
+
+    def step(self, n, name):
+        return self.publish().split(f"{n}. **{name}**", 1)[1].split(f"\n{n + 1}. ", 1)[0]
+
+    def test_modes_table_lists_publish_with_its_file(self):
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        rows = [line.split("|") for line in skill.splitlines() if line.startswith("| `")]
+        modes = {r[1].strip().split()[0].strip("`"): r for r in rows}
+        self.assertEqual(modes["publish"][2].strip(), "`${CLAUDE_SKILL_DIR}/PUBLISH.md`")
+        self.assertIn("never a source file", modes["publish"][3])
+        hint = skill.split("argument-hint:", 1)[1].split("\n", 1)[0]
+        self.assertIn("publish [B<n>…]", hint)
+        self.assertLess(hint.index("plan"), hint.index("publish"))
+        self.assertTrue(os.path.exists(os.path.join(ROOT, "skills", "ai-slop-design", "PUBLISH.md")))
+
+    def test_nothing_reaches_the_tracker_before_the_drafts_are_approved(self):
+        publish = self.publish()
+        self.assertLess(publish.index("4. **Draft**"), publish.index("5. **Approve**"))
+        self.assertLess(publish.index("5. **Approve**"), publish.index("6. **Publish**"))
+        approve = self.step(5, "Approve")
+        self.assertIn("nothing reaches the tracker", approve)
+        self.assertIn("before the user approves", approve)
+        self.assertIn("Ask with options: publish all (recommended)", approve)
+
+    def test_a_rerun_reuses_its_issues_by_marker_and_never_duplicates_one(self):
+        step = self.step(6, "Publish")
+        self.assertIn("search for the issue's marker among open and closed issues", step)
+        self.assertIn("--state all", step)
+        self.assertIn("instead of creating a second issue", step)
+        template = self.publish().split("## Issue template", 1)[1]
+        self.assertIn("<!-- ai-slop-design batch <B>", template)
+        self.assertIn("<!-- ai-slop-design map -->", template)
+        self.assertIn("exactly one issue, which its marker finds", self.publish())
+
+    def test_closed_issues_set_their_findings_fixed_or_wontfix_in_the_ledger(self):
+        publish = self.publish()
+        self.assertLess(publish.index("3. **Sync**"), publish.index("4. **Draft**"))
+        sync = self.step(3, "Sync")
+        completed, not_planned = sync.split("Closed as completed", 1)[1].split("Closed as not planned", 1)
+        self.assertIn("becomes `fixed` in `findings.md`", completed)
+        self.assertIn("`rejected:wontfix (#<n>)`", not_planned)
+
+    def test_without_github_the_batches_are_written_to_local_files(self):
+        route = self.step(2, "Route")
+        self.assertIn("`gh auth status` passes", route)
+        local = route.split("**local files** otherwise", 1)[1]
+        self.assertIn("`.slop-design/issues/<B>.md`", local)
+        ledger = doc("skills", "ai-slop-design", "SKILL.md").split("## Ledger", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("- `issues/`:", ledger)
+
+    def test_mattpocock_tracker_is_followed_and_its_formats_stay_theirs(self):
+        route = self.step(2, "Route")
+        self.assertIn("`docs/agents/issue-tracker.md` exists", route)
+        self.assertIn("never write them", route)
+        record = self.step(7, "Record")
+        self.assertIn("`/to-tickets` can split a token/component group", record)
+        self.assertIn("`/to-spec` can turn a handoff batch over more than one surface", record)
+        self.assertIn("this skill never runs them", record)
+        labels = self.step(4, "Draft")
+        self.assertIn("`ready-for-agent` for token/component and surface batches", labels)
+        self.assertIn("`needs-triage` for handoff batches", labels)
+
+    def test_evidence_is_pinned_to_the_scanned_commit(self):
+        template = self.publish().split("## Issue template", 1)[1]
+        self.assertIn("pinned to the finding's `Scanned:` commit", template)
+        self.assertIn("/blob/<sha>/<path>#L", template)
+
+    def test_readme_glossary_and_router_name_publish(self):
+        english, italian = doc("skills", "ai-slop-design", "README.md").split("## Italiano", 1)
+        self.assertIn("/ai-slop-design publish", english)
+        self.assertIn("- `publish", english)
+        self.assertIn("- `publish", italian)
+        self.assertIn(".slop-design/issues/", english)
+        self.assertIn(".slop-design/issues/", italian)
+        glossary = doc("GLOSSARY.md")
+        for term in ("**Map issue**:", "**Issue marker**:"):
+            self.assertIn(term, glossary)
+        for name in ("SKILL.md", "README.md"):
+            self.assertIn("/ai-slop-design publish", doc("skills", "supah-help", name))
+
+
 class DuplicationOwnership(unittest.TestCase):
     RULES = ("`repeated-class-string`", "`duplicate-css-block`", "`untokened-colour`")
 

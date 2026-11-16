@@ -34,6 +34,7 @@ With no arguments it shows the situations and asks which one is yours. It is use
 | a site that looks generated, low-contrast text, copy-pasted styles | `/ai-slop-design sweep <files>` |
 | a page a sweep handed off because it sits in a whole lane | `/ai-slop-design craft <surface>` |
 | a whole platform that looks generated, before fixing anything | `/ai-slop-design audit [path]` → `/ai-slop-design plan` → `/ai-slop-design sweep B1`, `audit` again after fixes to reconcile |
+| sharing a design cleanup with a team or agents | `/ai-slop-design publish` after `plan`, then the command on each issue's Work line |
 | is my idea worth building? | `/buyer-panel <idea>`, then the real test it names |
 | what would remove the top objection? | `/buyer-panel fix [reason]` after a first panel |
 | which of two offers or names, or what if a competitor cuts its price | `/buyer-panel compare A B`, `/buyer-panel competitor` |

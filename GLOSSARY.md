@@ -26,6 +26,14 @@ _Avoid_: cache, report, state file
 A small group of findings fixed and reverted together, and published as one issue: in a code plan, one category in one area; in a design plan, a token/component, surface or handoff batch.
 _Avoid_: ticket (the tracker's word), PR, chunk
 
+**Map issue**:
+The one issue per plan that lists every published batch in order with its blockers, under the plan's coverage and finding counts; each batch's issue links to it.
+_Avoid_: epic, tracking issue
+
+**Issue marker**:
+The hidden comment that ends a published issue and names the skill, the batch and its findings (`<!-- ai-slop-design batch B4 · DS-021 -->`), by which a re-run publish finds the issue again instead of opening a second.
+_Avoid_: tag, label (labels are the tracker's)
+
 **Fallout**:
 Imports, types and exports that become unused because of a fix, removed with it.
 _Avoid_: cleanup, side effects

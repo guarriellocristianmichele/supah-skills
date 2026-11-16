@@ -515,6 +515,18 @@ class Reconcile(unittest.TestCase):
         self.assertEqual(self.states(data), {"DS-001": ("fixed", "fixed"), "DS-002": ("fixed", "fixed"),
                                              "DS-004": ("unchecked", "open")})
 
+    def test_a_replan_keeps_planned_findings_planned_and_leaves_lanes_to_the_reader(self):
+        ledger = LEDGER.replace("motion · status: open", "motion · status: planned") + (
+            "\n### DS-005 · lane · status: planned\nSurface: pages\n"
+            "Hit: lane · SaaS card kit: identical rounded cards, one radius, one soft shadow\n"
+            "Where: pages/Home.tsx:1\nScanned: a3f8d70\nFix: craft /.\n")
+        data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE}, findings=ledger)
+        self.assertEqual(self.states(data), {"DS-001": ("open", "open"), "DS-002": ("open", "planned"),
+                                             "DS-005": ("unchecked", "planned")})
+        data, _ = self.reconcile({"pages/Home.tsx": "<h1>Hi</h1>\n"}, findings=ledger)
+        self.assertEqual(self.states(data)["DS-002"], ("fixed", "fixed"))
+        self.assertEqual(data["new"], [])
+
 
 class Docs(unittest.TestCase):
     def test_readme_states_the_rule_count(self):
@@ -568,6 +580,86 @@ class Docs(unittest.TestCase):
         self.assertIn("craft <surface>", italian)
         for name in ("SKILL.md", "README.md"):
             self.assertIn("/ai-slop-design craft <surface>", doc("skills", "supah-help", name))
+
+
+class Plan(unittest.TestCase):
+    """plan groups the ledger's open findings into batches that sweep, craft and publish read from plan.md."""
+
+    def plan(self):
+        return doc("skills", "ai-slop-design", "PLAN.md")
+
+    def test_modes_table_lists_plan_with_its_file(self):
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        rows = [line.split("|") for line in skill.splitlines() if line.startswith("| `")]
+        modes = {r[1].strip().split()[0].strip("`"): r for r in rows}
+        self.assertEqual(modes["plan"][2].strip(), "`${CLAUDE_SKILL_DIR}/PLAN.md`")
+        self.assertIn("`.slop-design/` only, never a source file", modes["plan"][3])
+        self.assertIn("plan", skill.split("argument-hint:", 1)[1].split("\n", 1)[0])
+        self.assertTrue(os.path.exists(os.path.join(ROOT, "skills", "ai-slop-design", "PLAN.md")))
+
+    def test_stale_findings_are_marked_before_batching(self):
+        plan = self.plan()
+        fresh = plan.split("2. **Freshness**", 1)[1].split("\n3. ", 1)[0]
+        self.assertLess(plan.index("2. **Freshness**"), plan.index("4. **Batch**"))
+        self.assertIn("designscan.py reconcile .slop-design/findings.md .slop-design/hits.json "
+                      "--keep .slop-design/keep.tsv --write", fresh)
+        self.assertIn("git diff --name-only <its Scanned sha>", fresh)
+        self.assertIn("set its status to `stale`", fresh)
+
+    def test_every_open_finding_is_in_exactly_one_batch_or_rejected_with_a_reason(self):
+        plan = self.plan()
+        completion = plan.split("**Completion.**", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("in the `Findings:` of exactly one batch or `rejected:<reason>`", completion)
+        self.assertIn("rejected with a reason in its status, never left out", plan)
+
+    def test_token_component_work_is_expand_then_migrate_then_contract(self):
+        batch = self.plan().split("4. **Batch**", 1)[1].split("\n5. ", 1)[0]
+        token = batch.split("- **token/component**", 1)[1].split("\n   - **", 1)[0]
+        expand, migrate, contract = (token.index(k) for k in ("**expand**", "**migrate**", "**contract**"))
+        self.assertLess(expand, migrate)
+        self.assertLess(migrate, contract)
+        self.assertIn("each depending on the expand", token)
+        self.assertIn("depends on every migrate batch of its group", token)
+        self.assertLess(batch.index("**token/component**"), batch.index("**surface**"))
+        self.assertLess(batch.index("**surface**"), batch.index("**handoff**"))
+
+    def test_plan_md_format_is_the_contract_for_sweep_craft_and_publish(self):
+        fmt = self.plan().split("## plan.md", 1)[1]
+        example = fmt.split("```markdown", 1)[1].split("```", 1)[0]
+        fields = ("Surfaces", "Files", "Findings", "Depends-on", "Change", "Checks", "Work", "Status", "Issue")
+        for block in example.split("\n## ")[1:]:
+            keys = [line.split(":", 1)[0] for line in block.splitlines()[1:] if line and not line.startswith("- ")]
+            self.assertEqual([k for k in keys if k in fields], list(fields), block.splitlines()[0])
+        self.assertIn("## B1 · token/component:expand", example)
+        handoff = example.split("· handoff ·", 1)[1]
+        self.assertIn("\nLane: ", handoff)
+        self.assertIn("Work: /ai-slop-design craft /about", handoff)
+        for kind in ("token/component:expand", "token/component:migrate", "token/component:contract",
+                     "`surface`", "`handoff`"):
+            self.assertIn(kind, fmt)
+        self.assertIn("never reused", self.plan())
+
+    def test_checks_rescan_content_and_render_on_every_batch(self):
+        checks = self.plan().split("5. **Checks**", 1)[1].split("\n6. ", 1)[0]
+        self.assertIn("`designscan.py --keep .slop-design/keep.tsv <files>` exits 0", checks)
+        self.assertIn("**content**", checks)
+        self.assertIn("390, 768 and 1440", checks)
+
+    def test_a_lane_is_a_finding_so_plan_can_batch_it(self):
+        merge = doc("skills", "ai-slop-design", "AUDIT.md").split("7. **Merge**", 1)[1].split("\n8. ", 1)[0]
+        self.assertIn("`Hit: lane · <lane>`", merge)
+        self.assertIn("`Hit: lane · ", doc("skills", "ai-slop-design", "SKILL.md"))
+
+    def test_readme_glossary_and_router_name_the_plan(self):
+        english, italian = doc("skills", "ai-slop-design", "README.md").split("## Italiano", 1)
+        self.assertIn("/ai-slop-design plan", english)
+        self.assertIn("- `plan`", english)
+        self.assertIn("- `plan`", italian)
+        glossary = doc("GLOSSARY.md")
+        for term in ("**Token/component batch**:", "**Surface batch**:", "**Handoff batch**:"):
+            self.assertIn(term, glossary)
+        for name in ("SKILL.md", "README.md"):
+            self.assertIn("/ai-slop-design plan", doc("skills", "supah-help", name))
 
 
 class DuplicationOwnership(unittest.TestCase):

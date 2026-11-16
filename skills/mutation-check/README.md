@@ -34,7 +34,7 @@ Each survivor gets a verdict. It is either equivalent (the change behaves the sa
 
 ## Safety
 
-The file is changed in place while your tests run and restored after every mutant, on errors and on Ctrl+C. The script refuses a file with uncommitted changes, so `git checkout -- <file>` always brings it back. Your test command runs through the shell exactly as written, so the skill never pre-approves it: Claude Code asks you to confirm each run with the command in full.
+The file is changed in place while your tests run and restored after every mutant, on errors and on Ctrl+C. The script refuses a file with uncommitted changes, so `git checkout -- <file>` always brings it back; when yours has some, the skill offers to stash them for the run and pops the stash afterwards. The file comes back byte for byte, CRLF line endings included, and every test run gets a fresh Python bytecode cache, so a mutant never runs the previous one's compiled code. Your test command runs through the shell exactly as written, so the skill never pre-approves it: Claude Code asks you to confirm each run with the command in full.
 
 ## Limits
 
@@ -49,5 +49,5 @@ Controlla se i tuoi test si accorgono quando il codice cambia. Fa una piccola mo
 Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s mutation-check`, oppure come plugin di Claude Code con `claude plugin install mutation-check --marketplace guarriellocristianmichele/supah-skills --scope user`. Richiede Python 3.10 o superiore e git.
 
 - Ogni modifica sopravvissuta riceve un verdetto: equivalente (stesso comportamento per ogni input) oppure buco nei test, con l'input che nessun test prova.
-- Il file viene modificato sul posto e ripristinato dopo ogni mutante, anche in caso di errore; lo script rifiuta file con modifiche non committate.
+- Il file viene modificato sul posto e ripristinato byte per byte dopo ogni mutante, anche in caso di errore e con i fine riga CRLF; lo script rifiuta file con modifiche non committate, e la skill propone di metterle da parte con uno stash che riprende alla fine.
 - `ai-slop-audit` la usa come prova per i test tautologici.

@@ -101,6 +101,60 @@ class Project(unittest.TestCase):
         self.assertTrue(all(m["line"] >= 8 for m in json.loads(out.stdout)))
 
 
+PRICE = '''def discount(total, is_member):
+    if total >= 100:
+        rate = 0.1
+    else:
+        rate = 0.0
+    if is_member:
+        rate += 0.05
+    return round(total * (1 - rate), 2)
+'''
+PRICE_TEST = '''import unittest
+from price import discount
+
+class T(unittest.TestCase):
+    def test_discount(self):
+        self.assertEqual(discount(200, False), 180)
+        self.assertEqual(discount(50, True), 47.5)
+'''
+
+
+class LineEndings(unittest.TestCase):
+    def test_crlf_file_is_restored_byte_for_byte(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "calc.py")
+            crlf = CODE.replace("\n", "\r\n").encode("utf-8")
+            with open(path, "wb") as f:
+                f.write(crlf)
+            git(d, "init", "-q")
+            git(d, "config", "core.autocrlf", "false")
+            git(d, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+            git(d, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+            out = run(d, "run", "calc.py", "--json", "--max", "3", "--test", '"%s" -c "import calc"' % sys.executable)
+            self.assertIn(out.returncode, (0, 1), out.stderr)
+            with open(path, "rb") as f:
+                self.assertEqual(f.read(), crlf)
+
+
+class BytecodeCache(unittest.TestCase):
+    """Same-size mutants written within one second must not run the previous mutant's cached .pyc."""
+
+    def test_each_mutant_runs_its_own_code(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name, text in (("price.py", PRICE), ("test_price.py", PRICE_TEST)):
+                with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+                    f.write(text)
+            git(d, "init", "-q")
+            git(d, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+            git(d, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+            out = run(d, "run", "price.py", "--json", "--test", '"%s" -m unittest test_price' % sys.executable)
+            data = json.loads(out.stdout)
+            line8 = {r["change"] for r in data["results"] if r["line"] == 8 and r["status"] == "survived"}
+            # only rounding to 3 places leaves 180 and 47.5 unchanged; * -> /, - -> + and 1 -> 2 change them
+            self.assertEqual(line8, {"2 -> 3"})
+
+
 class JavaScript(unittest.TestCase):
     def test_mutates_code_not_strings_or_comments(self):
         with tempfile.TemporaryDirectory() as d:

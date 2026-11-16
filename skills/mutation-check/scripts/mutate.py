@@ -21,8 +21,10 @@ import json
 import os
 import re
 import signal
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 PY = (".py",)
@@ -154,7 +156,7 @@ def selector(lines, function, source, path):
 
 
 def mutants(path, lines=None, function=None):
-    with open(path, encoding="utf-8") as f:
+    with open(path, encoding="utf-8", newline="") as f:  # keep CRLF: restore() writes these exact characters back
         source = f.read()
     keep = selector(lines, function, source, path)
     if path.endswith(PY):
@@ -175,12 +177,18 @@ def dirty(path):
 
 
 def run_tests(cmd, timeout):
+    # a fresh bytecode cache per run: Python trusts a .pyc whose source has the same size and the same
+    # mtime second, so a same-length mutant written within a second would run the previous mutant's code
+    cache = tempfile.mkdtemp(prefix="mutate-pyc-")
+    env = dict(os.environ, PYTHONPYCACHEPREFIX=cache)
     start = time.time()
     try:
-        out = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
+        out = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout, env=env)
         return ("passed" if out.returncode == 0 else "failed"), time.time() - start, out
     except subprocess.TimeoutExpired:
         return "timeout", time.time() - start, None
+    finally:
+        shutil.rmtree(cache, ignore_errors=True)
 
 
 def cmd_run(a):

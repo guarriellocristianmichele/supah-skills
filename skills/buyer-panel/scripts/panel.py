@@ -328,10 +328,13 @@ def show_check_table(result):
     print("|---|---|---|---|---|")
     for c in result["checks"]:
         value = "n/a" if c["value"] is None else f"{c['value']:g}"
-        print(f"| {c['name']} | {c['what']} | {value} | {c['threshold']} | {'pass' if c['passed'] else 'FAIL'} |")
+        state = "pass" if c["passed"] else "warn" if c.get("advisory") else "FAIL"
+        print(f"| {c['name']} | {c['what']} | {value} | {c['threshold']} | {state} |")
     print()
     if result["verdict_line"]:
         print(result["verdict_line"])
+    if result.get("warned"):
+        print("Advisory, not part of the verdict: " + ", ".join(checks.LABELS[n] for n in result["warned"]) + ".")
 
 
 def show_checks(result):

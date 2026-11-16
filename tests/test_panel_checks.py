@@ -157,6 +157,42 @@ class KeepRate(unittest.TestCase):
         self.assertEqual((keep["value"], keep["passed"]), (None, True))
 
 
+class PersonaCopy(unittest.TestCase):
+    """The normal panel's seven buyers, with reactions that paste each buyer's own written objection."""
+
+    def copied_round(self, d, own=True):
+        r1 = copy_round(d)
+        buyers = {b["id"]: b for b in lines(os.path.join(r1, "..", "..", "buyers.jsonl"))}
+        ids = sorted(buyers)
+        answers = lines(os.path.join(r1, "answers.jsonl"))
+        for a in answers:
+            source = a["buyer_id"] if own else ids[(ids.index(a["buyer_id"]) + 1) % len(ids)]
+            a["reaction"] = buyers[source]["objection"] + " " + a["reaction"]
+        write(r1, "answers.jsonl", jsonl(answers))
+        return r1
+
+    def test_pasting_the_own_objection_is_flagged_but_sets_no_verdict(self):
+        with tempfile.TemporaryDirectory() as d:
+            result, code = run_json("checks", self.copied_round(d))
+            persona = by_name(result)["persona"]
+            self.assertEqual((persona["value"], persona["passed"], persona["advisory"]), (1, False, True))
+            self.assertLess(persona["p"], 0.05)
+            self.assertNotIn("persona", result["failed"])
+            self.assertEqual(code, 0, result)
+            out = run("checks", self.copied_round(os.path.join(d, "again"))).stdout
+            self.assertIn("| warn |", out)
+            self.assertIn("Advisory, not part of the verdict: persona copying", out)
+
+    def test_copying_another_buyers_objection_is_not_persona_copying(self):
+        with tempfile.TemporaryDirectory() as d:
+            persona = by_name(run_json("checks", self.copied_round(d, own=False))[0])["persona"]
+            self.assertTrue(persona["passed"], persona)
+
+    def test_reactions_in_their_own_words_pass(self):
+        persona = by_name(run_json("checks", NORMAL_R1)[0])["persona"]
+        self.assertEqual((persona["value"], persona["passed"]), (0, True))
+
+
 class Page(unittest.TestCase):
     def test_the_page_shows_the_checks_the_round_wrote(self):
         with tempfile.TemporaryDirectory() as d:
@@ -179,7 +215,7 @@ class ReportOutput(unittest.TestCase):
         out = run("checks", fixture_round("uniform"))
         self.assertEqual(out.returncode, 1)
         rows = [x for x in out.stdout.splitlines() if x.startswith("| ")]
-        self.assertEqual(len(rows), 1 + 7)                       # header and one row per check
+        self.assertEqual(len(rows), 1 + 8)                       # header and one row per check
         self.assertIn("| spread | standard deviation of intent | 0 | >= 0.8 | FAIL |", rows)
         self.assertIn("Do not trust this round: intent spread, reason similarity failed.", out.stdout)
 

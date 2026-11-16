@@ -824,6 +824,43 @@ class Publish(unittest.TestCase):
             self.assertIn("/ai-slop-design publish", doc("skills", "supah-help", name))
 
 
+class PlatformFlow(unittest.TestCase):
+    """audit → plan → publish → sweep B<n> or craft <surface> ships as one flow, routed and described end to end."""
+
+    FLOW = "`audit` → `plan` → `publish` → `sweep B<n>`"
+
+    def test_craft_surface_closes_its_handoff_batch_without_the_tracker(self):
+        craft = doc("skills", "ai-slop-design", "CRAFT.md")
+        record = craft.split("## Restyle", 1)[1].split("- **Record** (step 10)", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("handoff batch in `.slop-design/plan.md`", record)
+        self.assertIn("every ID in its `Findings:` to `fixed`", record)
+        self.assertIn("`Status: done`", record)
+        self.assertIn("last of its `Surfaces:`", record)
+        self.assertIn("never writes to the tracker", record)
+        self.assertIn("handoff batch `done`", craft.split("**Completion.**", 1)[1])
+        row = [line for line in doc("skills", "ai-slop-design", "SKILL.md").splitlines()
+               if line.startswith("| `craft <surface>` |")][0]
+        self.assertIn("handoff batch's statuses in `.slop-design/`", row)
+
+    def test_router_sends_a_whole_platform_through_audit_plan_publish_sweep(self):
+        for name in ("SKILL.md", "README.md"):
+            row = [line for line in doc("skills", "supah-help", name).splitlines()
+                   if line.startswith("|") and "whole platform" in line]
+            self.assertEqual(len(row), 1, name)
+            steps = [row[0].index(s) for s in ("/ai-slop-design audit", "/ai-slop-design plan",
+                                                "/ai-slop-design publish", "/ai-slop-design sweep B<n>")]
+            self.assertEqual(steps, sorted(steps), name)
+            self.assertIn("/ai-slop-design craft <surface>", row[0], name)
+
+    def test_readmes_describe_the_flow_end_to_end(self):
+        for parts in (("README.md",), ("skills", "ai-slop-design", "README.md")):
+            english, italian = doc(*parts).split("## Italiano", 1)
+            self.assertIn(self.FLOW, english, parts)
+            self.assertIn(self.FLOW, italian, parts)
+            self.assertIn("craft <surface>", english, parts)
+            self.assertIn("craft <surface>", italian, parts)
+
+
 class DuplicationOwnership(unittest.TestCase):
     RULES = ("`repeated-class-string`", "`duplicate-css-block`", "`untokened-colour`")
 

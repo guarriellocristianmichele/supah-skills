@@ -15,7 +15,7 @@ Read `DIRECTION.md` and `REFLEXES.md` (in this folder) in full before step 3.
 - **Build** (step 7) edits the surface's files in place: markup structure, classes, styles, tokens and assets may change; strings, handlers, props, data calls and routes may not. A direction that needs other copy or a new section is out of scope: list it in the report for the user.
 - **Content check**, before step 8: compare the inventory with the restyled files: the same strings in the same order, the same links, fields, handlers and accessible names. A difference is reverted, not kept.
 - **Look** (step 9): screenshot the surface before the build too, at the same widths, so the report shows both.
-- **Record** (step 10): the block also names the surface and the lane it left.
+- **Record** (step 10): the block also names the surface and the lane it left. When the surface is in a handoff batch in `.slop-design/plan.md` and it is the last of its `Surfaces:` to be restyled (every earlier one has its history block), close the batch once its checks pass: set every ID in its `Findings:` to `fixed` in `findings.md`, set the batch's `Status: done` in `plan.md`, and rewrite `STATUS.md` with the finding counts and the next `planned` batch whose `Depends-on:` are all `done`. An earlier surface of the batch leaves it `planned`. Craft never writes to the tracker: no `gh` call, nothing in `.slop-design/issues/`, the `Issue:` line as it was; the issue is closed by the user or synced by `/ai-slop-design publish`.
 
 Variants apply to `craft <brief>` only.
 
@@ -42,4 +42,4 @@ Variants apply to `craft <brief>` only.
 9. **Look**: with the browser the user allowed, screenshots at 390, 768 and 1440 pixels wide, each checked against DIRECTION.md's responsive checks and for horizontal scroll. Compare them with the direction, then remove one accessory: the decoration that serves the brief least.
 10. **Record**: append the direction to `.slop-design/history.md` (date, subject, palette, fonts, layout concept, memorable element).
 
-**Completion.** Every axis of the direction differs from the reflex answer, each with its reason; the sweep's rescan exits 0 with verdicts recorded; the research notes exist or the user declined them; the screenshots were judged or reported unavailable; and the history has the new block. A restyle also leaves the surface's content and behaviour unchanged against the inventory, with no axis in the handoff's lane.
+**Completion.** Every axis of the direction differs from the reflex answer, each with its reason; the sweep's rescan exits 0 with verdicts recorded; the research notes exist or the user declined them; the screenshots were judged or reported unavailable; and the history has the new block. A restyle also leaves the surface's content and behaviour unchanged against the inventory, with no axis in the handoff's lane. A restyle of a handoff batch's last surface leaves its findings `fixed` and the handoff batch `done` in `.slop-design/`.

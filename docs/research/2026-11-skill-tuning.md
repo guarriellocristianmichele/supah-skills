@@ -70,3 +70,18 @@ Neither the current skill nor the first variant says what to do with a checkpoin
 - An orphan's STOPPED block gets the reason `orphan: session <id> ended`; all three resume runs had made one up.
 
 The description, the one part loaded every session, lost its STOPPED_AGENTS_WORK.md clause. Token use again does not separate the versions.
+
+## Lot 3: mutation-check
+
+The trial repository holds `discount()` and `clamp()` with a known answer: three gaps (the 100 threshold, twice, and the rounding to two places), two equivalent mutants at the `clamp` boundaries, and `tests/test_mock.py`, which only checks what a mock returns. Tasks: the clean repository, and the same repository with an uncommitted function in the target file.
+
+Computing the answer key exposed a bug in `mutate.py`: Python trusts a cached `.pyc` whose source has the same size and the same mtime second, so a mutant of the same length as the one before it ran the previous mutant's bytecode. Three mutants the tests kill (`*` to `/`, `-` to `+`, `1` to `2`) were reported as survivors, and an agent would have written them up as gaps. Every test run now gets a fresh `PYTHONPYCACHEPREFIX`. The trials then found a second bug: the file was read with universal newlines, so a CRLF checkout was restored as LF, git saw it as modified, the next run refused it and a `git stash pop` aborted. Both bugs have a regression test that failed before the fix.
+
+| Run | Tokens | Tools | Seconds | Verdicts | File as the user left it |
+|---|---|---|---|---|---|
+| current, clean | 77,443 | 8 | 98 | 3 gaps, 2 equivalent, test_mock tautological | yes |
+| variant, clean | 73,873 | 7 | 91 | same | yes |
+| current, dirty | 80,220 | 16 | 155 | same | yes, stash popped |
+| variant, dirty | 82,292 | 16 | 170 | same | yes, stash popped |
+
+The outputs tie, so the shorter text wins except where the current one is wrong. Its completion criterion asked for `git status` to show the file clean, which on a file with uncommitted changes rewards leaving them in a stash; the criterion now asks for the same changes as before the run, with the stash popped. Step 3 asks with options (stash, recommended, or commit) instead of telling the agent to commit or stash, and a `timeout` counts as killed. The rewording of the tautology rule was dropped: both versions already ran the test file alone.

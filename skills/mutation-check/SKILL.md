@@ -17,13 +17,13 @@ Claude Code fills in `${CLAUDE_SKILL_DIR}` (this skill's folder) and `$ARGUMENTS
 
 1. **Scope**: the file, and a function or line range when the file is large; `mutate.py list <file> [--function NAME]` shows the mutants. More than 60 is a sign to narrow the scope.
 2. **Test command**: the narrowest one that exercises the scope (`pytest tests/test_auth.py`, `npm test -- auth`), from the project's own scripts. To judge one test file, give that file alone.
-3. **Clean file**: `run` refuses a file with uncommitted changes; commit or stash first, and say so to the user.
+3. **Clean file**: `run` refuses a file with uncommitted changes. Ask with options: stash them (`git stash push -- <file>`, recommended: popped after the run) or commit them first.
 4. **Run**: `mutate.py run <file> --test "<command>" [--function NAME] --json`. It executes the test command through the shell, so it is not pre-approved: the user sees and confirms the exact command. The file is changed in place and restored after each mutant.
-5. **Judge every survivor**, reading the mutated line in context:
+5. **Judge every survivor**, reading the mutated line in context. A `timeout` counts as killed (the mutant hung the tests); list it apart.
    - **equivalent**: the mutant behaves the same for every input (`x < lo` to `x <= lo` when both branches return the same value at `x == lo`). Not a gap.
    - **gap**: an input exists where behaviour differs and no test uses it. Name that input.
 6. **Report**: score, survivors with verdicts and the missing inputs, and, when one test file killed nothing, that the file is tautological for this code: it asserts what a mock returns, a constant, or nothing.
 
-**Completion.** Every mutant has a status, every survivor has a verdict with its reason, and the file is unchanged (`git status` shows it clean).
+**Completion.** Every mutant has a status, every survivor has a verdict with its reason, and the file is as the user left it: a stash from step 3 is popped, and `git status` shows the same changes as before the run.
 
 For `ai-slop-audit`, a `tautological-test` finding's evidence is the run with that test file alone: zero killed mutants of the code it claims to test.

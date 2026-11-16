@@ -1,6 +1,6 @@
 ---
 name: ai-slop-prose
-description: "Strip AI writing tells from English or Italian prose and from the user-facing text of source files (negative parallelism, dashes, delve-family vocabulary, punchy fragments, false suspense, signposted endings, chat residue, wrong punctuation and 40+ more), found by a deterministic scanner and rewritten in the author's voice. Use when drafting or editing text people read (posts, docs, READMEs, announcements, emails, copy), or when asked to de-slop, humanize or fix punctuation. Documents agents consume (SKILL.md, AGENTS.md, CLAUDE.md) are out of scope."
+description: "Strip AI writing tells from English or Italian prose and from the user-facing strings of source files (contrast framing, dashes, delve vocabulary, punchy fragments, false suspense, chat residue, wrong punctuation, 40+ more), found by a deterministic scanner and rewritten in the author's voice. Use when drafting or editing text people read (posts, docs, READMEs, emails, copy), or when asked to de-slop, humanize or fix punctuation. Agent-facing files (SKILL.md, AGENTS.md, CLAUDE.md) are out of scope."
 argument-hint: "[sweep] [file…]"
 allowed-tools: Bash(python *scan.py*)
 ---
@@ -19,27 +19,27 @@ Read `${CLAUDE_SKILL_DIR}/TELLS.md` in full before drafting or sweeping. The sca
 
 ## Draft
 
-When you write prose for humans, write to the fixes in TELLS.md from the first sentence. Save the draft to its destination, or to the scratchpad when it has none, and run the sweep on it before showing it.
+Write prose for humans to the fixes in TELLS.md from the first sentence. Save the draft to its destination (the scratchpad when it has none) and sweep it before showing it.
 
-Inside a session run by another writing skill that builds an article block by block and preserves the user's edits (the mattpocock `writing-shape`, `writing-beats` and `writing-fragments` work this way), that skill owns the rhythm: draft each block to the fixes, run the sweep once when the user calls the article done, and leave the raw-material file and every block the user wrote untouched.
+When another writing skill builds the article block by block and preserves the user's edits (mattpocock `writing-shape`, `writing-beats`, `writing-fragments`), it owns the rhythm: draft each block to the fixes, sweep once when the user calls the article done, and leave the raw-material file and every block the user wrote untouched.
 
 ## Sweep
 
-`$ARGUMENTS` names the files; text pasted in chat goes to a scratchpad file first. Source files (components, templates, locale files) are scanned for what their users read only: strings, template text and translations, never comments or code. Each hit carries a `purpose` (button, error, heading...); when the user states what a document is for, pass it as `--purpose`. Rewrites follow `${CLAUDE_SKILL_DIR}/PURPOSES.md` for that purpose.
+`$ARGUMENTS` names the files; text pasted in chat goes to a scratchpad file first. In source files (components, templates, locale files) only what users read is scanned: strings, template text, translations. Each hit carries a `purpose` (button, error, heading...); when the user states what a document is for, pass it as `--purpose`. Rewrites follow `${CLAUDE_SKILL_DIR}/PURPOSES.md` for that purpose.
 
 1. **Snapshot** each file to the scratchpad as `<name>.orig`. More than 3 files: run the `orchestrate` skill when installed (job `prose-sweep`, units = files, profile `light`, unit brief = steps 2–9 for one file, each worker may edit its own file), else sweep them in sequence.
 2. **Fix**: `scan.py fix <file>` applies the unambiguous punctuation and accent corrections.
 3. **Scan**: `scan.py --json [--purpose "<what it is for>"] <file>`; each hit carries its `context` (five tokens either side) and `purpose`.
-4. **Voice.** From the passages with no hits, note person, sentence-length range, contractions, humour, punctuation habits and recurring idioms. A sample the user supplies overrides them. Every rewrite matches this voice.
-5. **Judge and sweep** TELLS.md category by category. Read each hit in its context before acting, then give it one verdict:
+4. **Voice.** From the passages with no hits, note person, sentence-length range, contractions, humour, punctuation habits and recurring idioms; a sample the user supplies overrides them. Every rewrite matches this voice.
+5. **Judge and sweep** TELLS.md category by category. Read each hit in its context, then give it one verdict:
    - **tell**: rewrite it;
    - **kept**: a real tell the text needs; append `rule<TAB>match<TAB>reason` to a keep file in the scratchpad with reason `quote`, `voice`, `literal`, `term` or `dialogue`;
-   - **fp**: the pattern matched but the text is not doing the thing the rule names (a contrast the argument genuinely draws, a literal `_`, a product called Delve); keep it with reason `fp`.
+   - **fp**: the text is not doing what the rule names (a contrast the argument genuinely draws, a literal `_`, a product called Delve); keep it with reason `fp`.
 
-   Hits marked `auto:` (quote, heading, name, dialogue) or `learned:` were resolved by context gates or by past verdicts, and an `isolated` W hit is an M rule alone in otherwise clean text, which calibration showed is usually human; rewrite any of them when it is in fact a tell. Then read the whole text once for the category's tells the scanner cannot see.
+   Act on the tier each hit reports (TELLS.md, top): W, `auto:` and `learned:` hits leave the rescan clean, so rewrite one when it is in fact a tell. Then read the whole text once for the category's tells the scanner cannot see.
 6. **Facts**: `scan.py compare <orig> <file>` must list nothing missing; restore every lost number, name, link, code span or quote.
 7. **Rescan**: `scan.py --keep <keep file> <file>` exits 0. A new hit means a rewrite brought in another tell: fix it and rescan.
-8. **Learn**: `scan.py verdict <orig> <file> --keep <keep file>` records every verdict (rewritten hits count as tells) and updates each rule's measured precision; rules that keep producing `fp` lose tier on their own, and contexts judged `fp` twice stop being flagged.
-9. **Report** one line per TELLS.md category (hits, rewritten, kept with reasons, fp, model-only finds; zeros included), the metrics before and after, the diff against the snapshot, and the `fp` verdicts. When there are `fp` verdicts, offer the user `scan.py audit`: a human check of a sample keeps the learning honest, since a model reviewer tends to excuse text that sounds like its own.
+8. **Learn**: `scan.py verdict <orig> <file> --keep <keep file>` records every verdict.
+9. **Report** one line per TELLS.md category (hits, rewritten, kept with reasons, fp, model-only finds; zeros included), the metrics before and after, the diff against the snapshot, and the `fp` verdicts. When there are `fp` verdicts, offer the user `scan.py audit`: a model reviewer tends to excuse text that sounds like its own, so a human check keeps the learning honest.
 
-**Completion.** The rescan exits 0, compare reports nothing missing, the verdicts are recorded, and the report has all eleven category lines. The scanner guarantees every catalogued pattern was found; the category lines record that each category was read for. A clean report means no catalogued tell remains, which is a claim about the text, never about who wrote it.
+**Completion.** The rescan exits 0, compare reports nothing missing, the verdicts are recorded, and the report has all eleven category lines. A clean report is a claim about the text, never about who wrote it.

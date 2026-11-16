@@ -58,10 +58,10 @@ A job is defined by six fields. The skill asks for any that are missing.
 
 ## How it works
 
-1. **Resume.** If the job's state already exists, interrupted work is recovered. Workers still marked `running` from an earlier session are treated as stopped; units with a checkpoint count as done.
+1. **Resume.** If the job's state already exists, interrupted work is recovered. Workers still marked `running` from an earlier session are treated as stopped; units with a checkpoint whose result meets the done criterion count as done.
 2. **Size.** `mem.py status` measures free RAM and computes the slots: (free RAM − reserve) ÷ RAM per agent, capped at 6. With one slot or fewer, or three units or fewer left, the skill works inline.
 3. **Dispatch.** Workers start in the background, then a watchdog starts, also in the background, and checks memory every 10 seconds. The watchdog spends no tokens: its exit is what wakes the orchestrator.
-4. **React.** When a worker finishes, free slots are refilled. When the watchdog reports pressure, the most recently started workers are stopped.
+4. **React.** When a worker finishes, the units it left without a checkpoint go back to the queue (a unit that comes back twice is marked `failed`) and free slots are refilled. When the watchdog reports pressure, the most recently started workers are stopped.
 5. **Merge.** Results are joined in unit order, and the measured RAM per agent is saved for the next run.
 
 The job is complete when every unit is `done` or `failed`, every stopped worker has been resumed, and no worker is running. Otherwise the skill reports `PARTIAL: k/N units`, and invoking the same job again continues from there.
@@ -92,14 +92,14 @@ The directory is `<caller state dir>/orchestrator/<job>/`, or `.orchestrator/<jo
 
 | File | Contents |
 |---|---|
-| `state.json` | session, profile, RAM per agent, reserve, the list of workers and their status |
+| `state.json` | session, profile, RAM per agent, reserve, free RAM at the first dispatch and the most workers run at once (the inputs of the calibration), the list of workers and their status |
 | `units.md` | status of every unit: `pending`, `assigned:<worker>`, `done`, `failed:<reason>` |
 | `briefs/<worker>.md` | the exact prompt each worker received, reused on resume |
 | `work/<worker>.md` | the worker's output; each finished unit ends with `<!-- unit:<id> done -->` |
 | `stop/<worker>` | stop flag written by the watchdog |
 | `STOPPED_AGENTS_WORK.md` | register of stopped workers and the work they left |
 
-The `<!-- unit:<id> done -->` marker is the checkpoint. When `units.md` and the work files disagree, the marker wins.
+The `<!-- unit:<id> done -->` marker is the checkpoint. When `units.md` and the work files disagree, the marker wins, as long as the result it closes meets the done criterion.
 
 ## mem.py reference
 
@@ -153,10 +153,10 @@ Skill di Claude Code per lavori che si dividono in tante unità indipendenti (mo
 
 ### Come funziona
 
-1. Ripresa: recupera il lavoro interrotto; gli agenti rimasti `running` da una sessione precedente contano come fermati.
+1. Ripresa: recupera il lavoro interrotto; gli agenti rimasti `running` da una sessione precedente contano come fermati, e un'unità conta come fatta solo se il suo checkpoint rispetta il criterio di completamento.
 2. Dimensionamento: `mem.py status` calcola gli slot come (RAM libera − riserva) ÷ RAM per agente, al massimo 6. Con uno slot o meno, oppure con tre unità o meno, lavora inline.
 3. Avvio: lancia i worker e un watchdog in background, che controlla la memoria ogni 10 secondi.
-4. Reazione: riempie gli slot liberati; quando la memoria scende sotto la riserva ferma i worker avviati per ultimi.
+4. Reazione: rimette in coda le unità che un worker ha lasciato senza checkpoint (alla seconda volta diventano `failed`) e riempie gli slot liberati; quando la memoria scende sotto la riserva ferma i worker avviati per ultimi.
 5. Unione: unisce i risultati e salva la RAM misurata per agente per la volta successiva.
 
 ### Memoria piena

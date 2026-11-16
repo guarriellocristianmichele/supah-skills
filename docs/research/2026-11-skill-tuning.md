@@ -112,3 +112,18 @@ The trial repository has five commits and a README written against the first: a 
 | variant, b | 75,827 | 7 | 94 | 6/6 | yes |
 
 All four runs also read `pip install -e .` against a repository with no packaging and fixed it. The variant's three additions (a forwarded flag counts as fp, W findings get verdicts too, a doc fix can surface new claims) changed nothing: the current skill's runs did all three on their own, so they were dropped. One gap showed up in all four runs. A code regression stays in the doc as a promise, yet the rescan must exit 0, and the skill described the keep file for false positives only; every run put the claim there with a reason it wrote itself. The rule is now written down: the claim goes in the keep file with reason `regression <commit>`. Under orchestrate each worker keeps its own keep file, while `doctruth.py` takes one `--keep`, so the workers' files are concatenated before the rescan.
+
+## Lot 6: context-audit and supah-help
+
+From this lot on, the current skill runs first, and a variant is written only for what its runs improvise.
+
+**context-audit.** A synthetic Claude Code home (`--home`) holds two sessions, two always-on plugins whose hooks contradict `AGENTS.md` (a skill before every reply against acting when ready; fragments in every file against full sentences in docs), two TDD skills from different owners, a review pair that serves different steps, four stale references, a memory that restates an `AGENTS.md` rule, a Python 3.7 target the repo's `pyproject.toml` already breaks, and prompts that must never be quoted. Two runs (83,527 and 84,485 tokens) found every item, called the review pair `fp`, quoted no prompt and left `settings.json` to the user. Both had to place the stale references and sediment somewhere, since the report's five sections had no room for them: one added a sixth section, the other folded them into the fixes. The report now has a sixth section for them. Both also reported two sessions where the step asks for three; the step now says all of them when there are fewer.
+
+**supah-help.** A router with no script or state, so the trial compared answers. Its "Why" cells restated how each routed skill works, although the skill already tells the agent to read every recommended SKILL.md, which decides; the platform-audit cell alone was about 250 words. A variant cut each reason to one sentence (2,001 to 1724 words, keeping the phrases the router tests require) and fixed two facts: the skills that call `orchestrate` (the row said "the two skills above", which were doc-truth and mutation-check, and mutation-check does not) and the state folders (`.slop-design/` and `.buyer-panel/` were missing).
+
+| Question | Current | Variant |
+|---|---|---|
+| a v0-built Next.js app that looks generic, with bloated code (it) | 90,189 tokens; one question (both, design first), design audit before code audit so frontend duplication is handed off, batches, verify | 88,533 tokens; the same question and flow |
+| is a padel booking app worth building, and what to charge (en) | 85,351 tokens; buyer-panel run, read the report, price, test, ground | 79,585 tokens; run, price, test, without `ground` |
+
+Both versions read the routed skills and gave the same flows; the variant's answers are shorter. With quality tied, the shorter version wins.

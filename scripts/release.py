@@ -181,7 +181,8 @@ def main():
         sync_scanner()
         code = checks()
         if code == 0:
-            print(f"\nNext: commit, then `git tag v{args[0]} && git push --follow-tags`.")
+            # Tags here are lightweight, and --follow-tags pushes only annotated ones: push the tag by name.
+            print(f"\nNext: commit, then `git tag v{args[0]} && git push origin HEAD v{args[0]}`.")
         return code
     print(__doc__)
     return 2

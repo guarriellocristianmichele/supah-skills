@@ -1,6 +1,6 @@
 # Supah Skills
 
-[![skills.sh](https://skills.sh/b/guarriellocristianmichele/supah-skills)](https://skills.sh/guarriellocristianmichele/supah-skills)
+[![skills.sh](https://img.shields.io/badge/skills.sh-npx%20skills%20add-111111)](https://skills.sh/guarriellocristianmichele/supah-skills/ai-slop-prose)
 
 Agent skills for cleaning up after AI: the dead code and needless layers it leaves in a codebase, the tics it leaves in prose, and the pages that all look alike. One more, buyer-panel, tests a business idea on synthetic buyers and says how far to trust them.
 

@@ -43,7 +43,10 @@ A point where data enters from outside the code's control (user input, network, 
 _Avoid_: edge, input layer
 
 **Handoff**:
-A finding whose cure is a new interface rather than a removal, passed to design work instead of being fixed; also a finding another skill owns, such as frontend duplication marked `handoff:ai-slop-design` once the design audit's ledger exists.
+Work passed to whoever owns its cure instead of being patched where it was found. Three senses, told apart by where the word sits:
+- _Status_ (`handoff:<skill>` on a code audit finding): the cure is a new interface rather than a removal, so the finding goes to design work (`handoff:improve-codebase-architecture`, `handoff:design`); or another skill owns it, as frontend duplication is marked `handoff:ai-slop-design` once the design audit's ledger exists and its inventory holds every file of the group.
+- _Keep reason_ (`handoff` after a `chosen` verdict in a design keep file): the whole page sits in a lane and needs a new direction from `craft <surface>`, not a patch.
+- _Batch kind_ (`handoff` in a design plan's batch heading): one lane and every surface in it, worked by a restyle; see **Handoff batch**.
 _Avoid_: rejection, deferral
 
 ### Prose

@@ -15,12 +15,17 @@
   designscan.py --surfaces INVENTORY --out HITS [--keep FILE]
       Scan every file of the inventory in one run, write the results grouped by unit to HITS
       and print a summary per unit plus the duplication groups. Exit codes as for a scan.
+      HITS records the commit and, as dirty, the scanned files with uncommitted changes.
   designscan.py hits HITS [UNIT]
-      The summary again, or one unit's results as JSON without its duplication hits.
-  designscan.py reconcile FINDINGS HITS [--keep FILE] [--json]
+      The summary again, or one unit's results as JSON without its duplication hits. A route
+      unit is found without its leading slash too (pricing for /pricing), and through Git Bash's
+      rewrite of /pricing into C:/Program Files/Git/pricing.
+  designscan.py reconcile FINDINGS HITS [--keep FILE] [--json] [--write]
       Compare a fresh hits file with the ledger's findings.md and keep file: each finding is
       fixed (its hit is gone), open (still there) or resolved (kept since), with the status it
       takes; hits no finding or keep line covers are new. Exit 1 while any is open or new.
+      --write rewrites FINDINGS in place: each status, the line of a single-file Where:, and
+      Scanned: set to the fresh commit (<sha>-dirty for a finding in an uncommitted file).
   designscan.py verdict ORIG FILE [ORIG FILE...] [--keep FILE]
       Record a verdict for every hit in ORIG: fixed in FILE = reflex, kept = chosen
       (or reflex for reason `handoff`), kept with reason `fp` = fp. Appends to the verdict log.
@@ -813,10 +818,10 @@ REVEAL_ON_HOVER = r"^(?:group-)?hover:(?:opacity-100|block|flex|inline-flex|grid
 def r_hover_only(src):
     for pos, value in src.classes:
         t = value.split()
-        shown = [x for x in t if re.match(REVEAL_ON_HOVER, x)]
+        revealed = [x for x in t if re.match(REVEAL_ON_HOVER, x)]
         hidden = {"opacity-0", "hidden", "invisible"} & set(t)
-        if shown and hidden and not any("focus" in x.split(":")[0] for x in t if ":" in x):
-            yield pos, shown[0]
+        if revealed and hidden and not any("focus" in x.split(":")[0] for x in t if ":" in x):
+            yield pos, revealed[0]
     for pos, selector, body in css_blocks(src):
         if ":hover" in selector and ":focus" not in selector and \
                 re.search(r"opacity\s*:\s*1\b|display\s*:\s*(?:block|flex|grid)|visibility\s*:\s*visible", body):
@@ -955,9 +960,7 @@ def read(path):
 # lands in exactly one unit, so an audit's coverage k/N means what it says.
 
 SKIP_DIRS = {"node_modules", "vendor", "vendors", "third_party", "dist", "build", "out", "coverage"}
-MAX_UNIT_FILES = 40  # a unit above this is split by directory, so one worker context holds it
-FRAMEWORKS = (("nextjs", ("next",)), ("nuxt", ("nuxt",)), ("sveltekit", ("@sveltejs/kit",)),
-              ("astro", ("astro",)), ("react-router", ("react-router", "react-router-dom", "@remix-run/react")))
+SPLIT_UNIT_ABOVE = 40  # files; a unit above this splits by directory, so one worker context holds it
 IMPORT = re.compile(r"""(?:\bimport\s*(?:[\w*{}\s,$]+?\s*from\s*)?|\bexport\s*[\w*{}\s,$]*?\s*from\s*|"""
                     r"""\b(?:require|import)\s*\(\s*)["']([^"'\n]+)["']""")
 CSS_IMPORT = re.compile(r"""@(?:import|use|forward)\s+(?:url\(\s*)?["']([^"']+)["']""")
@@ -982,7 +985,8 @@ def list_files(root):
     kept, skipped = [], []
     for name in sorted(n.replace("\\", "/") for n in names if n):
         parts = name.split("/")
-        if os.path.splitext(name)[1].lower() not in EXTS or name.endswith(".d.ts") or                 any(p.startswith(".") or p == "node_modules" for p in parts[:-1]):
+        if os.path.splitext(name)[1].lower() not in EXTS or name.endswith(".d.ts") or \
+                any(p.startswith(".") or p == "node_modules" for p in parts[:-1]):
             continue
         if any(p in SKIP_DIRS for p in parts[:-1]):
             skipped.append({"file": name, "reason": "vendored or generated"})
@@ -993,6 +997,27 @@ def list_files(root):
     return kept, skipped
 
 
+def git_dirty(root):
+    """Files under root, relative with forward slashes, that differ from HEAD (staged, unstaged or untracked).
+    Empty outside a git work tree or before the first commit."""
+    names = set()
+    for args in (["diff", "--name-only", "--relative", "-z", "HEAD"], ["ls-files", "-o", "--exclude-standard", "-z"]):
+        try:
+            out = subprocess.run(["git", "-C", root] + args, capture_output=True, timeout=120)
+        except (OSError, subprocess.SubprocessError):
+            return set()
+        if out.returncode:
+            return set()
+        names |= {n.replace("\\", "/") for n in out.stdout.decode("utf-8", "replace").split("\0") if n}
+    return names
+
+
+def root_path(root, rel):
+    """A file as the inventory names it: ROOT as given, then the path relative to it."""
+    prefix = root.replace("\\", "/").rstrip("/")
+    return rel if prefix in ("", ".") else prefix + "/" + rel
+
+
 def detect_framework(root):
     try:
         with open(os.path.join(root, "package.json"), encoding="utf-8") as f:
@@ -1000,7 +1025,7 @@ def detect_framework(root):
     except (OSError, ValueError):
         return None
     deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
-    return next((name for name, packages in FRAMEWORKS if any(p in deps for p in packages)), None)
+    return next((name for name, packages, _ in FRAMEWORKS if any(p in deps for p in packages)), None)
 
 
 def route_id(segments):
@@ -1009,57 +1034,86 @@ def route_id(segments):
     return "/" + "/".join(kept)
 
 
-def under(directory, path):
+def is_under(directory, path):
     return directory == "" or path.startswith(directory + "/")
+
+
+NEXT_LAYOUTS = ("layout", "template", "loading", "error", "not-found", "default", "global-error")
+
+
+def page_route(rest, stem):
+    """A route from the directory below the pages folder and a file stem; `index` is the directory itself."""
+    return route_id((rest or "").split("/") + ([] if stem == "index" else [stem]))
+
+
+# Each framework's place(f, d, name, stem) says what a file is: ("route", id), ("layout", directory whose
+# routes it reaches) or None. f is the file, d its directory, name its basename, stem the name before any dot.
+
+def place_nextjs(f, d, name, stem):
+    m = re.match(r"(?:src/)?app(?:/|$)(.*)", d)
+    if m and d.split("/")[0] in ("app", "src"):
+        if stem == "page":
+            return "route", route_id(m.group(1).split("/"))
+        return ("layout", d) if stem in NEXT_LAYOUTS else None
+    m = re.match(r"(?:src/)?pages(?:/(.*))?$", d)
+    if m and d.split("/")[0] in ("pages", "src"):
+        if stem in ("_app", "_document"):
+            return "layout", d
+        if (m.group(1) or "").split("/")[0] != "api":
+            return "route", page_route(m.group(1), stem)
+    return None
+
+
+def place_sveltekit(f, d, name, stem):
+    m = re.match(r"src/routes(?:/(.*))?$", d)
+    if m and stem == "+page":
+        return "route", route_id((m.group(1) or "").split("/"))
+    return ("layout", d) if m and stem in ("+layout", "+error") else None
+
+
+def place_nuxt(f, d, name, stem):
+    m = re.match(r"(?:app/)?pages(?:/(.*))?$", d)
+    if m and name.endswith(".vue"):
+        return "route", page_route(m.group(1), stem)
+    if re.match(r"(?:app/)?layouts(?:/|$)", d) or f in ("app.vue", "error.vue", "app/app.vue", "app/error.vue"):
+        return "layout", ""
+    return None
+
+
+def place_astro(f, d, name, stem):
+    m = re.match(r"src/pages(?:/(.*))?$", d)
+    if m and not any(s.startswith("_") for s in f.split("/")):
+        return "route", page_route(m.group(1), stem)
+    return None
+
+
+def place_react_router(f, d, name, stem):
+    if f in ("app/root.tsx", "app/root.jsx"):
+        return "layout", ""
+    if d == "app/routes" or (d.startswith("app/routes/") and stem == "route"):
+        flat = (posixpath.basename(d) if stem == "route" else name.rsplit(".", 1)[0]).split(".")
+        return "route", "/" + "/".join(s.replace("$", ":").strip("_") for s in flat
+                                       if s not in ("_index", "route") and not s.startswith("_"))
+    return None
+
+
+# name, the package.json dependencies that select it, and how it places a file
+FRAMEWORKS = (("nextjs", ("next",), place_nextjs), ("nuxt", ("nuxt",), place_nuxt),
+              ("sveltekit", ("@sveltejs/kit",), place_sveltekit), ("astro", ("astro",), place_astro),
+              ("react-router", ("react-router", "react-router-dom", "@remix-run/react"), place_react_router))
 
 
 def find_routes(framework, files):
     """(entries: route -> files, layouts: file -> directory whose routes it reaches) for a framework."""
     entries, layouts = {}, {}
-    add = lambda route, f: entries.setdefault(route, []).append(f)  # noqa: E731
-    for f in files:
+    place = next((fn for name, _, fn in FRAMEWORKS if name == framework), None)
+    for f in files if place else ():
         d, name = posixpath.split(f)
-        stem = name.split(".")[0]
-        if framework == "nextjs":
-            m = re.match(r"(?:src/)?app(?:/|$)(.*)", d)
-            if m and d.split("/")[0] in ("app", "src"):
-                rel = m.group(1)
-                if stem == "page":
-                    add(route_id(rel.split("/")), f)
-                elif stem in ("layout", "template", "loading", "error", "not-found", "default", "global-error"):
-                    layouts[f] = d
-            m = re.match(r"(?:src/)?pages(?:/(.*))?$", d)
-            if m and d.split("/")[0] in ("pages", "src"):
-                rel = (m.group(1) or "").split("/")
-                if stem in ("_app", "_document"):
-                    layouts[f] = d
-                elif rel[0] != "api":
-                    add(route_id(rel + ([] if stem == "index" else [stem])), f)
-        elif framework == "sveltekit":
-            m = re.match(r"src/routes(?:/(.*))?$", d)
-            if m:
-                if stem == "+page":
-                    add(route_id((m.group(1) or "").split("/")), f)
-                elif stem in ("+layout", "+error"):
-                    layouts[f] = d
-        elif framework == "nuxt":
-            m = re.match(r"(?:app/)?pages(?:/(.*))?$", d)
-            if m and name.endswith(".vue"):
-                add(route_id((m.group(1) or "").split("/") + ([] if stem == "index" else [stem])), f)
-            elif re.match(r"(?:app/)?layouts(?:/|$)", d) or f in ("app.vue", "error.vue", "app/app.vue",
-                                                                  "app/error.vue"):
-                layouts[f] = ""
-        elif framework == "astro":
-            m = re.match(r"src/pages(?:/(.*))?$", d)
-            if m and not any(s.startswith("_") for s in f.split("/")):
-                add(route_id((m.group(1) or "").split("/") + ([] if stem == "index" else [stem])), f)
-        elif framework == "react-router":
-            if f in ("app/root.tsx", "app/root.jsx"):
-                layouts[f] = ""
-            elif d == "app/routes" or (d.startswith("app/routes/") and stem == "route"):
-                flat = (posixpath.basename(d) if stem == "route" else name.rsplit(".", 1)[0]).split(".")
-                add("/" + "/".join(s.replace("$", ":").strip("_") for s in flat
-                                   if s not in ("_index", "route") and not s.startswith("_")), f)
+        found = place(f, d, name, name.split(".")[0])
+        if found and found[0] == "route":
+            entries.setdefault(found[1], []).append(f)
+        elif found:
+            layouts[f] = found[1]
     return entries, layouts
 
 
@@ -1115,7 +1169,7 @@ def import_graph(root, files, framework):
 
 
 def split_by_directory(files, prefix=""):
-    """Group files by their next directory below prefix; groups above MAX_UNIT_FILES split again."""
+    """Group files by their next directory below prefix; groups above SPLIT_UNIT_ABOVE split again."""
     groups = {}
     for f in files:
         rest = f[len(prefix):].split("/")
@@ -1123,7 +1177,7 @@ def split_by_directory(files, prefix=""):
     out = {}
     for key, members in groups.items():
         deeper = [f for f in members if "/" in f[len(key) + 1:]] if key != prefix.rstrip("/") and key != "." else []
-        if len(members) > MAX_UNIT_FILES and deeper:
+        if len(members) > SPLIT_UNIT_ABOVE and deeper:
             out.update(split_by_directory(members, key + "/"))
         else:
             out[key] = members
@@ -1142,7 +1196,7 @@ def surfaces(root):
             for f in roots:
                 owner[f] = route
             dirs = {posixpath.dirname(f) for f in roots}
-            todo = list(roots) + [f for f, d in layouts.items() if any(under(d, x) for x in dirs)]
+            todo = list(roots) + [f for f, d in layouts.items() if any(is_under(d, x) for x in dirs)]
             seen = set()
             while todo:
                 f = todo.pop()
@@ -1164,7 +1218,7 @@ def surfaces(root):
         for route in sorted(members):
             units.append({"unit": route, "kind": "route", "entries": sorted(entries[route]),
                           "files": sorted(members[route])})
-        groups = {"shared": shared} if len(shared) <= MAX_UNIT_FILES else \
+        groups = {"shared": shared} if len(shared) <= SPLIT_UNIT_ABOVE else \
             {"shared:" + k: v for k, v in split_by_directory(shared).items()}
         for name in sorted(groups):
             if groups[name]:
@@ -1174,14 +1228,14 @@ def surfaces(root):
         base = "src/" if files and all(f.startswith("src/") for f in files) else ""
         for name, members in sorted(split_by_directory(files, base).items()):
             units.append({"unit": name, "kind": "directory", "entries": [], "files": sorted(members)})
-    shown = root.replace("\\", "/").rstrip("/")
-    path = lambda f: f if shown in ("", ".") else shown + "/" + f  # noqa: E731
     for u in units:
         for key in ("entries", "files", "unreached"):
             if key in u:
-                u[key] = [path(f) for f in u[key]]
+                u[key] = [root_path(root, f) for f in u[key]]
+    dirty = git_dirty(root)
     return {"root": root, "framework": framework, "fallback": None if entries else "directories",
-            "files": len(files), "units": units, "skipped": [dict(s, file=path(s["file"])) for s in skipped]}
+            "files": len(files), "units": units, "skipped": [dict(s, file=root_path(root, s["file"])) for s in skipped],
+            "dirty": [root_path(root, f) for f in files if f in dirty]}
 
 
 def cmd_surfaces(argv):
@@ -1195,9 +1249,10 @@ def cmd_surfaces(argv):
         with open(a.out, "w", encoding="utf-8", newline="\n") as f:
             f.write(text + "\n")
         shared = sum(u["kind"] == "shared" for u in inv["units"])
-        print("%d surfaces, %d shared unit%s, %d frontend files (%s)" % (
+        print("%d surfaces, %d shared unit%s, %d frontend files (%s)%s" % (
             len(inv["units"]) - shared, shared, "" if shared == 1 else "s", inv["files"],
-            inv["fallback"] or inv["framework"]))
+            inv["fallback"] or inv["framework"],
+            "; %d with uncommitted changes" % len(inv["dirty"]) if inv["dirty"] else ""))
     else:
         print(text)
     return 0
@@ -1214,7 +1269,9 @@ def scan_inventory(inventory_path, keep, out):
                                 text=True, timeout=30).stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
         commit = None
+    dirty = {root_path(inv["root"], f) for f in git_dirty(inv["root"])} if commit else set()
     data = {"root": inv["root"], "framework": inv["framework"], "commit": commit,
+            "dirty": [f for f in files if f in dirty],
             "units": [{"unit": u["unit"], "kind": u["kind"], "files": [next(results) for _ in u["files"]]}
                       for u in inv["units"]]}
     with open(out, "w", encoding="utf-8", newline="\n") as f:
@@ -1239,10 +1296,32 @@ def hits_summary(data, path):
         data.get("commit") or "no commit"), "| unit | kind | files | hits | open |", "|---|---|---|---|---|"]
     lines += ["| %s | %s | %d | %d | %d |" % (unit, kind, n, hits, o)
               for hits, unit, kind, n, o in sorted(rows, key=lambda r: (-r[0], r[1]))]
+    dirty = data.get("dirty") or []
+    if dirty:
+        lines.append("uncommitted changes in %d scanned file%s, not pinned to %s: %s%s" % (
+            len(dirty), "" if len(dirty) == 1 else "s", data.get("commit"), ", ".join(dirty[:10]),
+            ", and %d more" % (len(dirty) - 10) if len(dirty) > 10 else ""))
     if dup:
         lines.append("duplication across units (%d groups):" % len(dup))
         lines += ["  %s  %d files  %s" % (rule, len(files), match[:80]) for (rule, match), files in sorted(dup.items())]
     return "\n".join(lines)
+
+
+def find_unit(units, name):
+    """The unit a worker names: exactly, without a route's leading slash (`pricing` for `/pricing`), or
+    through Git Bash's rewrite of an argument starting with `/` into a Windows path (`C:/Program Files/Git/pricing`)."""
+    exact = [u for u in units if u["unit"] == name]
+    if exact:
+        return exact[0]
+    bare = [u for u in units if u["kind"] == "route" and u["unit"].lstrip("/") == name.strip("/")]
+    if len(bare) == 1:
+        return bare[0]
+    if re.match(r"[A-Za-z]:/", name.replace("\\", "/")):
+        rewritten = name.replace("\\", "/")
+        routes = [u for u in units if u["kind"] == "route" and rewritten.endswith(u["unit"])]
+        if routes:
+            return max(routes, key=lambda u: len(u["unit"]))
+    return None
 
 
 def cmd_hits(argv):
@@ -1255,9 +1334,10 @@ def cmd_hits(argv):
     if a.unit is None:
         print(hits_summary(data, a.file))
         return 0
-    unit = next((u for u in data["units"] if u["unit"] == a.unit), None)
+    unit = find_unit(data["units"], a.unit)
     if unit is None:
-        print("no unit %r in %s" % (a.unit, a.file), file=sys.stderr)
+        print("no unit %r in %s (units: %s)" % (a.unit, a.file, ", ".join(u["unit"] for u in data["units"])),
+              file=sys.stderr)
         return 2
     results = [dict(r, hits=[h for h in r["hits"] if h["category"] != "duplication"]) for r in unit["files"]]
     print(json.dumps(results, ensure_ascii=False, indent=1))
@@ -1271,7 +1351,7 @@ def cmd_hits(argv):
 FINDING = re.compile(r"^### (DS-\d+) · ([^·\n]+?) · status: (\S+)[ \t]*$", re.M)
 
 
-def norm(path):
+def ledger_path(path):
     return posixpath.normpath(path.strip().replace("\\", "/"))
 
 
@@ -1289,11 +1369,20 @@ def parse_findings(text):
         where = []
         for part in field.get("where", "").split(","):
             path, _, line = part.strip().rpartition(":")
-            where.append((norm(path), int(line)) if path and line.isdigit() else (norm(part), 0))
+            where.append((ledger_path(path), int(line)) if path and line.isdigit() else (ledger_path(part), 0))
         found.append({"id": m.group(1), "category": m.group(2).strip(), "was": m.group(3), "rule": rule.strip(),
                       "match": match, "surface": field.get("surface", ""), "scanned": field.get("scanned", ""),
                       "where": [w for w in where if w[0] not in ("", ".")]})
     return found
+
+
+def same_hit(hit, finding):
+    return (hit["rule"], hit["match"]) == (finding["rule"], finding["match"])
+
+
+def keep_reason(hit, keep):
+    """Why a hit is kept: a keep line for it, or the keep file the scan itself read."""
+    return keep.get((hit["rule"], hit["match"])) or hit.get("kept")
 
 
 def next_status(was, state):
@@ -1308,6 +1397,7 @@ def next_status(was, state):
 
 
 def reconcile(findings, data, keep):
+    dirty = {ledger_path(p) for p in data.get("dirty") or []}
     fresh = []  # (unit, file, hit), unclaimed until a finding takes it
     for u in data["units"]:
         for r in u["files"]:
@@ -1326,42 +1416,44 @@ def reconcile(findings, data, keep):
             entry["state"] = "unchecked"  # judgment-only and copy finds: no pattern can tell
         elif RULES[f["rule"]][0] == "duplication":
             # one finding per group: open while the repetition is anywhere, whichever files still carry it
-            mine = [claim(i) for i, (_, _, h) in enumerate(fresh)
-                    if i not in taken and (h["rule"], h["match"]) == (f["rule"], f["match"])]
-            entry["state"] = "open" if mine else "fixed"
-            entry["files"] = sorted({norm(path) for _, path, _ in mine})
+            copies = [claim(i) for i, (_, _, h) in enumerate(fresh) if i not in taken and same_hit(h, f)]
+            entry["state"] = "open" if copies else "fixed"
+            entry["files"] = sorted({ledger_path(path) for _, path, _ in copies})
         else:
             files = {path for path, _ in f["where"]}
-            candidates = [i for i, (_, path, h) in enumerate(fresh) if i not in taken and norm(path) in files
-                          and (h["rule"], h["match"]) == (f["rule"], f["match"])]
+            candidates = [i for i, (_, path, h) in enumerate(fresh)
+                          if i not in taken and ledger_path(path) in files and same_hit(h, f)]
             if candidates:
                 line = f["where"][0][1] if f["where"] else 0
                 i = min(candidates, key=lambda i: (abs(fresh[i][2]["line"] - line), i))
                 _, path, h = claim(i)
-                reason = keep.get((h["rule"], h["match"])) or h.get("kept")
+                reason = keep_reason(h, keep)
                 entry.update(state="resolved" if reason else "open", line=h["line"])
                 if reason:
                     entry["reason"] = reason
             else:
                 entry["state"] = "fixed"
         entry["status"] = next_status(f["was"], entry["state"])
+        entry["dirty"] = any(p in dirty for p in {path for path, _ in f["where"]} | set(entry.get("files", ())))
         out.append(entry)
     new, resolved = [], []
     for i, (unit, path, h) in enumerate(fresh):
         if i in taken:
             continue
         item = {"unit": unit, "file": path, "line": h["line"], "rule": h["rule"], "category": h["category"],
-                "tier": h["tier"], "match": h["match"]}
-        reason = keep.get((h["rule"], h["match"])) or h.get("kept")
+                "tier": h["tier"], "match": h["match"], "dirty": ledger_path(path) in dirty}
+        reason = keep_reason(h, keep)
         if reason:
             resolved.append(dict(item, reason=reason))
         else:
             new.append(item)
-    return {"commit": data.get("commit"), "findings": out, "new": new, "resolved": resolved}
+    return {"commit": data.get("commit"), "dirty": sorted(data.get("dirty") or []), "findings": out, "new": new,
+            "resolved": resolved}
 
 
 def write_findings(text, result):
-    """findings.md with each block's status, its Where line and its Scanned commit taken from the reconcile."""
+    """findings.md with each block's status, its Where line and its Scanned commit taken from the reconcile;
+    a finding read in a file with uncommitted changes gets `<sha>-dirty`, never a commit that does not hold it."""
     by_id = {f["id"]: f for f in result["findings"]}
     heads = list(FINDING.finditer(text))
     parts, at = [], 0
@@ -1370,7 +1462,8 @@ def write_findings(text, result):
         f, body = by_id[m.group(1)], text[m.end():end]
         parts += [text[at:m.start()], m.group(0).replace("status: " + m.group(3), "status: " + f["status"])]
         if f["state"] != "unchecked" and result["commit"]:
-            body = re.sub(r"^(Scanned:[ \t]*)\S*", lambda s: s.group(1) + result["commit"], body, count=1, flags=re.M)
+            commit = result["commit"] + ("-dirty" if f["dirty"] else "")
+            body = re.sub(r"^(Scanned:[ \t]*)\S*", lambda s: s.group(1) + commit, body, count=1, flags=re.M)
         if f["line"] is not None:
             body = re.sub(r"^(Where:[ \t]*[^,\n]+:)\d+[ \t]*$", lambda s: "%s%d" % (s.group(1), f["line"]), body,
                           count=1, flags=re.M)
@@ -1390,8 +1483,8 @@ def reconcile_summary(result, path):
     lines += ["  %s  %s -> %s  (%s)" % (f["id"], f["was"], f["status"], f["state"]) for f in changed]
     if result["new"]:
         lines.append("new hits, to judge:")
-        lines += ["  %s  %s:%d  %s %s  %s" % (n["unit"], n["file"], n["line"], n["tier"], n["rule"], n["match"])
-                  for n in result["new"]]
+        lines += ["  %s  %s:%d  %s %s  %s%s" % (n["unit"], n["file"], n["line"], n["tier"], n["rule"], n["match"],
+                                               "  (uncommitted)" if n["dirty"] else "") for n in result["new"]]
     return "\n".join(lines)
 
 

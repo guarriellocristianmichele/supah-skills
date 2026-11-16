@@ -1,0 +1,5 @@
+{"buyer_id": "b01", "round": "walkaway", "intent": 2, "reason": "back-to-paper", "quote": "go back to a notebook"}
+{"buyer_id": "b02", "round": "walkaway", "intent": 1, "reason": "spending-freeze", "quote": "stopping all software spending"}
+{"buyer_id": "b03", "round": "walkaway", "intent": 3, "reason": "pause", "quote": "track nothing for a while"}
+{"buyer_id": "b04", "round": "walkaway", "intent": 4, "reason": "cut-costs", "quote": "cut both and see"}
+{"buyer_id": "b05", "round": "walkaway", "intent": 5, "reason": "no-need", "quote": "write by hand"}

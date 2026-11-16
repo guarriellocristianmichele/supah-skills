@@ -25,7 +25,9 @@ validate   checks records against the schemas in RECORDS.md; the kind comes from
            test.json).
 variety    checks the panel's buyers before any interview: their count against the plan's size, each
            segment's share against the plan's, budgets spread across each segment's range, and no name or
-           objection written twice (thresholds and reasons in BUYERS.md); exits 1 on a failure.
+           objection written twice (thresholds and reasons in BUYERS.md); exits 1 on a failure. With brief.json
+           beside them it also prints the reach: buyers whose budget is at or above the brief's price, by
+           segment, a fact for the user to weigh that never fails.
 deal       gives every buyer the options in its own random order and puts buyers in batches mixed across
            segments, for the interviews; writes one card line per buyer to --out.
 reactions  writes what the judge may see: buyer id and free reaction only, in shuffled order.
@@ -335,6 +337,9 @@ def show_check_table(result):
 def show_checks(result):
     """Markdown for the report's Checks section."""
     show_check_table(result)
+    keep = next((c for c in result["checks"] if c["name"] == "keep"), None)
+    if keep and not keep["passed"]:
+        print(f"Paying buyers who chose nothing: {id_list(keep['buyers'])}")
     print(result["segments"]["why"])
 
 
@@ -343,10 +348,16 @@ def show_variety(result):
     for c in result["checks"]:
         if c.get("buyers"):
             print(f"{c['what'].capitalize()}: {id_list(c['buyers'])}")
+    r = result.get("reach")
+    if r:
+        by_segment = ", ".join(f"{s['name']} {s['reached']} of {s['buyers']}" for s in r["segments"])
+        print(f"Reach at {r['price']:g} {r['currency']} (the brief's price, for you to weigh, not a check): "
+              f"{r['reached']} of {r['buyers']} buyers have a budget at or above it; by segment: {by_segment}.")
 
 
 @command("variety", "check the panel's buyers for variety against the plan, before any interview", show_variety, [
-    (("panel",), {"metavar": "PANEL_DIR", "help": "the panel folder, holding buyers.jsonl and plan.json"}),
+    (("panel",), {"metavar": "PANEL_DIR",
+                  "help": "the panel folder, holding buyers.jsonl and plan.json (and brief.json for the reach line)"}),
 ])
 def cmd_variety(args):
     buyers = load(os.path.join(args.panel, "buyers.jsonl"), "buyers", "a buyers.jsonl file")
@@ -355,6 +366,9 @@ def cmd_variety(args):
     if outside:
         raise RecordErrors(outside)
     result = checks.run_variety(buyers["data"], plan)
+    brief_path = os.path.join(args.panel, "brief.json")
+    if os.path.exists(brief_path):
+        result["reach"] = checks.reach(buyers["data"], plan, load(brief_path, "brief", "a brief.json file")["data"])
     return result, 1 if result["failed"] else 0
 
 

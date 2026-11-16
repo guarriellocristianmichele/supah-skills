@@ -36,6 +36,33 @@ class NormalBuyers(unittest.TestCase):
         self.assertTrue(self.checks["budget_spread"]["passed"])
 
 
+class Reach(unittest.TestCase):
+    """The normal fixture's brief prices the offer at 9 EUR; b07 (school, budget 5) is the one buyer below it."""
+
+    def test_reach_counts_buyers_at_or_above_the_brief_price_by_segment(self):
+        result, code = run_json("variety", NORMAL)
+        self.assertEqual(code, 0)
+        self.assertEqual((result["reach"]["price"], result["reach"]["reached"], result["reach"]["buyers"]), (9, 6, 7))
+        self.assertEqual({s["name"]: (s["reached"], s["buyers"]) for s in result["reach"]["segments"]},
+                         {"solo": (2, 2), "studio": (2, 2), "agency": (2, 2), "school": (0, 1)})
+        self.assertIn("6 of 7 buyers have a budget at or above it", run("variety", NORMAL).stdout)
+
+    def test_reach_never_fails_the_panel(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("buyers.jsonl", "plan.json"):
+                shutil.copy(os.path.join(NORMAL, name), d)
+            brief = os.path.join(NORMAL, "brief.json")
+            with open(brief, encoding="utf-8") as f:
+                text = f.read().replace('"price": 9', '"price": 900')
+            write(d, "brief.json", text)
+            result, code = run_json("variety", d)
+        self.assertEqual((code, result["reach"]["reached"], result["failed"]), (0, 0, []))
+
+    def test_no_brief_no_reach(self):
+        result, _ = run_json("variety", os.path.join(FIXTURES, "uniform-buyers"))
+        self.assertNotIn("reach", result)
+
+
 class UniformBuyers(unittest.TestCase):
     """7 buyers for a plan of 8: six studio buyers at budget 30, two named Ana Ruiz, five saying too expensive."""
 

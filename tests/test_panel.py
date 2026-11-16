@@ -52,13 +52,14 @@ class Validate(unittest.TestCase):
         good = lines(os.path.join(NORMAL, "buyers.jsonl"))
         broken = dict(good[1])
         del broken["objection"]
+        del broken["need"]
         broken["last_spend"] = "a lot"
         with tempfile.TemporaryDirectory() as d:
             path = write(d, "buyers.jsonl", jsonl([good[0], broken, good[0]]))
             result, code = run_json("validate", path)
         self.assertEqual(code, 3)
         problems = {(e["line"], e["field"]) for e in result[0]["errors"]}
-        self.assertEqual(problems, {(2, "objection"), (2, "last_spend"), (3, "id")})
+        self.assertEqual(problems, {(2, "objection"), (2, "need"), (2, "last_spend"), (3, "id")})
 
     def test_well_formed_answers_and_scores_pass(self):
         r1 = os.path.join(NORMAL, "rounds", "r1")

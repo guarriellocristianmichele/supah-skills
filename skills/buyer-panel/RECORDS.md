@@ -67,6 +67,7 @@ Round labels are short and unique within the panel: `r1` for the first round; la
 | `habits` | text | how they work or live where the product would fit |
 | `current_solution` | text | what they use now, `nothing` included |
 | `last_spend` | number | what they last paid in the category |
+| `need` | text | what would make them look for something new now |
 | `objection` | text | one honest reason they might not buy anything new |
 
 With `plan.json` in the same folder (or in the same `validate` call), each buyer's segment must be in the plan and the budget inside its range.
@@ -103,7 +104,7 @@ With `plan.json` in the same folder (or in the same `validate` call), each buyer
 | `round` | text | the round's label |
 | `options` | list | the option ids in the order this buyer saw them: the round's options, reordered |
 | `reaction` | text | the free reaction, written before the choice |
-| `choice` | text | one of `options` |
+| `choice` | text | one of `options`: what they would take up on the card's terms; an option they pay for now and keep counts as that option |
 | `give_up` | text, may be empty | what the buyer gives up to pay; required when `choice` is `offer` |
 | `price` | object | `{too_cheap, cheap, expensive, too_expensive}`, four numbers in the card's currency |
 

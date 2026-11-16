@@ -14,7 +14,7 @@ How to turn `aggregate`'s numbers into a report that says what they can and cann
 
 ## The checks
 
-`panel.py checks` runs six checks on the answered and judged buyers of a round and exits 1 when any fails. Each catches one way a synthetic panel misleads (research note, `docs/research/2026-11-synthetic-panels.md` in the supah-skills repository). The research measured these failures; it set no cutoffs. Every threshold below is this skill's judgement, built from those measurements. Changing one is a reviewed change with a reason (ADR 0014), never an edit to rescue a round.
+`panel.py checks` runs seven checks on the answered and judged buyers of a round and exits 1 when any fails. Each catches one way a synthetic panel misleads (research note, `docs/research/2026-11-synthetic-panels.md` in the supah-skills repository). The research measured these failures; it set no cutoffs. Every threshold below is this skill's judgement, built from those measurements. Changing one is a reviewed change with a reason (ADR 0014), never an edit to rescue a round.
 
 | check | fails when | evidence | why this threshold |
 |---|---|---|---|
@@ -24,8 +24,9 @@ How to turn `aggregate`'s numbers into a report that says what they can and cann
 | `praise` | praise words (amazing, love, perfect... in English and Italian) pass 2 per 100 words of reaction | Sharma et al.: feedback warms when the model knows the user wrote or likes the work | the card hides the owner, so a buyer has no one to please. Praise says nothing about buying (the judge ignores tone), and more than one word in fifty means the framing leaked or the model is flattering. Reactions in other languages are not covered and read low |
 | `buy_share` | the raw share choosing the offer is over 0.5 | Sun and Morwitz: 15.3% of households said they would buy a computer and 5.7% did; Chen 2026: simulated customers push real non-buyers toward purchase | more than half the panel picking an unknown seller's new product over what they already pay for and over buying nothing is far above stated intent among people. It can happen, but it has to be shown on people before anyone believes it |
 | `order` | the share choosing whatever their card listed first is at least twice chance (chance is 1 over the number of options) | Dominguez-Olmedo et al.: survey answers driven by option position; Brand et al.: GPT gravitates toward the first option | `deal` shuffles every card, so each option leads equally often. Twice chance (50 of 100 against 25 with four options) is far beyond what shuffling gives by luck; this is a warning line, not a significance test |
+| `keep` | of the buyers who last paid something and whose current solution names an option on the cards (three or more of them), fewer than half take an option rather than `nothing` | Recurly: median SaaS churn about 3% (annual on its page, 3% to 5% a month in secondary reports); Chen 2026: the permission to leave already moved the purchase bias slightly negative | more than nine in ten real subscribers keep paying from one month to the next. Half of them walking away is over ten times the worst churn reported, so the panel refuses whatever it is shown, the BUY share is a floor, and a failed `spread` next to it is the floor, not flattening. Fewer than three such buyers: `n/a`, and the check passes |
 
-A check with fewer than two judged buyers reads `n/a` and fails. The checks catch these failures in the text; they cannot prove a round that passes is right.
+A check with fewer than two judged buyers reads `n/a` and fails; `keep` alone reads `n/a` and passes when fewer than three buyers pay for an option shown. The checks catch these failures in the text; they cannot prove a round that passes is right.
 
 **Advisory checks.** A screening round in `fix` and the try-out round in `pitch` hold a subset of the panel, chosen for a reason (the buyers who gave one pass reason, or one buyer type), so their spread and reasons are narrow by design. `checks --advisory` states their failures in an advisory line and exits 0: the report shows that line under `## Checks (advisory)`, and the full round's checks decide the verdict.
 
@@ -33,6 +34,7 @@ A check with fewer than two judged buyers reads `n/a` and fails. The checks catc
 
 - `spread`, `similarity`, `overlap`: buyers too alike (rewrite them per BUYERS.md with more varied habits and objections), or batches that leaked (smaller batches, fresh contexts).
 - `praise`, `buy_share`: a card that says who is asking, praises the offer or prices it apart from the alternatives (rewrite it per INTERVIEW.md); then the judge's tags and intents.
+- `keep`: buyers written with reasons to refuse and none to look (each needs a `need`, BUYERS.md), a worker brief that adds a base rate to the permission to leave, or a choice asked as "pay this month" against an offer with a trial (INTERVIEW.md); the buyers it lists chose `nothing` over a tool they pay for.
 - `order`: workers that ignored the order `deal` recorded (compare `options` in the answers with `cards.jsonl`), or cards with one option styled to win.
 
 **Buyer types.** `checks` also prints the line that marks buyer types as descriptive, with its reason: copy it under the checks table so no reader takes a split between types as a finding.

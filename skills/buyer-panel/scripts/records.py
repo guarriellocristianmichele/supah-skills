@@ -279,7 +279,8 @@ class Kind:
 
 KINDS = {k.name: k for k in (
     Kind("buyers", {"id": TEXT, "name": TEXT, "segment": TEXT, "budget": NUMBER, "currency": TEXT, "habits": TEXT,
-                    "current_solution": TEXT, "last_spend": NUMBER, "objection": TEXT}, lines=True, key=("id",)),
+                    "current_solution": TEXT, "last_spend": NUMBER, "need": TEXT,
+                    "objection": TEXT}, lines=True, key=("id",)),
     Kind("answers", {"buyer_id": TEXT, "round": TEXT, "reaction": TEXT, "choice": TEXT, "give_up": ANY_TEXT},
          lines=True, key=("buyer_id",), extra=answer_errors, folder="answers"),
     Kind("scores", {"buyer_id": TEXT, "round": TEXT, "reason": TEXT, "quote": TEXT}, lines=True, key=("buyer_id",),

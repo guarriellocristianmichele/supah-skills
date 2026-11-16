@@ -16,7 +16,9 @@ Buyers are written once per panel and never edited after the first round, so rou
 - `habits`: one or two sentences of concrete behaviour where the product would fit (how often, with what, for whom), no adjectives about personality.
 - `current_solution`: what they use now, drawn from the research's alternatives in the proportions it suggests, plus `nothing`, a spreadsheet, paper or a person doing it by hand where that is real.
 - `last_spend`: what they last paid in the category, consistent with the budget and the current solution (0 is common and honest).
+- `need`: what would make this buyer look for something new now, specific to their situation and drawn from the research where it says so ("two artists left last year and the roster has gaps"); a need the current solution already covers well is honest too.
 - `objection`: one honest reason this buyer might not buy anything new, specific to their situation ("IT will not approve a new vendor"), never a generic "too expensive". No two buyers share an objection word for word.
+- `need` and `objection` weigh the same: the interview, not the record, decides which wins. A buyer written with only reasons to refuse repeats them back, whatever the card says.
 
 ## The variety check
 
@@ -31,6 +33,8 @@ Buyers are written once per panel and never edited after the first round, so rou
 | `objections` | two buyers share an objection word for word, case and spacing aside | each objection is specific to one buyer's situation (above) |
 
 Segments of one or two buyers are not measured for spread, and the check reads `n/a` when no segment has three.
+
+With `brief.json` in the panel folder, `variety` also prints the **reach**: how many buyers, in all and by segment, have a budget at or above the brief's price. It never fails: a panel can rightly hold buyers who cannot pay. It is the user's to weigh before the interviews (RUN.md step 7), because buyers read their budget as a cap, and a plan of budgets below the price decides the round before any card is shown.
 
 ## What not to write
 

@@ -23,7 +23,7 @@ The directory that holds an audit's state across sessions (`.slop-audit/` for co
 _Avoid_: cache, report, state file
 
 **Batch**:
-A small group of findings fixed and reverted together, and published as one issue: in a code plan, one category in one area; in a design plan, a token/component, surface or handoff batch.
+A small group of findings fixed and reverted together, and published as one issue: in a code plan, one category in one area; in a design plan, a token/component, surface or handoff batch, worked by `sweep B<n>` (a handoff batch by `craft <surface>`).
 _Avoid_: ticket (the tracker's word), PR, chunk
 
 **Fallout**:

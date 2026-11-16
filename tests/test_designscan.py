@@ -662,6 +662,84 @@ class Plan(unittest.TestCase):
             self.assertIn("/ai-slop-design plan", doc("skills", "supah-help", name))
 
 
+class SweepBatch(unittest.TestCase):
+    """sweep B<n> works one planned batch with the ledger's keep file; a plain sweep on a large repo asks first."""
+
+    def sweep(self):
+        return doc("skills", "ai-slop-design", "SWEEP.md")
+
+    def batch(self):
+        return self.sweep().split("## Batch", 1)[1].split("\n## ", 1)[0]
+
+    def test_surfaces_out_prints_the_counts_the_threshold_reads(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name, line in (("next", "3 surfaces, 1 shared unit, 10 frontend files (nextjs)"),
+                               ("plain", "4 surfaces, 0 shared units, 5 frontend files (directories)")):
+                out = os.path.join(d, name + ".json")
+                res = run("surfaces", os.path.join(PLATFORMS, name), "--out", out)
+                self.assertEqual((res.returncode, res.stdout.strip()), (0, line))
+                with open(out, encoding="utf-8") as f:
+                    self.assertEqual(json.load(f)["files"], int(line.split(", ")[2].split()[0]))
+
+    def test_modes_table_and_hint_list_sweep_b_n_after_plan(self):
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        rows = [line for line in skill.splitlines() if line.startswith("| `")]
+        keys = [r.split("|")[1].strip() for r in rows]
+        self.assertEqual(keys.index("`sweep B<n>`"), keys.index("`plan`") + 1)
+        row = rows[keys.index("`sweep B<n>`")].split("|")
+        self.assertEqual(row[2].strip(), "`${CLAUDE_SKILL_DIR}/SWEEP.md` (Batch)")
+        hint = skill.split("argument-hint:", 1)[1].split("\n", 1)[0]
+        self.assertIn("| plan | sweep B<n>", hint)
+        self.assertIn("sweep B<n>", skill.split("description:", 1)[1].split("\n", 1)[0])
+
+    def test_sweep_b_n_scopes_to_the_batch_files_and_the_ledger_keep_file(self):
+        batch = self.batch()
+        self.assertIn("`sweep B<n>`", batch)
+        self.assertIn("the batch's `Files:`", batch)
+        self.assertIn("`.slop-design/keep.tsv`", batch)
+        self.assertIn("not judged again", batch)
+        self.assertIn("`Depends-on:`", batch)
+
+    def test_the_batch_findings_become_fixed_after_the_rescan_exits_0(self):
+        sweep = self.sweep()
+        ledger = sweep.split("11. **Ledger**", 1)[1].split("\n**Completion.**", 1)[0]
+        self.assertLess(sweep.index("8. **Rescan**"), sweep.index("11. **Ledger**"))
+        self.assertIn("every ID in its `Findings:` to `fixed`", ledger)
+        self.assertIn("`Status: done`", ledger)
+        self.assertIn("never writes to the tracker", ledger)
+        completion = sweep.split("**Completion.**", 1)[1]
+        self.assertIn("`fixed` in `findings.md`", completion)
+
+    def test_only_sweep_writes_the_verdict_log(self):
+        self.assertIn("designscan.py verdict", self.sweep())
+        self.assertIn(".slop-design/keep.tsv", self.sweep().split("9. **Record**", 1)[1].split("\n10. ", 1)[0])
+        for name in ("AUDIT.md", "PLAN.md"):
+            self.assertNotIn("designscan.py verdict", doc("skills", "ai-slop-design", name))
+
+    def test_a_plain_sweep_above_the_threshold_asks_to_audit_first(self):
+        scope = self.sweep().split("1. **Scope**", 1)[1].split("\n2. ", 1)[0]
+        self.assertIn("designscan.py surfaces --out", scope)
+        self.assertIn("above 5 surfaces or 40 frontend files", scope)
+        options = scope.split("ask with options", 1)[1]
+        first, everything, one = (options.index(k) for k in
+                                  ("audit first (recommended", "sweep everything", "sweep one path"))
+        self.assertLess(first, everything)
+        self.assertLess(everything, one)
+        self.assertIn("At or below the threshold", scope)
+
+    def test_readme_glossary_and_router_name_the_batch_sweep(self):
+        english, italian = doc("skills", "ai-slop-design", "README.md").split("## Italiano", 1)
+        for text in (english, italian):
+            self.assertIn("sweep B<n>", text)
+        self.assertIn("5 surfaces or 40 frontend files", english)
+        self.assertIn("5 superfici o 40 file", italian)
+        self.assertIn("`sweep B<n>`", doc("GLOSSARY.md").split("**Batch**:", 1)[1].split("\n\n", 1)[0])
+        for name in ("SKILL.md", "README.md"):
+            router = doc("skills", "supah-help", name)
+            self.assertIn("/ai-slop-design sweep B<n>", router)
+            self.assertIn("5 surfaces or 40 frontend files", router)
+
+
 class DuplicationOwnership(unittest.TestCase):
     RULES = ("`repeated-class-string`", "`duplicate-css-block`", "`untokened-colour`")
 

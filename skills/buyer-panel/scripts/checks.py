@@ -1,5 +1,6 @@
 """Checks that flag a round not to be trusted (READING.md, "The checks"), and buyers too alike to interview
 (BUYERS.md, "The variety check"): each threshold with its source and its reason. Stdlib only."""
+import random
 import re
 
 from records import NOTHING, OFFER, normalise
@@ -12,6 +13,11 @@ MAX_BUY_SHARE = 0.5       # raw share choosing the offer
 MAX_FIRST_TIMES_CHANCE = 2  # the option shown first, chosen this many times as often as chance gives
 MIN_KEEP = 0.5            # buyers who pay for an option shown and still take an option, not nothing
 MIN_KEEP_BUYERS = 3       # fewer such buyers than this: the keep rate is not measured
+PERSONA_RUN = 4           # words in a row, copied from a buyer's written objection into their reaction
+PERSONA_ALPHA = 0.05      # copying more often than shuffled buyers do, at this significance
+PERSONA_SHUFFLES = 999    # shuffles of objections across buyers for the permutation test
+MIN_PERSONA_BUYERS = 4    # 1/4! < 0.05: the fewest buyers whose shuffles can show copying at PERSONA_ALPHA
+ADVISORY_CHECKS = {"persona"}  # stated in the table and the report, never part of the verdict yet
 WORD = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")
 # function words left out of the overlap, so two reactions are alike for what they say, not for "the" and "I"
 STOP_WORDS = frozenset("""
@@ -29,7 +35,8 @@ meraviglioso meravigliosa ottimo ottima perfetto perfetta perfetti stupendo stup
 """.split())
 LABELS = {"spread": "intent spread", "similarity": "reason similarity", "overlap": "reaction overlap",
           "praise": "praise words",
-          "buy_share": "BUY share", "order": "first-option choice", "keep": "keep rate"}
+          "buy_share": "BUY share", "order": "first-option choice", "keep": "keep rate",
+          "persona": "persona copying"}
 SEGMENTS = {"descriptive_only": True,
             "why": "Buyer types are descriptive, not findings: synthetic panels flatten and misportray groups "
                    "(Wang, Morgenstern and Dickerson), and in Bisbee et al. 32% of the coefficients that differed "
@@ -113,6 +120,35 @@ def keep_rate(rnd, rows):
     return round(1 - len(left) / len(users), 3), left
 
 
+def runs(text):
+    """Every PERSONA_RUN words in a row of a text, lower-cased."""
+    found = words(text)
+    return {tuple(found[i:i + PERSONA_RUN]) for i in range(len(found) - PERSONA_RUN + 1)}
+
+
+def persona_copy(rnd, rows):
+    """(share of reactions holding a run of the buyer's own objection, the same share with objections shuffled
+    across buyers, one-sided permutation p); (None, None, None) below MIN_PERSONA_BUYERS. A real respondent never
+    read the written persona, so copying it is a simulation artefact; the shuffle discounts stock phrases."""
+    pairs = [(runs(rnd.buyers[r["buyer_id"]].get("objection") or ""), runs(rnd.answers[r["buyer_id"]]["reaction"]))
+             for r in rows]
+    pairs = [(o, a) for o, a in pairs if o]
+    if len(pairs) < MIN_PERSONA_BUYERS:
+        return None, None, None
+    objections = [o for o, _ in pairs]
+
+    def rate(order):
+        return sum(bool(objections[j] & a) for j, (_, a) in zip(order, pairs)) / len(pairs)
+
+    own = rate(range(len(pairs)))
+    order, shuffled, rng = list(range(len(pairs))), [], random.Random(0)
+    for _ in range(PERSONA_SHUFFLES):
+        rng.shuffle(order)
+        shuffled.append(rate(order))
+    p = (1 + sum(x >= own for x in shuffled)) / (PERSONA_SHUFFLES + 1)
+    return round(own, 3), round(sum(shuffled) / len(shuffled), 3), round(p, 3)
+
+
 def check(name, what, value, threshold, passed):
     return {"name": name, "what": what, "value": value, "threshold": threshold,
             "passed": value is not None and passed(value)}
@@ -147,7 +183,14 @@ def run_checks(rnd, advisory=False):
                                f"(measured from {MIN_KEEP_BUYERS} such buyers)", kept, f">= {MIN_KEEP:g}",
                        lambda v: v >= MIN_KEEP)
     found.append(dict(keep_check, passed=kept is None or keep_check["passed"], buyers=left))   # too few: not measured
-    failed = [c["name"] for c in found if not c["passed"]]
+    own, shuffled, p = persona_copy(rnd, rows)
+    found.append(dict(check("persona", f"share of reactions holding {PERSONA_RUN} words in a row of the buyer's "
+                                       f"own objection (measured from {MIN_PERSONA_BUYERS} buyers)", own,
+                            f"no more than shuffled buyers ({shuffled}), p >= {PERSONA_ALPHA:g}",
+                            lambda v: p >= PERSONA_ALPHA), passed=p is None or p >= PERSONA_ALPHA,
+                      shuffled=shuffled, p=p, advisory=True))
+    warned = [c["name"] for c in found if not c["passed"] and c["name"] in ADVISORY_CHECKS]
+    failed = [c["name"] for c in found if not c["passed"] and c["name"] not in ADVISORY_CHECKS]
     named = ", ".join(LABELS[n] for n in failed)
     if not failed:
         verdict = None
@@ -156,7 +199,8 @@ def run_checks(rnd, advisory=False):
                    "Read this round with care; it sets no verdict of its own.")
     else:
         verdict = f"Do not trust this round: {named} failed."
-    return {"buyers": len(rows), "advisory": advisory, "checks": found, "failed": failed, "verdict_line": verdict,
+    return {"buyers": len(rows), "advisory": advisory, "checks": found, "failed": failed, "warned": warned,
+            "verdict_line": verdict,
             "segments": SEGMENTS}
 
 

@@ -441,6 +441,39 @@ class Docs(unittest.TestCase):
             self.assertIn("/ai-slop-design craft <surface>", doc("skills", "supah-help", name))
 
 
+class DuplicationOwnership(unittest.TestCase):
+    RULES = ("`repeated-class-string`", "`duplicate-css-block`", "`untokened-colour`")
+
+    def test_code_audit_hands_frontend_duplication_to_the_design_ledger(self):
+        audit = doc("skills", "ai-slop-audit", "AUDIT.md")
+        step = audit.split("- **duplication (textual)**", 1)[1].split("\n- **", 1)[0]
+        for rule in self.RULES:
+            self.assertIn(rule, step)
+        self.assertIn("`.slop-design/findings.md` exists", step)
+        self.assertIn("`handoff:ai-slop-design`", step)
+
+    def test_call_graph_has_a_one_way_edge_from_the_code_audit_to_the_design_ledger(self):
+        adr = doc("docs", "adr", "0012-skills-reach-each-other-by-files-and-orchestrate.md")
+        graph = adr.split("## Call graph", 1)[1].split("\n## ", 1)[0]
+        edges = {line.split(" → ", 1)[0][2:]: line for line in graph.splitlines() if " → " in line}
+        self.assertIn("ai-slop-design's ledger", edges["ai-slop-audit"])
+        self.assertNotIn("ai-slop-audit", edges["ai-slop-design"])
+
+    def test_design_companions_keep_component_work_in_the_design_audit(self):
+        skill = doc("skills", "ai-slop-design", "SKILL.md")
+        note = skill.split("- **ai-slop-audit**:", 1)[1].split("\n- **", 1)[0]
+        self.assertIn("`handoff:ai-slop-design`", note)
+        self.assertIn("token/component batch", note)
+        self.assertIn("never calls it", note)
+
+    def test_readme_glossary_and_router_name_the_handoff(self):
+        english, italian = doc("skills", "ai-slop-audit", "README.md").split("## Italiano", 1)
+        self.assertIn("handoff:ai-slop-design", english)
+        self.assertIn("handoff:ai-slop-design", italian)
+        self.assertIn("`handoff:ai-slop-design`", doc("GLOSSARY.md").split("**Handoff**:", 1)[1].split("\n\n", 1)[0])
+        self.assertIn("`handoff:ai-slop-design`", doc("skills", "supah-help", "SKILL.md"))
+
+
 class Verdicts(unittest.TestCase):
     def test_every_resolved_hit_becomes_a_verdict(self):
         with tempfile.TemporaryDirectory() as d:

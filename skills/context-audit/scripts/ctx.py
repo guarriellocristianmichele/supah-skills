@@ -13,7 +13,9 @@
                                   skills, and every imperative rule line for the model to compare
 
 Common options: --project DIR (default: current directory), --home DIR (default: $CLAUDE_CONFIG_DIR
-or ~/.claude), --json. "est" tokens are characters / 4; first-request tokens are measured.
+or ~/.claude), --sessions N (newest transcripts to read, default 3), --json. "est" tokens are characters / 4;
+first-request tokens are measured. Exits 2 with one line when there is nothing to read: no transcripts
+for measure, or a --project or --home folder that does not exist.
 Transcripts are read for listings and hook output only; user prompts are never printed.
 """
 import argparse
@@ -26,6 +28,17 @@ import sys
 EST = 4  # characters per token, for text that has no measured count
 RULE = re.compile(r"\b(must|never|always|important|do not|don't|only|"
                   r"sempre|mai|deve|devono|vietato|obbligatori[oa])\b", re.I)
+# A sentence that opens with one of these verbs is an order even without a modal word ("Drop articles").
+# Words that more often open a sentence as a noun ("Build output", "Release notes") are left out.
+IMPERATIVE = re.compile(
+    r"(?:^|(?<=[.!?;:])\s+)(?:[-*+>]\s+|\d+[.)]\s+)?(?:\*\*|__)?(?:"
+    r"add|apply|ask|avoid|be|check|choose|cite|confirm|create|cut|define|delete|describe|do|drop|edit|"
+    r"ensure|explain|favou?r|fix|follow|give|go|hide|ignore|include|exclude|install|invoke|keep|lead|"
+    r"leave|let|make|mention|pass|pick|prefer|put|quote|read|refuse|remove|rename|replace|reply|"
+    r"resolve|respond|return|reuse|rewrite|run|say|show|skip|speak|split|stay|strip|talk|tell|think|"
+    r"translate|treat|trust|try|use|verify|wrap|write|no|"
+    r"usa|scrivi|evita|mantieni|metti|aggiungi|togli|rispondi|leggi|esegui|controlla|segui|chiedi|"
+    r"preferisci|ricorda|non)\b(?!['’-])", re.I)
 PATHLIKE = re.compile(r"^[~.\w-][\w./~-]*(/[\w.-]+|\.(md|py|json|ya?ml|toml|sh|txt|tsv|js|ts))$")
 TOPICS = [  # capability -> pattern over a skill's name and description
     ("test-driven development", r"tdd|test-driven|red-green"),
@@ -115,8 +128,57 @@ def owner(name):
     return name.split(":")[0] if ":" in name else "(built-in or user)"
 
 
-def measure_session(path):
-    first, prompts, hooks, seen, parts = None, 0, {}, set(), {}
+PLUGIN_PATH = re.compile(r"plugins[\\/](?:cache|marketplaces)[\\/][^\\/\s\"']+[\\/]([^\\/\s\"']+)")
+
+
+def hook_declarations(home, project):
+    """Who declared each hook: {command or status message: owner} and {event: {owners}}.
+    Transcripts record a hook's command unexpanded, or its status message in its place."""
+    by_command, by_event = {}, {}
+
+    def note(declared, who):
+        for event, groups in (declared or {}).items():
+            for group in groups if isinstance(groups, list) else []:
+                for h in (group or {}).get("hooks") or []:
+                    for key in (h.get("command"), h.get("statusMessage")):
+                        if key:
+                            by_command.setdefault(key, who)
+                by_event.setdefault(event, set()).add(who)
+
+    for key, root in enabled_plugins(home, project).items():
+        note(plugin_hooks(root), key.split("@")[0])
+    for path in settings_files(home, project):
+        note(load_json(path).get("hooks"), "(settings)")
+    return by_command, by_event
+
+
+def hook_owner(command, event, text, declarations):
+    by_command, by_event = declarations
+    if command in by_command:
+        return by_command[command]
+    m = PLUGIN_PATH.search(command or "")
+    if m:
+        return m.group(1)
+    if command:
+        return "?"
+    # no command recorded: one plugin declares this event, or one of those that do is named in the text
+    candidates = sorted(by_event.get(event) or ())
+    named = [c for c in candidates if re.search(r"\b%s\b" % re.escape(c), text, re.I)]
+    return candidates[0] if len(candidates) == 1 else named[0] if len(named) == 1 else "?"
+
+
+def json_context(stdout):
+    """additionalContext of a hook that answered in JSON."""
+    try:
+        data = json.loads(stdout or "")
+    except ValueError:
+        return None
+    out = data.get("hookSpecificOutput") if isinstance(data, dict) else None
+    return out.get("additionalContext") if isinstance(out, dict) else None
+
+
+def measure_session(path, declarations=({}, {})):
+    first, prompts, hooks, seen, parts, ran = None, 0, {}, set(), {}, {}
 
     def add(category, who, chars):
         bucket = parts.setdefault(category, {})
@@ -147,10 +209,16 @@ def measure_session(path):
                     for line in a.get("addedLines") or []:
                         add("agent listing", owner(line[2:].split(": ")[0]), len(line) + 1)
                 seen.add(t)
+            context = json_context(a.get("stdout")) if t == "hook_success" else None
+            if context:  # its text arrives next, in an attachment that names no command
+                ran[context[:80]] = a.get("command")
             text = injected(a)
             if text:
-                label = "%s: %s" % (a.get("hookEvent") or "?", text.strip().splitlines()[0][:60])
-                h = hooks.setdefault(label, {"times": 0, "chars": 0})
+                event = a.get("hookEvent") or "?"
+                label = "%s: %s" % (event, text.strip().splitlines()[0][:60])
+                command = a.get("command") or ran.get(text[:80])
+                h = hooks.setdefault(label, {"times": 0, "chars": 0,
+                                             "owner": hook_owner(command, event, text, declarations)})
                 h["times"] += 1
                 h["chars"] += len(text)
     breakdown = []
@@ -159,7 +227,8 @@ def measure_session(path):
         breakdown.append({"category": category, "est_tokens": est(sum(owners.values())),
                           "by_owner": [{"owner": o, "est_tokens": est(c)} for o, c in top]})
     breakdown.sort(key=lambda b: -b["est_tokens"])
-    hook_rows = [{"source": k, "times": v["times"], "est_tokens": est(v["chars"])}
+    hook_rows = [{"source": k, "owner": v["owner"], "times": v["times"], "est_tokens": est(v["chars"]),
+                  "est_tokens_per_fire": est(v["chars"] / v["times"])}
                  for k, v in sorted(hooks.items(), key=lambda kv: -kv[1]["chars"])]
     at_start = sum(b["est_tokens"] for b in breakdown) + sum(
         h["est_tokens"] for h in hook_rows if h["source"].startswith("SessionStart"))
@@ -174,7 +243,8 @@ def transcripts(home, project):
 
 
 def measure(home, project, n):
-    return [measure_session(f) for f in transcripts(home, project)[:n]]
+    declarations = hook_declarations(home, project)
+    return [measure_session(f, declarations) for f in transcripts(home, project)[:n]]
 
 
 def latest_listing(home, project):
@@ -220,24 +290,33 @@ def memory_dir(home, project):
     return os.path.join(home, "projects", slug(project), "memory")
 
 
+def settings_files(home, project):
+    return (os.path.join(home, "settings.json"), os.path.join(project, ".claude", "settings.json"),
+            os.path.join(project, ".claude", "settings.local.json"))
+
+
 def enabled_plugins(home, project):
     enabled = {}
-    for path in (os.path.join(home, "settings.json"), os.path.join(project, ".claude", "settings.json"),
-                 os.path.join(project, ".claude", "settings.local.json")):
+    for path in settings_files(home, project):
         enabled.update(load_json(path).get("enabledPlugins") or {})
     installed = load_json(os.path.join(home, "plugins", "installed_plugins.json")).get("plugins") or {}
     return {key: installed[key][-1].get("installPath") or "" for key, on in enabled.items()
             if on and installed.get(key)}
 
 
-def plugin_hook_events(root):
+def plugin_hooks(root):
+    """{event: [hook groups]} a plugin declares, in hooks/hooks.json or its plugin.json."""
     declared = dict(load_json(os.path.join(root, "hooks", "hooks.json")).get("hooks") or {})
     inline = load_json(os.path.join(root, ".claude-plugin", "plugin.json")).get("hooks")
     if isinstance(inline, dict):
         declared.update(inline.get("hooks", inline))
     elif isinstance(inline, str):
         declared.update(load_json(os.path.join(root, inline)).get("hooks") or {})
-    return sorted(e for e in declared if e in ("SessionStart", "UserPromptSubmit"))
+    return declared
+
+
+def plugin_hook_events(root):
+    return sorted(e for e in plugin_hooks(root) if e in ("SessionStart", "UserPromptSubmit"))
 
 
 def sources(home, project):
@@ -316,19 +395,28 @@ def overlaps(entries):
     return groups
 
 
+def is_rule(line):
+    if not line or line.startswith(("```", "|---")):
+        return False
+    return bool(RULE.search(line)) or (not line.startswith("#") and bool(IMPERATIVE.search(line)))
+
+
 def rule_lines(texts):
+    """Lines that give an order. Text a UserPromptSubmit hook adds is sent again with every prompt,
+    so all of it is an order."""
     rows = []
     for where, text in texts:
+        every = where == "hook UserPromptSubmit"
         for n, line in enumerate(text.splitlines(), 1):
             s = line.strip()
-            if s and RULE.search(s) and not s.startswith(("```", "|---")):
+            if is_rule(s) or (every and s and not s.startswith("```")):
                 rows.append({"where": where, "line": n, "text": s[:200]})
     return rows
 
 
-def hook_texts(home, project):
+def hook_texts(home, project, n):
     found, seen = [], set()
-    for path in transcripts(home, project)[:1]:
+    for path in transcripts(home, project)[:n]:
         for e in events(path):
             a = e.get("attachment") if e.get("type") == "attachment" else None
             text = injected(a) if isinstance(a, dict) else None
@@ -338,7 +426,7 @@ def hook_texts(home, project):
     return found
 
 
-def check(home, project):
+def check(home, project, n=3):
     texts = [(p, read(p)) for p, _ in instruction_files(home, project)]
     agents_md = os.path.abspath(os.path.join(project, "AGENTS.md"))
     if os.path.isfile(agents_md) and all(agents_md != p for p, _ in texts):
@@ -349,7 +437,7 @@ def check(home, project):
     return {"memory": memory_findings(home, project),
             "references": reference_findings(project, rel),
             "overlapping_skills": overlaps(latest_listing(home, project)),
-            "rules": rule_lines(rel + hook_texts(home, project))}
+            "rules": rule_lines(rel + hook_texts(home, project, n))}
 
 
 # ---------- output ----------
@@ -363,7 +451,8 @@ def print_text(cmd, data):
                 top = ", ".join("%s %d" % (o["owner"], o["est_tokens"]) for o in b["by_owner"][:5])
                 print("  %6d est  %-24s %s" % (b["est_tokens"], b["category"], top))
             for h in s["hooks"]:
-                print("  %6d est  hook x%-4d %s" % (h["est_tokens"], h["times"], h["source"]))
+                print("  %6d est  hook x%-4d %s (%s, %d est per fire)" % (
+                    h["est_tokens"], h["times"], h["source"], h["owner"], h["est_tokens_per_fire"]))
             if s["unattributed_tokens"] is not None:
                 print("  %6d      system prompt and tool schemas (not in the transcript)" % s["unattributed_tokens"])
     elif cmd == "sources":
@@ -379,6 +468,21 @@ def print_text(cmd, data):
         print("rules: %d lines (--json lists them)" % len(data["rules"]))
 
 
+NOTHING = 2  # exit status when there is nothing to read: a wrong directory or no transcripts
+
+
+def nothing(message):
+    print("ctx.py: " + message, file=sys.stderr)
+    return NOTHING
+
+
+def positive(value):
+    n = int(value) if re.fullmatch(r"\d+", value) else 0
+    if n < 1:
+        raise argparse.ArgumentTypeError("must be a whole number of 1 or more, not %r" % value)
+    return n
+
+
 def main():
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
@@ -386,17 +490,24 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("command", choices=("measure", "sources", "check"))
     p.add_argument("--project", default=os.getcwd())
-    p.add_argument("--home", default=os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"))
-    p.add_argument("--sessions", type=int, default=3)
+    p.add_argument("--home")
+    p.add_argument("--sessions", type=positive, default=3, help="newest transcripts to read (default 3)")
     p.add_argument("--json", action="store_true")
     a = p.parse_args()
     project = os.path.abspath(a.project)
+    home = a.home or os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    if not os.path.isdir(project):
+        return nothing("no project directory at %s" % project)
+    if a.home and not os.path.isdir(home):
+        return nothing("no Claude Code home at %s" % home)
     if a.command == "measure":
-        data = measure(a.home, project, a.sessions)
+        if not transcripts(home, project):
+            return nothing("no transcripts for %s in %s" % (project, os.path.join(home, "projects", slug(project))))
+        data = measure(home, project, a.sessions)
     elif a.command == "sources":
-        data = sources(a.home, project)
+        data = sources(home, project)
     else:
-        data = check(a.home, project)
+        data = check(home, project, a.sessions)
     if a.json:
         print(json.dumps(data, ensure_ascii=False, indent=1))
     else:

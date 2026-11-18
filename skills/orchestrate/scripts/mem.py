@@ -10,6 +10,9 @@
       running workers that must shed (printed as JSON).
       Exit 4 when workers flagged earlier are still running after --grace
       seconds and pressure persists (hard stop needed).
+      Exit 1 with {"event": "error", "error": ...} when state.json is missing,
+      unreadable or not a job state after a few reads 0.2 s apart (a file
+      caught mid-write is read again first).
 """
 import argparse
 import ctypes
@@ -69,9 +72,34 @@ def slots(avail, reserve, per_agent, cap):
     return max(0, min(cap, (avail - reserve) // per_agent))
 
 
-def load_state(state_dir):
-    with open(os.path.join(state_dir, "state.json"), encoding="utf-8") as f:
-        return json.load(f)
+class StateError(Exception):
+    """state.json is missing, unreadable or not a job state."""
+
+
+def read_state(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            state = json.load(f)
+    except FileNotFoundError:
+        raise StateError(f"no state.json at {path}")
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise StateError(f"state.json unreadable at {path}: {e}")
+    if not isinstance(state, dict) or not isinstance(state.get("workers", []), list) or not all(
+            isinstance(w, dict) and isinstance(w.get("id"), str) for w in state.get("workers", [])):
+        raise StateError(f"state.json at {path} is not a job state (an object whose workers each have an id)")
+    return state
+
+
+def load_state(state_dir, tries=5, pause=0.2):
+    """Read DIR/state.json; a file caught mid-write is read again before it counts as an error."""
+    path = os.path.join(state_dir, "state.json")
+    for attempt in range(tries):
+        try:
+            return read_state(path)
+        except StateError:
+            if attempt == tries - 1:
+                raise
+            time.sleep(pause)
 
 
 def running(state):
@@ -90,12 +118,20 @@ def cmd_status(args):
 
 
 def cmd_watch(args):
+    try:
+        return watch(args)
+    except StateError as e:
+        print(json.dumps({"event": "error", "error": str(e)}))
+        return 1
+
+
+def watch(args):
     stop_dir = os.path.join(args.state, "stop")
-    os.makedirs(stop_dir, exist_ok=True)
     flagged_at = {}
     min_avail = None
     while True:
         state = load_state(args.state)
+        os.makedirs(stop_dir, exist_ok=True)
         live = running(state)
         if not live:
             print(json.dumps({"event": "idle", "min_avail_mb": min_avail}))

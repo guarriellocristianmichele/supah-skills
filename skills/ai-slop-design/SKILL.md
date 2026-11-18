@@ -73,7 +73,7 @@ Scanned: a3f8d70
 Fix: one line from the rule's fix direction in REFLEXES.md.
 ```
 
-`Hit:` carries the rule and the match exactly as the scanner printed it; a judgment-only find has `Hit: judgment · <what was seen>`, a copy reflex `Hit: copy · <the string>`, a surface that sits in a lane `Hit: lane · <the lane as REFLEXES.md names it>`, a duplication group names every file in `Where:`. `Scanned: <sha>-dirty` marks a finding read in a file with uncommitted changes at that commit, so no permalink is pinned to it.
+`Hit:` carries the rule and the match exactly as the scanner printed it; a judgment-only find has `Hit: judgment · <what was seen>`, a copy reflex `Hit: copy · <the string>`, a surface that sits in a lane `Hit: lane · <the lane as REFLEXES.md names it>`, a duplication group names every file in `Where:`. `Scanned: <sha>-dirty` marks a finding read in a file with uncommitted changes at that commit, so no permalink is pinned to it; a duplication group with only some of its files uncommitted names them, `Scanned: <sha>-dirty (<file>, …)`, and its other files keep their permalinks.
 
 ## Companions
 

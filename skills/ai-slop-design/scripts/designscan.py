@@ -25,14 +25,24 @@
       fixed (its hit is gone), open (still there) or resolved (kept since), with the status it
       takes; hits no finding or keep line covers are new. Exit 1 while any is open or new.
       --write rewrites FINDINGS in place: each status, the line of a single-file Where:, and
-      Scanned: set to the fresh commit (<sha>-dirty for a finding in an uncommitted file).
+      Scanned: set to the fresh commit (<sha>-dirty for a finding in an uncommitted file; a
+      duplication group over several files names the uncommitted ones: <sha>-dirty (a.tsx)).
   designscan.py verdict ORIG FILE [ORIG FILE...] [--keep FILE]
       Record a verdict for every hit in ORIG: fixed in FILE = reflex, kept = chosen
       (or reflex for reason `handoff`), kept with reason `fp` = fp. Appends to the verdict log.
+  designscan.py verdict --judged FINDINGS [--keep FILE]
+      Record an audit's judgments once: each scanner finding not rejected = reflex, each keep
+      line = fp, reflex (handoff) or chosen. Prints each rule's progress toward 30 verdicts.
+  designscan.py learn | audit [--fraction F] [--rule RULE] | label FILE | export [--out FILE]
+      Rebuild the learned model and print each rule's precision; sample the model's fp verdicts
+      for a human to confirm; record that confirmed file; write per-rule counts (no matches) to
+      attach to an issue. The model lives in SUPAH_DESIGN_HOME (default: the user config folder,
+      supah-skills/design); --no-learn ignores it in a file scan (ADR 0018).
 
 A reflex is a design choice that appears whatever the subject. The scanner reads HTML, CSS,
 SCSS, JSX/TSX, Vue, Svelte and Astro source: class strings (class, className, :class, cn,
 clsx, twMerge, cva), CSS declarations and style objects, and visible text. It never renders.
+A file that is not UTF-8 is read as cp1252 (or Latin-1), and the scan names it with the encoding.
 
 Tiers: S = one hit is enough; M = fix unless there is a keep reason; W = review only.
 Keep file: TSV lines `rule<TAB>matched text<TAB>reason`; matching hits count as resolved.
@@ -316,10 +326,12 @@ def pairs(value):
     """(text colour, alpha, background colour) per variant group ('' and 'dark:') of one class string."""
     groups = {}
     for t in value.split():
-        m = re.match(r"^((?:dark:)?)(text|bg)-([a-z]+(?:-\d{2,3})?)(?:/(\d{1,3}))?$", t)
-        if m and m.group(3) in palette():
+        # a palette name (text-gray-400) or an arbitrary hex value (text-[#d97757]), with an optional /alpha
+        m = re.match(r"^((?:dark:)?)(text|bg)-([a-z]+(?:-\d{2,3})?|\[#[0-9a-fA-F]{3,8}\])(?:/(\d{1,3}))?$", t)
+        colour = m and (palette().get(m.group(3)) or (m.group(3)[1:-1] if m.group(3).startswith("[") else None))
+        if colour and rgb_of(colour):
             alpha = int(m.group(4)) / 100 if m.group(4) else 1.0
-            groups.setdefault(m.group(1), {})[m.group(2)] = (rgb_of(palette()[m.group(3)]), alpha, t)
+            groups.setdefault(m.group(1), {})[m.group(2)] = (rgb_of(colour), alpha, t)
     for g in groups.values():
         if "text" in g and "bg" in g and g["bg"][1] == 1.0:
             yield g["text"], g["bg"]
@@ -909,6 +921,8 @@ def scan_many(files, keep=None, model=None):
     results, sources, raw = [], [], {}
     for text, path in files:
         result = {"file": path, "skipped": None, "hits": []}
+        if path in READ_AS:
+            result["read_as"] = READ_AS[path]
         results.append(result)
         if os.path.splitext(path)[1].lower() not in EXTS:
             result["skipped"] = "not a frontend source file"
@@ -956,9 +970,22 @@ def open_hits(result):
     return [h for h in result["hits"] if not h["kept"] and h["tier"] in ("S", "M")]
 
 
+READ_AS = {}  # path -> the encoding a file that is not UTF-8 was read with
+
+
 def read(path):
-    with open(path, encoding="utf-8", errors="replace") as f:
-        return f.read()
+    """A file's text: UTF-8, else cp1252 (Windows Latin-1), else Latin-1, which decodes any byte.
+    A fallback is recorded in READ_AS, so a scan reports it instead of matching replacement characters."""
+    with open(path, "rb") as f:
+        data = f.read()
+    for encoding in ("utf-8", "cp1252", "latin-1"):
+        try:
+            text = data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+        if encoding != "utf-8":
+            READ_AS[path] = encoding
+        return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 # --- surfaces -----------------------------------------------------------------------------
@@ -1308,6 +1335,12 @@ def hits_summary(data, path):
         lines.append("uncommitted changes in %d scanned file%s, not pinned to %s: %s%s" % (
             len(dirty), "" if len(dirty) == 1 else "s", data.get("commit"), ", ".join(dirty[:10]),
             ", and %d more" % (len(dirty) - 10) if len(dirty) > 10 else ""))
+    read_as = {}
+    for u in data["units"]:
+        for r in u["files"]:
+            if r.get("read_as"):
+                read_as.setdefault(r["read_as"], []).append(r["file"])
+    lines += ["not UTF-8, read as %s: %s" % (enc, ", ".join(files)) for enc, files in sorted(read_as.items())]
     if dup:
         lines.append("duplication across units (%d groups):" % len(dup))
         lines += ["  %s  %d files  %s" % (rule, len(files), match[:80]) for (rule, match), files in sorted(dup.items())]
@@ -1442,7 +1475,11 @@ def reconcile(findings, data, keep):
             else:
                 entry["state"] = "fixed"
         entry["status"] = next_status(f["was"], entry["state"])
-        entry["dirty"] = any(p in dirty for p in {path for path, _ in f["where"]} | set(entry.get("files", ())))
+        files = {path for path, _ in f["where"]} | set(entry.get("files", ()))
+        # a group over several files names the uncommitted ones, so the others keep their permalinks
+        entry["dirty_files"] = sorted(p for p in files if p in dirty)
+        entry["dirty"] = bool(entry["dirty_files"])
+        entry["all_dirty"] = entry["dirty"] and len(entry["dirty_files"]) == len(files)
         out.append(entry)
     new, resolved = [], []
     for i, (unit, path, h) in enumerate(fresh):
@@ -1471,7 +1508,9 @@ def write_findings(text, result):
         parts += [text[at:m.start()], m.group(0).replace("status: " + m.group(3), "status: " + f["status"])]
         if f["state"] != "unchecked" and result["commit"]:
             commit = result["commit"] + ("-dirty" if f["dirty"] else "")
-            body = re.sub(r"^(Scanned:[ \t]*)\S*", lambda s: s.group(1) + commit, body, count=1, flags=re.M)
+            if f["dirty"] and not f["all_dirty"]:
+                commit += " (%s)" % ", ".join(f["dirty_files"])
+            body = re.sub(r"^(Scanned:[ \t]*).*?[ \t]*$", lambda s: s.group(1) + commit, body, count=1, flags=re.M)
         if f["line"] is not None:
             body = re.sub(r"^(Where:[ \t]*[^,\n]+:)\d+[ \t]*$", lambda s: "%s%d" % (s.group(1), f["line"]), body,
                           count=1, flags=re.M)
@@ -1673,6 +1712,8 @@ def main():
         for r in results:
             if r["skipped"]:
                 print("%s: skipped, %s" % (r["file"], r["skipped"]))
+            if r.get("read_as"):
+                print("%s: not UTF-8, read as %s" % (r["file"], r["read_as"]))
             for h in r["hits"]:
                 print("%s:%d  %s %-22s %s%s" % (r["file"], h["line"], h["tier"], h["rule"], h["match"],
                                                "  [kept: %s]" % h["kept"] if h["kept"] else ""))

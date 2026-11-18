@@ -60,6 +60,17 @@ class Basics(unittest.TestCase):
             r, code = scan(path, "--keep", keep)
         self.assertEqual((code, r["hits"][0]["kept"]), (0, "brand"))
 
+    def test_a_latin_1_file_is_decoded_and_says_so(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "menu.html")
+            with open(path, "wb") as f:
+                f.write("<p>Café · Wine · Bar</p>\n".encode("latin-1"))
+            r, _ = scan(path)
+            plain = run(path).stdout
+        self.assertEqual([(h["rule"], h["match"]) for h in r["hits"]], [("middot-meta", "Café · Wine · Bar")])
+        self.assertEqual(r["read_as"], "cp1252")
+        self.assertIn("%s: not UTF-8, read as cp1252" % path, plain)
+
     def test_non_frontend_file_is_skipped(self):
         with tempfile.TemporaryDirectory() as d:
             r, code = scan(write(d, "notes.py", "x = 'bg-clip-text text-transparent'\n"))
@@ -196,6 +207,13 @@ class Regressions(unittest.TestCase):
         self.assertEqual([r for r, _ in self.hits("a.tsx", '<p className="text-gray-500 bg-gray-100">x</p>\n')],
                          ["low-contrast"])
 
+    def test_contrast_reads_arbitrary_colour_values(self):
+        r, _ = scan(os.path.join(FIX, "contrast.tsx"))
+        # ratios worked out with the WCAG 2 formula, not with the scanner
+        self.assertEqual([(h["line"], h["match"]) for h in r["hits"] if h["rule"] == "low-contrast"],
+                         [(4, "text-[#d97757] on bg-[#f4f1ea] 2.8:1"), (6, "text-gray-400 on bg-[#ffffff] 2.5:1"),
+                          (7, "text-[#ffffff]/40 on bg-[#111827] 3.8:1")])
+
     def test_chromatic_hex_is_not_black_or_white(self):
         self.assertEqual(self.hits("a.css", ".a { color: #000fff; border-color: #fff000; }\n"), [])
 
@@ -237,12 +255,22 @@ class Regressions(unittest.TestCase):
             return [m for r, m in self.hits("a.css", text) if r == "untokened-colour"]
         self.assertEqual(colour(six), colour(five))
 
+    def test_a_snapshot_named_stem_orig_ext_is_read_as_its_language(self):
+        with tempfile.TemporaryDirectory() as d:
+            r, _ = scan(write(d, "Hero.orig.tsx", '<button className="transition-all">Go</button>\n'))
+        self.assertEqual((r["skipped"], [h["rule"] for h in r["hits"]]), (None, ["transition-all"]))
+        for name in ("SWEEP.md", "CRAFT.md"):
+            text = doc("skills", "ai-slop-design", name)
+            self.assertIn("`<stem>.orig<ext>`", text, name)
+            self.assertNotIn("`<name>.orig`", text, name)
+        self.assertIn("<scratchpad>/<stem>.orig<ext> <file>", doc("skills", "ai-slop-design", "SWEEP.md"))
+
     def test_verdict_takes_every_pair_so_duplication_is_judged_across_files(self):
         with tempfile.TemporaryDirectory() as d:
             pairs = []
             for name in ("dup-a.tsx", "dup-b.tsx"):
                 with open(os.path.join(FIX, name), encoding="utf-8") as f:
-                    pairs += [write(d, name + ".orig", f.read()), write(d, name, "export {};\n")]
+                    pairs += [write(d, name.replace(".", ".orig.", 1), f.read()), write(d, name, "export {};\n")]
             out = run("verdict", *pairs, env={"SUPAH_DESIGN_HOME": d})
             with open(os.path.join(d, "verdicts.tsv"), encoding="utf-8") as f:
                 rows = [line.split("\t") for line in f][1:]
@@ -387,6 +415,17 @@ class HitsFile(unittest.TestCase):
         home = [u for u in grouped["units"] if u["unit"] == "/"][0]
         self.assertIn("gradient-text", {h["rule"] for r in home["files"] for h in r["hits"]})
 
+    def test_the_summary_names_files_that_are_not_utf_8(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "menu"))
+            with open(os.path.join(d, "menu", "index.html"), "wb") as f:
+                f.write("<p>Café · Wine · Bar</p>\n".encode("latin-1"))
+            inv, hits = os.path.join(d, "surfaces.json"), os.path.join(d, "hits.json")
+            run("surfaces", d, "--out", inv)
+            summary = run("--surfaces", inv, "--out", hits).stdout
+        self.assertIn("1 hits", summary)
+        self.assertIn("not UTF-8, read as cp1252: %s/menu/index.html" % d.replace("\\", "/"), summary)
+
     def test_a_worker_reads_its_unit_without_the_duplication_hits(self):
         with tempfile.TemporaryDirectory() as d:
             for sub, name in (("checkout", "dup-a.tsx"), ("account", "dup-b.tsx"), ("styles", "dup.css")):
@@ -504,6 +543,25 @@ class Reconcile(unittest.TestCase):
         self.assertEqual(scanned, {"DS-001": self.sha + "-dirty", "DS-002": self.sha + "-dirty", "DS-003": self.sha})
         data, _ = self.reconcile({"pages/Home.tsx": HOME_PAGE}, commit=True)
         self.assertEqual((self.inventory["dirty"], self.hits["dirty"], data["dirty"]), ([], [], []))
+
+    def test_a_duplication_finding_names_only_its_uncommitted_files(self):
+        with open(os.path.join(FIX, "dup-a.tsx"), encoding="utf-8") as f:
+            dup = f.read()
+        ledger = ("### DS-003 · duplication · status: open\nSurface: shared\n"
+                  "Hit: repeated-class-string · `font-medium inline-flex items-center justify-center px-4 py-2 "
+                  "rounded-md text-sm`\nWhere: pages/Pay.tsx:2, pages/Save.tsx:2\nScanned: a3f8d70\n"
+                  "Fix: one Button component.\n")
+        now = {"pages/Pay.tsx": dup, "pages/Save.tsx": dup}
+        data, _ = self.reconcile(now, ledger, "", "--write", commit=True, dirty={"pages/Save.tsx": "\n" + dup})
+        finding = data["findings"][0]
+        self.assertEqual((finding["dirty"], finding["dirty_files"]), (True, ["pages/Save.tsx"]))
+        self.assertIn("Scanned: %s-dirty (pages/Save.tsx)\n" % self.sha, self.ledger)
+        data, _ = self.reconcile(now, self.ledger, "", "--write", commit=True,
+                                 dirty={"pages/Pay.tsx": "\n" + dup, "pages/Save.tsx": "\n" + dup})
+        self.assertIn("Scanned: %s-dirty\n" % self.sha, self.ledger)
+        data, _ = self.reconcile(now, self.ledger, "", "--write", commit=True)
+        self.assertEqual(data["findings"][0]["dirty_files"], [])
+        self.assertIn("Scanned: %s\nFix:" % self.sha, self.ledger)
 
     def states(self, data):
         return {f["id"]: (f["state"], f["status"]) for f in data["findings"]}
@@ -749,6 +807,22 @@ class SweepBatch(unittest.TestCase):
         self.assertIn("not judged again", batch)
         self.assertIn("`Depends-on:`", batch)
 
+    def test_a_batch_already_done_or_missing_stops_with_a_rule(self):
+        load = self.batch().split("- **Load**", 1)[1].split("\n- **", 1)[0]
+        self.assertIn("No block for `B<n>`: name the batch IDs `plan.md` holds and stop", load)
+        self.assertIn("`Status: done`: the batch was already worked; say so and stop", load)
+        several = self.sweep().split("## Several batches", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("listed as `missing` or `already done` and left out", several)
+        self.assertIn("`sweep .slop-design/issues/map.md`", several)
+
+    def test_a_fix_keeps_what_removed_words_told_the_reader(self):
+        fix = self.sweep().split("5. **Fix**", 1)[1].split("\n6. ", 1)[0]
+        self.assertIn("never what it tells the reader or what it does", fix)
+        self.assertIn("moves into the text that stays", fix)
+        eyebrow = doc("skills", "ai-slop-design", "REFLEXES.md").split("- `eyebrow`:", 1)[1].split("\n", 1)[0]
+        self.assertNotIn("delete it,", eyebrow)
+        self.assertIn("fold what it tells the reader into the heading", eyebrow)
+
     def test_the_batch_findings_become_fixed_after_the_rescan_exits_0(self):
         sweep = self.sweep()
         ledger = sweep.split("11. **Ledger**", 1)[1].split("\n**Completion.**", 1)[0]
@@ -841,6 +915,15 @@ class Publish(unittest.TestCase):
         self.assertIn("`.slop-design/issues/<B>.md`", local)
         ledger = doc("skills", "ai-slop-design", "SKILL.md").split("## Ledger", 1)[1].split("\n## ", 1)[0]
         self.assertIn("- `issues/`:", ledger)
+
+    def test_local_issue_files_carry_a_state_the_sync_reads_and_sweep_sets(self):
+        local = self.publish().split("## Local issues", 1)[1].split("\n## ", 1)[0]
+        for form in ("`.slop-design/issues/B<n>.md`", "`.slop-design/issues/map.md`", "`State: open`",
+                     "`State: done`", "`State: wontfix`", "`<path>:<start>-<end> @ <sha>`"):
+            self.assertIn(form, local)
+        self.assertIn("the file's `State:` line is the state", self.step(3, "Sync"))
+        ledger = doc("skills", "ai-slop-design", "SWEEP.md").split("11. **Ledger**", 1)[1].split("\n**Completion.**", 1)[0]
+        self.assertIn("set that file's first line to `State: done`", ledger)
 
     def test_mattpocock_tracker_is_followed_and_its_formats_stay_theirs(self):
         route = self.step(2, "Route")
@@ -998,6 +1081,14 @@ class Usage(unittest.TestCase):
         out = run("--help").stdout
         self.assertIn("reconcile FINDINGS HITS [--keep FILE] [--json] [--write]", out)
         self.assertIn("--write rewrites FINDINGS", out)
+
+    def test_help_lists_every_subcommand_main_accepts(self):
+        out = run("--help").stdout
+        usage = " ".join(line for line in out.splitlines() if line.startswith("  designscan.py "))
+        listed = set(re.findall(r"(?<![-\w])[a-z]+(?![-\w])", usage))
+        for command in ("rules", "surfaces", "hits", "reconcile", "verdict", "learn", "audit", "label", "export"):
+            self.assertIn(command, listed)
+        self.assertIn("verdict --judged FINDINGS", out)
 
 
 class Verdicts(unittest.TestCase):

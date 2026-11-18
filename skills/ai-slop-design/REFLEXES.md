@@ -17,7 +17,7 @@ Each rule says what it matches, why it reads as a reflex, the keep reasons that 
 
 - `reflex-font`: the primary face of a `font-family`, a Google Fonts link, a `next/font/google` import or an `@fontsource` package is on the dated reflex list (Inter, Geist, Roboto, Poppins, Space Grotesk, Fraunces, Instrument Serif, Playfair Display, DM Sans…). Training-data defaults; they make every page sound alike. Keep: `brand`. Fix: DIRECTION.md's font procedure. Moving to the next name on the list is not a fix.
 - `accent-word-heading`: a heading with one word in italic, a colour or a gradient. Keep: `brief` when the brief asks for it. Fix: let size, weight and space carry the heading; emphasis comes from the sentence.
-- `eyebrow`: small tracked caps right before a heading. Repeated above every section, it is template grammar. Keep: `brand` when it is a named system used once or twice. Fix: delete it, or fold its information into the heading.
+- `eyebrow`: small tracked caps right before a heading. Repeated above every section, it is template grammar. Keep: `brand` when it is a named system used once or twice. Fix: fold what it tells the reader into the heading or the text below, then remove it; one that only repeats the heading goes as it is. Its information stays on the page (SWEEP.md step 5).
 - `tracked-caps`: small uppercase text with wide tracking elsewhere (labels, badges, nav). Keep: `content` for real short labels. Fix: sentence case at a readable size.
 - `mono-label`: monospace for small labels on a page that is not about code. Mono as costume for "technical". Keep: `content` for code, data, version strings. Fix: the body face, or a figure style (tabular numbers) when alignment matters.
 

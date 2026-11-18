@@ -2,7 +2,7 @@
 
 Eleven categories, swept in this order. `rule` names are scanner rule ids; tells without one are read for by the model. Tiers: **S** rewrite on one sighting; **M** rewrite unless a keep reason applies; **W** act only when the scanner flags its metric, then thin the pattern out instead of fixing each instance.
 
-The tiers below are the designed ones. Calibration admits many rules one tier lower for a language (`scripts/calibration.json`), and each hit carries the tier it was admitted at: that tier is the one to act on. A hit at W, or marked `auto:` or `learned:`, leaves the rescan clean; rewrite it when it is in fact a tell.
+The tiers below are the designed ones. Calibration admits many rules one tier lower for a language (`scripts/calibration.json`), and each hit carries the tier it was admitted at: that tier is the one to act on. A hit at W, or marked `auto:` or `learned:`, leaves the rescan clean; rewrite it when it is in fact a tell. A hit marked `isolated` is an M hit shown at W: with no S hit in the text, M hits are required fixes only when enough distinct M rules agree (calibrated per language), and one rule alone is not enough evidence.
 
 Every fix states the point plainly, in the author's voice. A fix that swaps one tell for another (a contrast turned into a rhetorical question, a fragment into a colon reveal) is not done.
 
@@ -10,7 +10,7 @@ Every fix states the point plainly, in the author's voice. A fix that swaps one 
 
 Leftovers of a chat, never meant for the reader.
 
-- S `chat-residue`: "I hope this helps", "Great question", "Let me know if…", "Certo! Ecco…", "Se vuoi, posso…", "Hai perfettamente ragione".
+- S `chat-residue`: "I hope this helps", "Great question", "Let me know if…", "Certo! Ecco…", "Spero che questo ti sia utile!", "Se vuoi, posso…", "Hai perfettamente ragione".
 - M `ecco-opener` (IT): a reply that opens by presenting itself, "Certo! Ecco una versione…", "Ecco come…".
 - S `ai-disclaimer`: "as of my last knowledge update", "As an AI language model", "Come modello linguistico".
 - S `placeholder`: `[Your Name]`, `[Inserisci data]`, `2025-xx-xx`, `INSERT_URL`.

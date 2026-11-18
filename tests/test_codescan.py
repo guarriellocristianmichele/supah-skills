@@ -11,11 +11,11 @@ SCAN = os.path.join(ROOT, "skills", "ai-slop-audit", "scripts", "codescan.py")
 FIX = os.path.join(ROOT, "tests", "fixtures", "code")
 
 
-def run(*args, env=None):
+def run(*args, env=None, cwd=None):
     # designed tiers, no learned model; calibration and learning are tested on their own
     env = dict(dict(os.environ, SUPAH_CODE_NO_CALIBRATION="1", SUPAH_CODE_NO_LEARN="1"), **(env or {}))
     return subprocess.run([sys.executable, SCAN, *args], capture_output=True, text=True, encoding="utf-8",
-                          env=env, timeout=60)
+                          env=env, cwd=cwd, timeout=60)
 
 
 def scan(path, *extra, env=None):
@@ -144,8 +144,8 @@ class JudgedOnce(unittest.TestCase):
                 f.write("fp\t%s\t1\tforwarding-wrapper\n" % path)
             run("verdict", "--judged", judged, env=env)
             with open(judged, "w", encoding="utf-8") as f:
-                f.write("fp\t%s\t1\tforwarding-wrapper\n" % os.path.relpath(path))
-            second = run("verdict", "--judged", judged, env=env)
+                f.write("fp\tclient.py\t1\tforwarding-wrapper\n")  # the same file, relative to the cwd below
+            second = run("verdict", "--judged", judged, env=env, cwd=d)
         self.assertIn("recorded 0 verdicts", second.stdout)
         self.assertIn("1 already recorded", second.stdout)
         self.assertIn("forwarding-wrapper/py: 1/30 verdicts", second.stdout)

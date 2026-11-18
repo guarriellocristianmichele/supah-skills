@@ -29,16 +29,21 @@ EST = 4  # characters per token, for text that has no measured count
 RULE = re.compile(r"\b(must|never|always|important|do not|don't|only|"
                   r"sempre|mai|deve|devono|vietato|obbligatori[oa])\b", re.I)
 # A sentence that opens with one of these verbs is an order even without a modal word ("Drop articles").
-# Words that more often open a sentence as a noun ("Build output", "Release notes") are left out.
+# Words that more often open a sentence as a noun ("Build output", "Release notes") are left out, and so
+# is a verb followed by a noun and a finite verb ("Return values are cached") or by a pointer ("Read more
+# in the docs"). Only a line or sentence start counts, not the text after a colon or semicolon. Italian
+# "non" is an order only before an infinitive ("Non usare"), never before a verb ("Non è").
 IMPERATIVE = re.compile(
-    r"(?:^|(?<=[.!?;:])\s+)(?:[-*+>]\s+|\d+[.)]\s+)?(?:\*\*|__)?(?:"
+    r"(?:^|(?<=[.!?])\s+)(?:[-*+>]\s+|\d+[.)]\s+)?(?:\*\*|__)?(?:"
     r"add|apply|ask|avoid|be|check|choose|cite|confirm|create|cut|define|delete|describe|do|drop|edit|"
     r"ensure|explain|favou?r|fix|follow|give|go|hide|ignore|include|exclude|install|invoke|keep|lead|"
     r"leave|let|make|mention|pass|pick|prefer|put|quote|read|refuse|remove|rename|replace|reply|"
     r"resolve|respond|return|reuse|rewrite|run|say|show|skip|speak|split|stay|strip|talk|tell|think|"
-    r"translate|treat|trust|try|use|verify|wrap|write|no|"
+    r"translate|treat|trust|try|use|verify|wrap|write|"
     r"usa|scrivi|evita|mantieni|metti|aggiungi|togli|rispondi|leggi|esegui|controlla|segui|chiedi|"
-    r"preferisci|ricorda|non)\b(?!['’-])", re.I)
+    r"preferisci|ricorda|non\s+\w+(?:are|ere|ire))\b(?!['’-])"
+    r"(?!\s+[\w'’-]+\s+(?:is|are|was|were|has|have|sono|è|era|erano)\b)"
+    r"(?!\s+more\s+(?:in|at|about|on|here|below|from)\b)", re.I)
 PATHLIKE = re.compile(r"^[~.\w-][\w./~-]*(/[\w.-]+|\.(md|py|json|ya?ml|toml|sh|txt|tsv|js|ts))$")
 TOPICS = [  # capability -> pattern over a skill's name and description
     ("test-driven development", r"tdd|test-driven|red-green"),

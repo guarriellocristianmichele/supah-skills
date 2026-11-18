@@ -169,6 +169,21 @@ class ImperativeRules(Sandbox):
                       [(r["where"], r["text"]) for r in rules])
 
 
+    def test_statements_that_open_with_a_verb_shaped_word_are_not_rules(self):
+        orders = ["Drop articles and filler.", "- Write terse fragments.",
+                  "Invoke a skill before any response.", "Usa frasi brevi.", "Non usare il grassetto.",
+                  "Scrivi i commit in inglese.", "1. Keep the diff small."]
+        statements = ["No transcripts are kept here.", "Return values are cached.", "Read more in the docs.",
+                      "Non è un problema.", "Setup notes: run times vary by machine.",
+                      "The cache is warm; keep reading for details.", "No, the build is fine."]
+        put(os.path.join(self.project, "AGENTS.md"), "\n".join(orders + statements) + "\n")
+        texts = [r["text"] for r in self.ctx_json("check")["rules"]]
+        for line in orders:
+            self.assertIn(line, texts)
+        for line in statements:
+            self.assertNotIn(line, texts)
+
+
 class HookRows(Sandbox):
     def plugin(self, name, hooks):
         root = os.path.join(self.home, "plugins", "cache", "m", name, "1.0")

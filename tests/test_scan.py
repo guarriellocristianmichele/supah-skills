@@ -134,8 +134,9 @@ class KeepFile(unittest.TestCase):
     def test_repository_keep_file_is_read_without_a_flag(self):
         # a hit kept on purpose stays kept next session: the keep file lives in the repository, not the scratchpad
         with tempfile.TemporaryDirectory() as d:
-            subprocess.run(["git", "init", "-q", d], check=True)
-            os.makedirs(os.path.join(d, "docs"))
+            with open(os.path.join(d, ".git"), "w") as f:  # a worktree's .git is a file; found walking up
+                f.write("gitdir: elsewhere\n")
+            os.makedirs(os.path.join(d, "docs", "deep"))
             doc = os.path.join(d, "docs", "post.md")
             shutil.copy(os.path.join(FIX, "compare-original.md"), doc)
             with open(os.path.join(d, ".slop-prose-keep.tsv"), "w", encoding="utf-8-sig") as f:
@@ -143,13 +144,21 @@ class KeepFile(unittest.TestCase):
             extra = os.path.join(d, "extra.tsv")
             with open(extra, "w", encoding="utf-8") as f:
                 f.write("em-dash\t—\tquote\n")
-            out = run("--json", "--keep", extra, doc, cwd=os.path.join(d, "docs"))
+            out = run("--json", "--keep", extra, doc, cwd=os.path.join(d, "docs", "deep"))
             r = json.loads(out.stdout)[0]
             self.assertEqual(out.returncode, 0, [h for h in r["hits"] if not h["kept"]])
             self.assertEqual(run(doc, cwd=d).returncode, 1)  # the em dashes are kept only by --keep
             missing = run("--keep", os.path.join(d, "nope.tsv"), doc, cwd=d)
         self.assertEqual(missing.returncode, 2)
         self.assertIn("keep file not found", missing.stderr)
+
+    def test_outside_a_repository_the_keep_file_of_the_current_folder_is_read(self):
+        with tempfile.TemporaryDirectory() as d:
+            doc = os.path.join(d, "post.md")
+            shutil.copy(os.path.join(FIX, "compare-original.md"), doc)
+            with open(os.path.join(d, ".slop-prose-keep.tsv"), "w", encoding="utf-8") as f:
+                f.write("not-x-its-y\tisn't just a trend — it's\tquote\nem-dash\t—\tquote\n")
+            self.assertEqual(run(doc, cwd=d).returncode, 0)
 
     def test_an_empty_file_has_no_words(self):
         with tempfile.TemporaryDirectory() as d:

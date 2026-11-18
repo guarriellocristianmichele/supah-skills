@@ -145,7 +145,7 @@ Prints every rule id with its category, tier and language, the metric thresholds
 
 ### Keep file
 
-`.slop-prose-keep.tsv` at the repository root (the git top level of the folder you run from) is always read, so a hit kept on purpose stays kept in the next session; commit it with the rewrite. `--keep FILE` adds another, for text outside any repository. It is a tab-separated file, one entry per line, saved as UTF-8 with or without a BOM. Lines starting with `#` are ignored.
+`.slop-prose-keep.tsv` at the repository root (the first folder up from where you run it that holds `.git`, else that folder) is always read, so a hit kept on purpose stays kept in the next session; commit it with the rewrite. `--keep FILE` adds another, for text outside any repository. It is a tab-separated file, one entry per line, saved as UTF-8 with or without a BOM. Lines starting with `#` are ignored.
 
 ```tsv
 # rule	matched text (as printed in the hit table)	reason

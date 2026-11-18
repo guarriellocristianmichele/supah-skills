@@ -45,7 +45,6 @@ import json
 import os
 import re
 import statistics
-import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -424,13 +423,17 @@ REPO_KEEP = ".slop-prose-keep.tsv"
 
 
 def repo_keep():
-    """The keep file at the repository root (the git top level of the current folder, else the folder)."""
-    try:
-        out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
-        root = out.stdout.strip() if out.returncode == 0 else os.getcwd()
-    except OSError:  # no git on PATH
-        root = os.getcwd()
-    return os.path.join(root, REPO_KEEP)
+    """The keep file at the repository root: the first folder up from the current one holding a `.git`
+    entry (a folder, or a worktree's file), else the current folder. No git process: on Windows a
+    git.exe planted in the scanned repository would run before the one on PATH."""
+    here = start = os.path.abspath(os.getcwd())
+    while not os.path.exists(os.path.join(here, ".git")):
+        parent = os.path.dirname(here)
+        if parent == here:
+            here = start
+            break
+        here = parent
+    return os.path.join(here, REPO_KEEP)
 
 
 def load_keep(*paths):

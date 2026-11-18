@@ -10,5 +10,5 @@ The minimum moves from 3.8 to 3.10. Python 3.8 reached end of life in October 20
 
 ## Consequences
 
-- CI tests 3.10 and 3.13 on `ubuntu-latest`, `windows-latest`, and 3.13 on `macos-latest`.
+- CI tests 3.10 and 3.13 on `ubuntu-latest` and `windows-latest`. `macos-latest` was dropped because its runners queued for longer than the rest of the suite took, so the macOS branch of `mem.py` (`vm_stat`, `sysctl`) is no longer exercised in CI.
 - Scripts may use 3.10 features (structural pattern matching, `X | Y` type unions, parenthesised context managers).

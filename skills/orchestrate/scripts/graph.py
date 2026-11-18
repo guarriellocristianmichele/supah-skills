@@ -80,11 +80,17 @@ def imply(units):
     the earlier one in table order goes first. Return {unit: [implied blockers]}."""
     by_id = {u["unit"]: u for u in units}
 
-    def after(a, b, seen=None):  # a is transitively blocked by b
-        seen = set() if seen is None else seen
-        for x in by_id[a]["blocked_by"] + by_id[a]["implied"]:
-            if x == b or x in by_id and x not in seen and (seen.add(x) or after(x, b, seen)):
-                return True
+    def after(a, b):
+        """True when a is transitively blocked by b, through declared or implied blockers."""
+        seen, todo = set(), [a]
+        while todo:
+            unit = todo.pop()
+            for x in by_id[unit]["blocked_by"] + by_id[unit]["implied"]:
+                if x == b:
+                    return True
+                if x not in seen:
+                    seen.add(x)
+                    todo.append(x)
         return False
 
     for j, later in enumerate(units):
@@ -123,8 +129,10 @@ def frontier(units):
         if root(u["unit"]):
             blocked[u["unit"]] = root(u["unit"])
             continue
+        # an implied blocker waits only while it is running or can still run
         open_ = [b for b in u["blocked_by"] if by_id[b]["status"] != "done"] + [
-            b for b in u["implied"] if by_id[b]["status"] == "pending" or by_id[b]["status"].startswith("assigned")]
+            b for b in u["implied"] if by_id[b]["status"].startswith("assigned")
+            or by_id[b]["status"] == "pending" and not root(b)]
         if open_:
             waiting[u["unit"]] = open_
         else:

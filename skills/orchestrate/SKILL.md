@@ -17,7 +17,7 @@ Written for Claude Code, which fills in `${CLAUDE_SKILL_DIR}` (this skill's fold
 
 **Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when the answer is a fact about the world. What only the user can decide, ask as one question with 2 to 4 ready answers, the recommended one first and each saying what it changes; Claude Code's `AskUserQuestion` shows them on screen, other agents number them in the reply.
 
-**Next step.** End every run with the next step of the workflow, worked out from what this run left (the ledger's statuses, failed or blocked units, a question still open, the user's goal): the exact command and its reason in one line, and when two fit, both, the recommended one first. Put `/clear` before it (on another agent, a new session) when this run left its state on disk for that command to read; keep the session when the next step answers this run in conversation. When nothing is left, say the workflow is done.
+**Next step.** End every run with the next step of the workflow, worked out from what this run left (the ledger's statuses, failed or blocked units, a question still open, the user's goal): the exact command and its reason in one line, and when two fit, both, the recommended one first; a skill that keeps a `STATUS.md` writes the same command as its next action. Put `/clear` before it (on another agent, a new session) when this run left its state on disk for that command to read; keep the session when the next step answers this run in conversation. When another skill called this one, hand the result back to it instead. When nothing is left, say the workflow is done.
 
 ## State
 
@@ -71,23 +71,24 @@ Resuming dispatches a new worker with the same brief over `Remaining`, and sets 
 
 ## Graph job
 
-The caller adds, per unit, its **blockers** (`blocked-by`, unit ids of the same job) and the `files` it may edit, and for the job: the **integration branch** name, the setup command a fresh worktree needs before its checks run (an install from the lockfile, or `none`), the checks to run after each merge, and the record step to apply after each merge. Every unit is one commit, so a worker takes one unit. `units.md` becomes `| unit | status | blocked-by | files |` in the caller's order; `state.json` also holds `branch`.
+The caller adds, per unit, its **blockers** (`blocked-by`, unit ids of the same job) and the `files` it may edit, and for the job: a name for a new **integration branch**, the setup command a fresh worktree needs before its checks run (an install from the lockfile, or `none`), the checks to run after each merge, and the record step to apply after each merge and each failure. Every unit is one commit, so a worker takes one unit. `units.md` becomes `| unit | status | blocked-by | files |` in the caller's order; `state.json` also holds `branch`.
 
 The steps above change as follows:
 
-- **Resume**: reuse the branch `state.json` names; on a first run create it at HEAD (`git branch <branch>`). Keep its own worktree at `<dir>/integration` (`git worktree add <dir>/integration <branch>`), recreated when missing; every merge happens there and the user's checkout never changes branch. A worktree in `<dir>/wt/` whose unit is not `assigned` is left over: remove it and its unit branch.
-- **Graph**: before Size, and after every merge and every failure, run `python "${CLAUDE_SKILL_DIR}/scripts/graph.py" frontier --state <dir>`. Exit 2 (a cycle or an unknown blocker): report it and stop; nothing is dispatched. Units it lists under `blocked` become `blocked:<root>` in `units.md`. Size and Dispatch take units from `frontier` only, and plan `min(slots, len(frontier))` workers.
+- **Resume**: a job with units `pending` or `assigned` resumes on the branch `state.json` names, and takes the caller's units as they are now: a unit the caller no longer passes leaves `units.md`, a new one joins as `pending`. A first run, or a job that ended (no unit `pending` or `assigned`), starts fresh: move an ended state dir aside to `<dir>-<ISO time>`, write `units.md` from the caller's units, and create the branch at HEAD (`git branch <branch>`). A unit is `done` only once its commit is on the branch: a checkpointed unit whose `<branch>-<unit>` is not yet an ancestor of `<branch>` (`git merge-base --is-ancestor`) goes through Worker done now. Keep the integration worktree at `<dir>/integration` (`git worktree add <dir>/integration <branch>`, then run setup in it), recreated when missing; every merge happens there and the user's checkout never changes branch. Any other worktree in `<dir>/wt/` whose unit is not `assigned` is left over: remove it and its unit branch.
+- **Graph**: before Size, and after every merge and every failure, run `python "${CLAUDE_SKILL_DIR}/scripts/graph.py" frontier --state <dir>`. Exit 2 (a cycle or an unknown blocker): report it and stop; nothing is dispatched. Units it lists under `blocked` become `blocked:<unit>` in `units.md`, naming the failed unit at the root of the chain. Size and Dispatch take units from `frontier` only, and plan `min(slots, len(frontier))` workers.
 - **Inline** (`slots` ≤ 1, or a frontier of one unit with nothing running): work the unit yourself in `<dir>/integration`, commit, run the after-merge checks and the record step.
 - **Dispatch**: per unit, `git worktree add <dir>/wt/<unit> -b <branch>-<unit> <branch>` from the integration tip, so the unit sees every blocker's commit; then the worker brief with the Graph job lines.
-- **Worker done**: a checkpoint and a commit: in `<dir>/integration`, `git merge --no-ff <branch>-<unit>`. A conflict (`git merge --abort`) or red after-merge checks (`git reset --hard ORIG_HEAD`) returns the unit to `pending`, to start again from the new tip; the second time it is `failed:<reason>`. A green merge: the unit is `done` and you run the record step. A worker that reports its own checks red, or ends without a commit, leaves its unit `failed:<reason>`. Either way, remove its worktree and branch (`git worktree remove --force`, `git branch -D`), then run Graph and fill free slots.
+- **Worker done**: a checkpoint and a commit: in `<dir>/integration`, `git merge --no-ff <branch>-<unit>`. A conflict (`git merge --abort`) or red after-merge checks (`git reset --hard ORIG_HEAD`) returns the unit to `pending`, to start again from the new tip; the second time it is `failed:<reason>`. A green merge: the unit is `done`. A worker that reports its own checks red, or ends without a commit, leaves its unit `failed:<reason>`. Either way, run the record step with the worker's reply, remove its worktree and branch (`git worktree remove --force`, `git branch -D`), then run Graph and fill free slots.
 - **Watchdog stops**: a stopped unit's uncommitted work goes with its worktree; the unit returns to `pending` and starts again from the tip.
 - **Merge** (step 5): the integration branch is the output; report each unit `done`, `failed:<reason>` or `blocked:<unit>`, then remove `<dir>/integration` (the branch stays). Calibrate as usual.
+- **Completion**: every unit is `done`, `failed:<reason>` or `blocked:<unit>` and no worker is `running`. Report `COMPLETE: N/N units` when every unit is `done`, otherwise `PARTIAL: k/N units` with each failed and blocked unit.
 
 Graph job lines, appended to the worker brief:
 
 ```
 Work only in <dir>/wt/<unit>, on branch <branch>-<unit>; run <setup> there first.
-Read the caller's state at <absolute paths>; write nothing there.
+Read the caller's state at <absolute paths>; write there only your work file.
 Run every fan-out inside this unit inline, in order.
 End the unit with one commit: <commit message>.
 ```

@@ -11,13 +11,13 @@ GRAPH = os.path.join(ROOT, "skills", "orchestrate", "scripts", "graph.py")
 
 
 def frontier(rows, header="| unit | status | blocked-by | files |"):
-    d = tempfile.mkdtemp()
-    with open(os.path.join(d, "units.md"), "w", encoding="utf-8") as f:
-        f.write(header + "\n|" + "---|" * (header.count("|") - 1) + "\n")
-        for row in rows:
-            f.write("| " + " | ".join(row) + " |\n")
-    out = subprocess.run([sys.executable, GRAPH, "frontier", "--state", d],
-                         capture_output=True, text=True, timeout=60)
+    with tempfile.TemporaryDirectory() as d:
+        with open(os.path.join(d, "units.md"), "w", encoding="utf-8") as f:
+            f.write(header + "\n|" + "---|" * (header.count("|") - 1) + "\n")
+            for row in rows:
+                f.write("| " + " | ".join(row) + " |\n")
+        out = subprocess.run([sys.executable, GRAPH, "frontier", "--state", d],
+                             capture_output=True, text=True, timeout=60)
     return out.returncode, json.loads(out.stdout)
 
 
@@ -34,7 +34,7 @@ class Frontier(unittest.TestCase):
         self.assertEqual(data["frontier"], ["B3"])
         self.assertEqual(data["waiting"], {"B4": ["B2"]})
 
-    def test_a_failed_unit_blocks_its_dependents_transitively(self):
+    def test_a_failed_unit_blocks_only_its_dependents_and_the_rest_go_on(self):
         code, data = frontier([("B1", "failed:checks red", "none", ""), ("B2", "pending", "B1", ""),
                                ("B3", "pending", "B2", ""), ("B4", "pending", "none", ""),
                                ("B5", "blocked:B9", "none", ""), ("B6", "pending", "B5", "")])
@@ -64,6 +64,13 @@ class Overlap(unittest.TestCase):
                                ("B2", "pending", "none", "src/a.ts")])
         self.assertEqual(data["frontier"], ["B2"])
         self.assertEqual(data["blocked"], {})
+
+    def test_a_unit_that_can_never_start_releases_the_units_it_only_overlaps(self):
+        code, data = frontier([("B1", "failed:checks red", "none", "src/a.ts"),
+                               ("B2", "pending", "B1", "src/b.ts"),
+                               ("B3", "pending", "none", "src/b.ts")])
+        self.assertEqual(data["blocked"], {"B2": "B1"})
+        self.assertEqual(data["frontier"], ["B3"])
 
 
 class Invalid(unittest.TestCase):

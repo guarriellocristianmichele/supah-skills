@@ -30,7 +30,7 @@ COPIES = [
     ("skills/ai-slop-audit/scripts", "plugins/slop-guard/codescan"),
 ]
 KEEP = os.path.join(ROOT, "docs", "readme-keep.tsv")
-NEXT_STEP = "**Next step.** End every run with the next step of the workflow, worked out from what this run left (the ledger's statuses, failed or blocked units, a question still open, the user's goal): the exact command and its reason in one line, and when two fit, both, the recommended one first. Put `/clear` before it (on another agent, a new session) when this run left its state on disk for that command to read; keep the session when the next step answers this run in conversation. When nothing is left, say the workflow is done."
+NEXT_STEP = "**Next step.** End every run with the next step of the workflow, worked out from what this run left (the ledger's statuses, failed or blocked units, a question still open, the user's goal): the exact command and its reason in one line, and when two fit, both, the recommended one first; a skill that keeps a `STATUS.md` writes the same command as its next action. Put `/clear` before it (on another agent, a new session) when this run left its state on disk for that command to read; keep the session when the next step answers this run in conversation. When another skill called this one, hand the result back to it instead. When nothing is left, say the workflow is done."
 # ADR 0013: every SKILL.md carries this paragraph word for word
 ASK_WITH_OPTIONS = ("**Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when "
                     "the answer is a fact about the world. What only the user can decide, ask as one question with 2 "

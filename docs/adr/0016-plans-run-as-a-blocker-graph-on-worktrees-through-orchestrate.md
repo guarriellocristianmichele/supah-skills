@@ -13,8 +13,8 @@ This changes what a unit is: it may now need the merged output of its blockers, 
 
 ## Consequences
 
-- Only the coordinator writes the ledger, after each merge. Workers read it by the main checkout's absolute path, since `.slop-audit/` and `.slop-design/` are excluded from git and absent from a worktree.
+- Only the coordinator writes the ledger, after each merge and each failure. Workers read it by the main checkout's absolute path, since `.slop-audit/` and `.slop-design/` are excluded from git and absent from a worktree.
 - A batch worker runs every fan-out inside its batch inline: the parallelism is between batches, never nested.
 - A batch whose own checks fail is `failed`, and its declared dependents, direct and transitive, are `blocked`; a batch it only shares files with goes ahead. A merge conflict or red checks after the merge earn one retry from the new tip.
-- Handoff batches, and design batches holding a judgment, copy, lane or dirty finding, stay out of a run: they need a person's choice first.
-- The run ends with the skill's verify step on the integration branch and asks before opening one pull request that closes the done batches' issues; nothing else is written to the tracker.
+- Handoff batches, and design batches holding a judgment, copy, lane or dirty finding, stay out of the job, and so do the batches that depend on them: they need a person's choice first.
+- The job ends with the skill's verify step on the integration branch and asks before opening one pull request that closes the done batches' issues; nothing else is written to the tracker.

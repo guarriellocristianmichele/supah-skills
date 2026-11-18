@@ -37,6 +37,8 @@ Read the mode's file and follow it to its completion criterion. Every mode start
 | `sweep <B<n>…\|#map\|all>` | `${CLAUDE_SKILL_DIR}/SWEEP.md` (Several batches) | an integration branch; the batches' statuses in `.slop-design/` |
 | `publish [B<n>…]` | `${CLAUDE_SKILL_DIR}/PUBLISH.md` | the issue tracker or `.slop-design/issues/`, and `.slop-design/`; never a source file |
 
+Tracker writes happen in `publish` only, plus the pull request a several-batch `sweep` offers at its end and, on the local route, the `State: done` line `sweep B<n>` and `craft <surface>` write in a closed batch's issue file.
+
 No mode given: show this table and ask which one.
 
 ## Verdicts

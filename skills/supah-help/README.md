@@ -28,12 +28,13 @@ With no arguments it shows the situations and asks which one is yours. It is use
 
 | Situation | Flow |
 |---|---|
-| a codebase built fast with AI that feels bloated | `/ai-slop-audit audit` → `plan` → `fix B1` → `verify` |
-| sharing the cleanup with a team or agents | `/ai-slop-audit publish`, then `fix #<n>` or `/implement #<n>` |
+| a codebase built fast with AI that feels bloated | `/ai-slop-audit audit` → `/clear` → `plan` → `/clear` → `fix all` (or `fix B1` → `verify`) |
+| sharing the cleanup with a team or agents | `/ai-slop-audit publish` → `/clear` → `fix #<map>`, or `fix #<n>` or `/implement #<n>` one at a time |
+| a plan with many batches, too slow one by one | `/ai-slop-audit fix all`, `/ai-slop-design sweep all` |
 | a new site or page that must not look generated | `/ai-slop-design craft <brief>` |
 | a site that looks generated, low-contrast text, copy-pasted styles | `/ai-slop-design sweep <files>`; with no files, above 5 surfaces or 40 frontend files it asks to audit first |
 | a page a sweep handed off because it sits in a whole lane | `/ai-slop-design craft <surface>` |
-| a whole platform that looks generated, before fixing anything | `/ai-slop-design audit [path]` → `/ai-slop-design plan` → `/ai-slop-design publish` (to share the batches) → `/ai-slop-design sweep B<n>` (one batch at a time, `B1` first) or `/ai-slop-design craft <surface>` for a handoff, `audit` again after fixes to reconcile |
+| a whole platform that looks generated, before fixing anything | `/ai-slop-design audit [path]` → `/ai-slop-design plan` → `/ai-slop-design publish` (to share the batches) → `/ai-slop-design sweep all` (or `/ai-slop-design sweep B<n>`, one batch at a time, `B1` first) or `/ai-slop-design craft <surface>` for a handoff, `audit` again after fixes to reconcile |
 | sharing a design cleanup with a team or agents | `/ai-slop-design publish` after `plan`, then the command on each issue's Work line |
 | is my idea worth building? | `/buyer-panel <idea>`, then the real test it names |
 | what would remove the top objection? | `/buyer-panel fix [reason]` after a first panel |
@@ -52,7 +53,7 @@ With no arguments it shows the situations and asks which one is yours. It is use
 | an interrupted session | run the same command again |
 | also using mattpocock/skills | `/setup-matt-pocock-skills` once |
 
-Each recommendation comes with its reason, drawn from five habits: evidence before change, measured not guessed, small reversible steps, people decide what leaves the machine, standalone first and paired by configuration.
+Between commands that keep their state on disk it writes `/clear`, so each step starts in a fresh context. Each recommendation comes with its reason, drawn from five habits: evidence before change, measured not guessed, small reversible steps, people decide what leaves the machine, standalone first and paired by configuration.
 
 ## Italiano
 
@@ -64,4 +65,4 @@ Un router sulle skill supah. Descrivi cosa vuoi fare e ti consiglia il percorso 
 /supah-help vale la pena costruire questa idea?
 ```
 
-Ogni consiglio spiega il perché con cinque principi: prove prima di cambiare, misurare invece di indovinare, passi piccoli e reversibili, sono le persone a decidere cosa esce dalla macchina, funziona da sola e si integra tramite configurazione.
+Tra un comando e l'altro, quando lo stato resta su disco, scrive `/clear`, così ogni passo parte da un contesto pulito. Ogni consiglio spiega il perché con cinque principi: prove prima di cambiare, misurare invece di indovinare, passi piccoli e reversibili, sono le persone a decidere cosa esce dalla macchina, funziona da sola e si integra tramite configurazione.

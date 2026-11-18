@@ -30,6 +30,7 @@ COPIES = [
     ("skills/ai-slop-audit/scripts", "plugins/slop-guard/codescan"),
 ]
 KEEP = os.path.join(ROOT, "docs", "readme-keep.tsv")
+NEXT_STEP = "**Next step.** End every run with the next step of the workflow, worked out from what this run left (the ledger's statuses, failed or blocked units, a question still open, the user's goal): the exact command and its reason in one line, and when two fit, both, the recommended one first. Put `/clear` before it (on another agent, a new session) when this run left its state on disk for that command to read; keep the session when the next step answers this run in conversation. When nothing is left, say the workflow is done."
 # ADR 0013: every SKILL.md carries this paragraph word for word
 ASK_WITH_OPTIONS = ("**Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when "
                     "the answer is a fact about the world. What only the user can decide, ask as one question with 2 "
@@ -133,8 +134,11 @@ def check_manifests():
         if name != "supah-help" and name not in router:
             errors.append(f"supah-help does not route to {name}")
         with open(os.path.join(ROOT, "skills", name, "SKILL.md"), encoding="utf-8") as f:
-            if ASK_WITH_OPTIONS not in f.read():
+            text = f.read()
+            if ASK_WITH_OPTIONS not in text:
                 errors.append(f"skills/{name}/SKILL.md lacks the Ask with options paragraph (ADR 0013)")
+            if NEXT_STEP not in text:
+                errors.append(f"skills/{name}/SKILL.md lacks the Next step paragraph (ADR 0017)")
     return errors + check_scanner_copy()
 
 

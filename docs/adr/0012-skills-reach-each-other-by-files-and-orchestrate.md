@@ -13,8 +13,8 @@ Every companion is optional: each step says what to do when the target is not in
 Calls go one way; no skill calls back into its caller.
 
 - buyer-panel → orchestrate (interviews in batches of buyers), ai-slop-prose (the report, the pitch, the test kit), ai-slop-design (the smoke-test page in `test`)
-- ai-slop-design → ai-slop-prose (visible copy; an audit runs only its scanner script, `scripts/scan.py --json`, from where it is installed: read-only JSON, no rewrite), orchestrate (sweeps of more than 3 files, craft variants, an audit's surfaces)
-- ai-slop-audit → mutation-check (tautological tests), ai-slop-design's scanner (frontend duplication), ai-slop-design's ledger (reads `.slop-design/findings.md` and `.slop-design/surfaces.json`: when the findings exist and every file of the group is in `.slop-design/surfaces.json`, frontend duplication is marked `handoff:ai-slop-design`), orchestrate (module scan)
+- ai-slop-design → ai-slop-prose (visible copy; an audit runs only its scanner script, `scripts/scan.py --json`, from where it is installed: read-only JSON, no rewrite), orchestrate (sweeps of more than 3 files, craft variants, an audit's surfaces, the batches of a `sweep` over several batches, as a graph job: ADR 0016)
+- ai-slop-audit → mutation-check (tautological tests), ai-slop-design's scanner (frontend duplication), ai-slop-design's ledger (reads `.slop-design/findings.md` and `.slop-design/surfaces.json`: when the findings exist and every file of the group is in `.slop-design/surfaces.json`, frontend duplication is marked `handoff:ai-slop-design`), orchestrate (module scan; the batches of a `fix` over several batches, as a graph job: ADR 0016)
 - ai-slop-prose → orchestrate (sweeps of more than 3 files)
 - doc-truth → orchestrate (more than 3 files)
 - supah-help → reads every SKILL.md, calls none

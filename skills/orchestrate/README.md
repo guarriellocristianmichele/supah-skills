@@ -11,6 +11,7 @@ Other skills in this repository use it: `ai-slop-audit` hands it the module scan
 - [Install](#install)
 - [Usage](#usage)
 - [How it works](#how-it-works)
+- [Graph jobs](#graph-jobs)
 - [When memory runs short](#when-memory-runs-short)
 - [State on disk](#state-on-disk)
 - [mem.py reference](#mempy-reference)
@@ -50,7 +51,7 @@ A job is defined by six fields. The skill asks for any that are missing.
 | Field | Meaning |
 |---|---|
 | name | identifies the job and its state directory |
-| units | the work list; no unit may depend on another unit's output |
+| units | the work list; a unit may depend only on its blockers (see [Graph jobs](#graph-jobs)) |
 | brief | what to do for one unit |
 | done criterion | when one unit is finished |
 | profile | `light` for reading and searching, `build` for tests, typecheck and builds |
@@ -65,6 +66,14 @@ A job is defined by six fields. The skill asks for any that are missing.
 5. **Merge.** Results are joined in unit order, and the measured RAM per agent is saved for the next run.
 
 The job is complete when every unit is `done` or `failed`, every stopped worker has been resumed, and no worker is running. Otherwise the skill reports `PARTIAL: k/N units`, and invoking the same job again continues from there.
+
+## Graph jobs
+
+Some jobs change code in an order: the batches of an `/ai-slop-audit` or `/ai-slop-design` plan, where a batch can start only after the batches it depends on have landed. The caller gives each unit its blockers and the files it may edit, plus an integration branch, a setup command for a fresh checkout (an install from the lockfile, or none), the checks to run after each merge, and what to record after it.
+
+- `scripts/graph.py frontier --state <dir>` reads `units.md` and prints the units that can start now, the ones still waiting and on what, and the ones that can never start because a blocker failed. Two units that edit the same file run one after the other, the earlier one first, unless a blocker already orders them. A cycle or a blocker that does not exist stops the job before anything starts.
+- Each unit runs in its own git worktree, branched from the tip of the integration branch, and ends with one commit. When it finishes, the orchestrator merges it into the integration branch (`--no-ff`) and runs the checks there; the units waiting on it start from the new tip. A merge conflict or red checks after the merge send the unit back once; the second time it is `failed`.
+- A unit whose own checks fail is `failed`, and the units that depend on it are `blocked`; everything else goes on. Your checkout never changes branch: merges happen in a worktree of the integration branch, under the job's state directory.
 
 ## When memory runs short
 
@@ -158,6 +167,10 @@ Skill di Claude Code per lavori che si dividono in tante unità indipendenti (mo
 3. Avvio: lancia i worker e un watchdog in background, che controlla la memoria ogni 10 secondi.
 4. Reazione: rimette in coda le unità che un worker ha lasciato senza checkpoint (alla seconda volta diventano `failed`) e riempie gli slot liberati; quando la memoria scende sotto la riserva ferma i worker avviati per ultimi.
 5. Unione: unisce i risultati e salva la RAM misurata per agente per la volta successiva.
+
+### Lavori a grafo
+
+Alcuni lavori cambiano il codice in un ordine preciso: i lotti di un piano di `/ai-slop-audit` o `/ai-slop-design`, dove un lotto parte solo dopo quelli da cui dipende. Chi chiama indica per ogni unità i blocchi e i file che può modificare, più un integration branch, il comando di setup per un checkout nuovo, i controlli da lanciare dopo ogni merge e cosa registrare. `scripts/graph.py frontier` calcola le unità che possono partire, quelle in attesa e quelle bloccate da un fallimento; due unità che modificano lo stesso file girano una dopo l'altra, e un ciclo ferma il lavoro prima di partire. Ogni unità lavora in un worktree git suo e finisce con un commit; l'orchestratore fa il merge nell'integration branch, lancia i controlli e solo dopo fa partire chi aspettava. Il tuo checkout resta sul suo branch.
 
 ### Memoria piena
 

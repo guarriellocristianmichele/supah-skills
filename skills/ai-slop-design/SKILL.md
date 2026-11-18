@@ -1,7 +1,7 @@
 ---
 name: ai-slop-design
-description: Build pages whose look comes from their subject, and sweep frontend code for design reflexes (purple gradients, gradient text, icon-card grids, glass panels, eyebrows, glued arrows…) found by a deterministic scanner and judged one by one. Modes craft <brief>, craft <surface> (restyle an existing page), sweep [file…], audit [path] (a whole platform, read-only; a re-run reconciles and resumes), plan (open findings into token/component, surface and handoff batches), sweep B<n> (fix one planned batch and close its findings) and publish [B<n>…] (one issue per batch plus a map, after you approve the drafts).
-argument-hint: "craft <brief> | craft <surface> | sweep [file…] | audit [path] | plan | sweep B<n> | publish [B<n>…]"
+description: Build pages whose look comes from their subject, and sweep frontend code for design reflexes (purple gradients, gradient text, icon-card grids, glass panels, eyebrows, glued arrows…) found by a deterministic scanner and judged one by one. Modes craft <brief>, craft <surface> (restyle an existing page), sweep [file…], audit [path] (a whole platform, read-only; a re-run reconciles and resumes), plan (open findings into token/component, surface and handoff batches), sweep B<n> (fix one planned batch and close its findings; several, all or a map issue's run in parallel into one branch) and publish [B<n>…] (one issue per batch plus a map, after you approve the drafts).
+argument-hint: "craft <brief> | craft <surface> | sweep [file…] | audit [path] | plan | sweep B<n> | sweep <B<n>…|#map|all> | publish [B<n>…]"
 disable-model-invocation: true
 allowed-tools: Bash(python *designscan.py*) Bash(python *scan.py --json *) Bash(git ls-files *) Bash(git rev-parse *) Bash(git status *) Bash(git diff *)
 ---
@@ -13,6 +13,8 @@ Arguments: `$ARGUMENTS`
 Claude Code fills in `$ARGUMENTS` (what the user typed after the skill name) and `${CLAUDE_SKILL_DIR}` (this skill's folder); elsewhere, take them from the request and resolve the folder yourself.
 
 **Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when the answer is a fact about the world. What only the user can decide, ask as one question with 2 to 4 ready answers, the recommended one first and each saying what it changes; Claude Code's `AskUserQuestion` shows them on screen, other agents number them in the reply.
+
+**Next step.** End every run with the next step of the workflow, worked out from what this run left (the ledger's statuses, failed or blocked units, a question still open, the user's goal): the exact command and its reason in one line, and when two fit, both, the recommended one first. Put `/clear` before it (on another agent, a new session) when this run left its state on disk for that command to read; keep the session when the next step answers this run in conversation. When nothing is left, say the workflow is done.
 
 A **reflex** is a design choice that appears whatever the subject: the default a model reaches for on any brief in the category. A reflex is wrong only when nothing chose it: the brief, the brand or the content. The scanner, `python "${CLAUDE_SKILL_DIR}/scripts/designscan.py"` (`--help` lists its subcommands), finds the catalogued candidates; you judge every hit and read for the reflexes no pattern sees (ADR 0003). A clean result means no catalogued reflex is left, which is a claim about the code, never about who wrote it.
 
@@ -30,6 +32,7 @@ Read the mode's file and follow it to its completion criterion. Every mode start
 | `audit [path]` | `${CLAUDE_SKILL_DIR}/AUDIT.md` | `.slop-design/` only, never a source file |
 | `plan` | `${CLAUDE_SKILL_DIR}/PLAN.md` | `.slop-design/` only, never a source file |
 | `sweep B<n>` | `${CLAUDE_SKILL_DIR}/SWEEP.md` (Batch) | the batch's files; its statuses in `.slop-design/` |
+| `sweep <B<n>…\|#map\|all>` | `${CLAUDE_SKILL_DIR}/SWEEP.md` (Several batches) | an integration branch; the batches' statuses in `.slop-design/` |
 | `publish [B<n>…]` | `${CLAUDE_SKILL_DIR}/PUBLISH.md` | the issue tracker or `.slop-design/issues/`, and `.slop-design/`; never a source file |
 
 No mode given: show this table and ask which one.
@@ -74,7 +77,7 @@ Fix: one line from the rule's fix direction in REFLEXES.md.
 
 Each companion is optional; the steps say what to do without it.
 
-- **orchestrate**: sweeps of more than 3 files, craft variants and an audit's surfaces fan out through it (SWEEP.md step 3, CRAFT.md step 6, AUDIT.md step 5), sized to free memory, with checkpoints to resume from.
+- **orchestrate**: sweeps of more than 3 files, craft variants and an audit's surfaces fan out through it (SWEEP.md step 3, CRAFT.md step 6, AUDIT.md step 5), and several batches run through it as a graph job (SWEEP.md, Several batches), sized to free memory, with checkpoints to resume from.
 - **ai-slop-audit**: frontend duplication is this skill's. A fix that needs a new shared component or token across surfaces is a finding of this skill's audit, planned as a token/component batch; a sweep lists it in the report for `/ai-slop-design audit`. Only work outside the frontend files (shared logic, a backend module) is listed for the user to run with `/ai-slop-audit audit <path>`; this skill never calls it nor reads its ledger. Its audit reads this scanner's duplication hits as evidence, and when `.slop-design/findings.md` exists marks a `repeated-class-string`, `duplicate-css-block` or `untokened-colour` group whose files are all in `.slop-design/surfaces.json` `handoff:ai-slop-design`, so each copy is reported once, here.
 - **impeccable**: when `PRODUCT.md` or `DESIGN.md` exist (root, `docs/` or `.agents/context/`), read them for users, brand and tokens. Read only; their format stays theirs.
 - **ai-slop-prose**: the words on the page are its job. When it is installed, run its sweep on the same files (it reads only visible strings); otherwise list the copy you would hand it. An audit runs only its scanner, in JSON mode, and rewrites nothing.

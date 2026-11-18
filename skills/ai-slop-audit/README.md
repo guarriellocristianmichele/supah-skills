@@ -46,10 +46,13 @@ The skill is user-invoked (`disable-model-invocation: true`): it runs only when 
 | `/ai-slop-audit plan` | open findings | ledger only | every high or medium finding is in a batch or rejected with a reason; every batch has a protecting check |
 | `/ai-slop-audit publish [B1 B4…]` | planned batches | issue tracker, ledger | each batch has exactly one issue, with its blocking edges |
 | `/ai-slop-audit fix <IDs>` | the named findings | code, ledger | checks are no worse than baseline, removed symbols have zero references, the diff is shown |
+| `/ai-slop-audit fix B2 B5`, `fix #<map>`, `fix all` | the named batches, the map issue's, or every planned one | code on an integration branch, ledger | every batch is done, failed or blocked; `verify` ran on the branch; you are asked before a pull request opens |
 | `/ai-slop-audit verify` | everything since the baseline commit | ledger only | every check ran; the report starts `VERIFIED` or `FAILED: n items` |
 | `/ai-slop-audit` | ledger | nothing | prints the argument hint and the current status |
 
 `fix` accepts finding IDs (`SLOP-012`, `SLOP-012,SLOP-014`), one batch (`B3`), or a published batch's issue number (`#123`). Naming the ID is the approval: nothing else changes. A batch whose `depends-on` is not fixed yet asks first, and each fix ends with the commit to make, because the next one needs a clean tree.
+
+Several batches at once (`fix B2 B5`, `fix #<map>` for every batch of the map issue, `fix all`) run in parallel through `orchestrate`. Each batch works in its own git worktree, installs the dependencies, runs its checks and commits; it is then merged into one integration branch, `slop/audit-<sha>`, and only after that do the batches that depend on it start. Batches that touch the same file wait for each other. A failed batch reopens its findings and holds back only its dependents. At the end `verify` runs on the integration branch and you choose whether to open one pull request that closes the done issues. Your checkout stays on its branch, and running the same command again resumes the job.
 
 ## A typical run
 
@@ -60,6 +63,7 @@ The skill is user-invoked (`disable-model-invocation: true`): it runs only when 
 /ai-slop-audit publish        # optional: one GitHub issue per batch
 /ai-slop-audit fix B1         # one batch, tests first, then the change
 /ai-slop-audit fix #124       # or by issue number
+/ai-slop-audit fix all        # or every batch, in parallel, into one branch
 /ai-slop-audit verify         # final regression check across all fixes
 ```
 
@@ -164,6 +168,7 @@ Skill di Claude Code che trova e rimuove la complessità inutile in un'intera co
 | `/ai-slop-audit plan` | baseline di test, lint, typecheck e build, priorità, rischi, dipendenze, lotti `B1…Bn` |
 | `/ai-slop-audit publish [lotti]` | una issue per lotto, con dipendenze e prove, dopo la tua approvazione |
 | `/ai-slop-audit fix <ID>` | corregge solo gli ID indicati (`SLOP-012`, `B3` o `#123`), con test prima e verifica dopo |
+| `/ai-slop-audit fix all` | lavora tutti i lotti (o `B2 B5`, o quelli della issue mappa `#<map>`) in parallelo, ognuno nel suo worktree, uniti in un integration branch nell'ordine delle dipendenze; lancia `verify` e chiede prima di aprire una pull request |
 | `/ai-slop-audit verify` | controllo finale: check, regressioni, superficie pubblica, dipendenze, test rimossi |
 
 ### Scanner del codice

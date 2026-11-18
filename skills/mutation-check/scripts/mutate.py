@@ -220,8 +220,28 @@ def write(path, text):
         f.write(text)
 
 
+def find_exe(name):
+    """The full path of name on PATH, searching absolute entries only. On Windows, CreateProcess and
+    shutil.which (Python 3.10) look in the current folder first, where a scanned repository could plant
+    a git.exe; a relative entry, an empty one or the current folder itself is skipped for the same
+    reason. FileNotFoundError when name is on no such entry."""
+    here = os.path.normcase(os.path.abspath(os.getcwd()))
+    exts = [""]
+    if os.name == "nt":
+        exts = [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep) if e]
+    for folder in os.environ.get("PATH", "").split(os.pathsep):
+        folder = folder.strip().strip('"')
+        if not folder or not os.path.isabs(folder) or os.path.normcase(os.path.abspath(folder)) == here:
+            continue
+        for ext in exts:
+            candidate = os.path.join(folder, name + ext)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+    raise FileNotFoundError("%s: not found on PATH" % name)
+
+
 def dirty(path):
-    out = subprocess.run(["git", "status", "--porcelain", "--", path], capture_output=True, text=True,
+    out = subprocess.run([find_exe("git"), "status", "--porcelain", "--", path], capture_output=True, text=True,
                          cwd=os.path.dirname(os.path.abspath(path)) or ".")
     return out.returncode != 0 or bool(out.stdout.strip())
 
@@ -231,7 +251,7 @@ def dirty(path):
 def backups_dir(path):
     """<git dir>/mutation-check for the repository holding path (a file or a folder), or None."""
     where = path if os.path.isdir(path) else os.path.dirname(os.path.abspath(path))
-    out = subprocess.run(["git", "rev-parse", "--absolute-git-dir"], capture_output=True, text=True, cwd=where)
+    out = subprocess.run([find_exe("git"), "rev-parse", "--absolute-git-dir"], capture_output=True, text=True, cwd=where)
     return os.path.join(out.stdout.strip(), "mutation-check") if out.returncode == 0 else None
 
 
@@ -281,7 +301,8 @@ def on_signal(signum, _frame):
 def kill_tree(proc):
     """Kill the test command and every process it started: killing the shell alone leaves the tests running."""
     if os.name == "nt":
-        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+        taskkill = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "taskkill.exe")
+        subprocess.run([taskkill, "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
     else:
         try:
             os.killpg(proc.pid, signal.SIGKILL)

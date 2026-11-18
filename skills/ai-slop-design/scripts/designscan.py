@@ -1027,10 +1027,30 @@ ALIASES = (("~~/", ("",)), ("@@/", ("",)), ("@/", ("src/", "")), ("~/", ("src/",
            ("$lib/", ("src/lib/",)))
 
 
+def find_exe(name):
+    """The full path of name on PATH, searching absolute entries only. On Windows, CreateProcess and
+    shutil.which (Python 3.10) look in the current folder first, where a scanned repository could plant
+    a git.exe; a relative entry, an empty one or the current folder itself is skipped for the same
+    reason. FileNotFoundError when name is on no such entry."""
+    here = os.path.normcase(os.path.abspath(os.getcwd()))
+    exts = [""]
+    if os.name == "nt":
+        exts = [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep) if e]
+    for folder in os.environ.get("PATH", "").split(os.pathsep):
+        folder = folder.strip().strip('"')
+        if not folder or not os.path.isabs(folder) or os.path.normcase(os.path.abspath(folder)) == here:
+            continue
+        for ext in exts:
+            candidate = os.path.join(folder, name + ext)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+    raise FileNotFoundError("%s: not found on PATH" % name)
+
+
 def list_files(root):
     """Frontend files under root, relative and with forward slashes, plus the ones left out and why."""
     try:
-        out = subprocess.run(["git", "-C", root, "ls-files", "-co", "--exclude-standard", "-z"],
+        out = subprocess.run([find_exe("git"), "-C", root, "ls-files", "-co", "--exclude-standard", "-z"],
                              capture_output=True, timeout=120)
         names = out.stdout.decode("utf-8", "replace").split("\0") if out.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
@@ -1061,7 +1081,7 @@ def git_dirty(root):
     names = set()
     for args in (["diff", "--name-only", "--relative", "-z", "HEAD"], ["ls-files", "-o", "--exclude-standard", "-z"]):
         try:
-            out = subprocess.run(["git", "-C", root] + args, capture_output=True, timeout=120)
+            out = subprocess.run([find_exe("git"), "-C", root] + args, capture_output=True, timeout=120)
         except (OSError, subprocess.SubprocessError):
             return set()
         if out.returncode:
@@ -1325,7 +1345,7 @@ def scan_inventory(inventory_path, keep, out):
     readable = {path for _, path in pairs}
     results = iter(scan_many(pairs, keep))
     try:
-        commit = subprocess.run(["git", "-C", inv["root"], "rev-parse", "--short", "HEAD"], capture_output=True,
+        commit = subprocess.run([find_exe("git"), "-C", inv["root"], "rev-parse", "--short", "HEAD"], capture_output=True,
                                 text=True, timeout=30).stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
         commit = None

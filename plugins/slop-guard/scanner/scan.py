@@ -546,10 +546,15 @@ FACT_PATTERNS = [
 FUNCTION_WORDS = MINOR_EN | set("your our my their its his her this that these those".split())
 
 
-def title_case(token, line):
-    """True for a Title Case run ("The Power Of Your Data") or a Title Case line: a style, not a name."""
+def title_case(token, line, at):
+    """True for a Title Case run ("The Power Of Your Data") or a Title Case line: a style, not a name.
+    A run after a comma or colon that ends its line ("Thanks, Maria Rossi", "Author: Jane Doe") is a
+    signature or byline, so a name, outside headings. `at` is where the run starts in the line."""
     if any(w.lower() in FUNCTION_WORDS for w in token.split()[1:]):
         return True
+    head, tail = line[:at].rstrip(), line[at + len(token):]
+    if not line.lstrip().startswith("#") and head.endswith((",", ";", ":")) and not re.search(r"\w", tail):
+        return False
     words = re.findall(r"[^\W\d_][\w'’-]*", line)[1:]
     content = [w for w in words if w.lower() not in FUNCTION_WORDS]
     return len(content) >= 2 and all(w[0].isupper() for w in content)
@@ -571,8 +576,10 @@ def compare(original, rewrite):
     for kind, pattern in FACT_PATTERNS:
         found = re.finditer(pattern, a)
         if kind == "name":  # a Title Case run fixed by a rewrite is not a lost name
-            found = (m for m in found if not title_case(m.group(0), a[a.rfind("\n", 0, m.start()) + 1:
-                                                                       (a + "\n").find("\n", m.end())]))
+            def line_of(m):
+                start = a.rfind("\n", 0, m.start()) + 1
+                return a[start:(a + "\n").find("\n", m.end())], m.start() - start
+            found = (m for m in found if not title_case(m.group(0), *line_of(m)))
         for token in sorted({m.group(0) for m in found}):
             # a name survives a case fix (Title Case heading, capital after a colon) when its words remain
             kept = (re.search(rf"(?<!\w){re.escape(token)}(?!\w)", b, re.IGNORECASE) if kind == "name"

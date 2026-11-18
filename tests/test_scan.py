@@ -226,9 +226,10 @@ class Compare(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             orig, final = os.path.join(d, "orig.md"), os.path.join(d, "final.md")
             with open(orig, "w", encoding="utf-8") as f:
-                f.write("# Unlock The Power Of Your Data\n\nWe send every report to Acme Corp.\n")
+                f.write("# Unlock The Power Of Your Data\n\n## Release: Seamless Data Pipelines\n\n"
+                        "We send every report to Acme Corp.\n")
             with open(final, "w", encoding="utf-8") as f:
-                f.write("# Get more from your data\n\nWe send every report to Acme Corp.\n")
+                f.write("# Get more from your data\n\n## Release notes\n\nWe send every report to Acme Corp.\n")
             out = run("compare", orig, final)
             self.assertEqual(out.returncode, 0, out.stdout)
             with open(final, "w", encoding="utf-8") as f:
@@ -236,6 +237,19 @@ class Compare(unittest.TestCase):
             out = run("compare", orig, final)
         self.assertEqual(out.returncode, 1)  # a name in a sentence is still a fact
         self.assertIn("Acme Corp", out.stdout)
+
+    def test_a_name_on_a_signature_or_byline_line_is_still_a_fact(self):
+        for line, name in (("Thanks, Maria Rossi", "Maria Rossi"), ("Author: Jane Doe", "Jane Doe"),
+                           ("Grazie, Maria Grazia Rossi.", "Maria Grazia Rossi")):
+            with self.subTest(line=line), tempfile.TemporaryDirectory() as d:
+                orig, final = os.path.join(d, "orig.md"), os.path.join(d, "final.md")
+                with open(orig, "w", encoding="utf-8") as f:
+                    f.write(f"The report is attached.\n\n{line}\n")
+                with open(final, "w", encoding="utf-8") as f:
+                    f.write("The report is attached.\n\nThanks\n")
+                out = run("compare", orig, final)
+                self.assertEqual(out.returncode, 1, out.stdout)
+                self.assertIn(f"| name | {name} |", out.stdout)
 
     def test_identical_files_pass(self):
         path = os.path.join(FIX, "slop-en.md")

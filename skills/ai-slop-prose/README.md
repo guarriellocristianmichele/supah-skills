@@ -130,7 +130,7 @@ Code fences, inline code, URLs, front matter and HTML comments are never touched
 
 ### `scan.py compare ORIGINAL REWRITE`
 
-Lists what the rewrite dropped: numbers, URLs, inline code, quoted strings, and capitalised names that appear mid-sentence. A Title Case run ("The Power Of Your Data", or a line where every word is capitalised) is a style, not a name, so fixing it loses nothing. A source file is compared on the text its users read, so a rewritten UI string is not a lost quote. Exit 0 means nothing is missing, 2 that either file is missing, a directory or not UTF-8. Run it after every rewrite; a missing token is restored, or the report explains why it was meant to go.
+Lists what the rewrite dropped: numbers, URLs, inline code, quoted strings, and capitalised names that appear mid-sentence. A Title Case run ("The Power Of Your Data", or a line where every word is capitalised) is a style, not a name, so fixing it loses nothing; a name closing a signature or byline ("Thanks, Maria Rossi", "Author: Jane Doe") is still a name. A source file is compared on the text its users read, so a rewritten UI string is not a lost quote. Exit 0 means nothing is missing, 2 that either file is missing, a directory or not UTF-8. Run it after every rewrite; a missing token is restored, or the report explains why it was meant to go.
 
 ### `scan.py verdict ORIGINAL FINAL [--keep FILE] [--source model|human]`
 

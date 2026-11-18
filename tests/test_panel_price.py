@@ -155,6 +155,12 @@ class Refused(unittest.TestCase):
         self.assertEqual(out.returncode, 2)
         self.assertIn("currency", out.stderr)
 
+    def test_a_round_in_another_period(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = run("revenue", *self.edit_round(d, 0, period="booking"))
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("period", out.stderr)
+
     def test_a_round_of_another_panel(self):
         with tempfile.TemporaryDirectory() as d:
             p9, p14, _ = copy_panel(d)

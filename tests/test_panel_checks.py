@@ -156,6 +156,14 @@ class KeepRate(unittest.TestCase):
         keep = by_name(run_json("checks", NORMAL_R1)[0])["keep"]
         self.assertEqual((keep["value"], keep["passed"]), (None, True))
 
+    def test_the_label_counts_the_buyers_measured_not_the_minimum(self):
+        walkaway = by_name(run_json("checks", os.path.join(KEEP, "walkaway"))[0])["keep"]
+        normal = by_name(run_json("checks", NORMAL_R1)[0])["keep"]
+        self.assertEqual((walkaway["measured"], normal["measured"]), (4, 2))
+        self.assertIn("over 4 such buyers (measured from 3)", walkaway["what"])
+        self.assertIn("over 2 such buyers (measured from 3)", normal["what"])
+        self.assertIn("over 4 such buyers (measured from 3)", run("checks", os.path.join(KEEP, "walkaway")).stdout)
+
 
 class PersonaCopy(unittest.TestCase):
     """The normal panel's seven buyers, with reactions that paste each buyer's own written objection."""
@@ -191,6 +199,12 @@ class PersonaCopy(unittest.TestCase):
     def test_reactions_in_their_own_words_pass(self):
         persona = by_name(run_json("checks", NORMAL_R1)[0])["persona"]
         self.assertEqual((persona["value"], persona["passed"]), (0, True))
+
+    def test_the_label_counts_the_buyers_measured_not_the_minimum(self):
+        # all seven buyers of the normal round wrote an objection of four words or more
+        persona = by_name(run_json("checks", NORMAL_R1)[0])["persona"]
+        self.assertEqual(persona["measured"], 7)
+        self.assertIn("over 7 buyers (measured from 4)", persona["what"])
 
 
 class Page(unittest.TestCase):

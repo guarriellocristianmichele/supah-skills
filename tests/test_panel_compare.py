@@ -332,5 +332,32 @@ class CompetitorRefused(unittest.TestCase):
         self.assertEqual(sorted(e["field"] for e in result[1]["errors"]), ["competitor.name", "competitor.price"])
 
 
+class BriefAlternatives(unittest.TestCase):
+    """An alternative sold abroad is priced in its own currency and period, stated beside its price."""
+
+    def brief(self, d, brief_period="month", **alt):
+        with open(os.path.join(NORMAL, "brief.json"), encoding="utf-8") as f:
+            rec = json.load(f)
+        rec["alternatives"][0].update(alt)
+        return write(d, "brief.json", json.dumps(dict(rec, period=brief_period)))
+
+    def test_the_brief_price_period_is_text(self):
+        with tempfile.TemporaryDirectory() as d:
+            result, code = run_json("validate", self.brief(d, brief_period=" "))
+        self.assertEqual((code, [e["field"] for e in result[0]["errors"]]), (3, ["period"]))
+
+    def test_an_alternative_states_its_currency_and_period(self):
+        with tempfile.TemporaryDirectory() as d:
+            result, code = run_json("validate", self.brief(d, currency="USD", period="user per month"))
+        self.assertEqual((code, result[0]["errors"]), (0, []))
+
+    def test_a_currency_or_period_that_is_not_text_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            result, code = run_json("validate", self.brief(d, currency=10, period=""))
+        self.assertEqual(code, 3)
+        self.assertEqual(sorted(e["field"] for e in result[0]["errors"]),
+                         ["alternatives[0].currency", "alternatives[0].period"])
+
+
 if __name__ == "__main__":
     unittest.main()

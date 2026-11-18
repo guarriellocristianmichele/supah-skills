@@ -43,7 +43,8 @@ checks     flags a round that should not be trusted: intent spread too low, one 
            round (a subset of the panel), states the failures in an advisory line instead and exits 0.
 diff       compares two rounds of the same panel over the buyers answered and scored in both: PASS to BUY
            and back, every change of option (between competitors too), choices per option, BUY share,
-           intent, new and gone top reasons, and the card price and price range moved.
+           intent, new and gone top reasons, and the card price and price range moved; rounds priced in
+           another currency or period (round.json `period`) get both prices, never their difference.
 prices     proposes three prices from a round's price range: its low end, the indifference point (the
            middle of the range when that point falls outside it) and its high end; none when there is no range.
 revenue    compares price rounds of one panel that differ only in price: raw and discounted buyers at each
@@ -52,8 +53,8 @@ revenue    compares price rounds of one panel that differ only in price: raw and
            the same buyers: one missing an answer or a score in any round is left out of all, and listed.
 page       writes the page data for a round (ROUND_DIR/page.json) and a self-contained HTML page
            from it (default ROUND_DIR/page.html): the simulated-panel line, the summary, any checks found in
-           ROUND_DIR/summary.json or ROUND_DIR/checks.json, the price curves as inline SVG and the buyer
-           table with filters.
+           ROUND_DIR/summary.json or ROUND_DIR/checks.json with the verdict line, advisory warnings and
+           buyer-types line they hold, the price curves as inline SVG and the buyer table with filters.
 quotes     for the pitch: one buyer type's quotes and reactions with buyer ids (the type named, or the most
            likely to buy), and the buyers held out to try the pitch on: half the type (rounded down), dealt so both halves
            hold buyers and passers, with their first-round decisions; their own words are never printed.
@@ -90,7 +91,7 @@ import ground  # noqa: E402
 import page  # noqa: E402
 import tally  # noqa: E402
 from records import (NOTHING, OFFER, PRICE_ANSWERS, RecordErrors, UsageError, load, load_round,  # noqa: E402
-                     option_errors, plan_fit_errors, read_jsonl, validate_file, write_json, write_jsonl)
+                     option_errors, plan_fit_errors, read_jsonl, unit, validate_file, write_json, write_jsonl)
 from tally import WEIGHTS, parse_weights, pct  # noqa: E402
 
 COMMANDS = {}
@@ -258,7 +259,7 @@ def cmd_reactions(args):
 def add_corrected(into, rnd, rows, weights=WEIGHTS):
     """Put the project's latest grounding, applied to these rows of the round, under `corrected` in `into`;
     nothing without a grounding."""
-    figure = ground.corrected_figure(rnd.dir, rows, weights)
+    figure = ground.corrected_figure(rnd, rows, weights)
     if figure:
         into["corrected"] = figure
     return into
@@ -419,8 +420,14 @@ def show_diff(result):
     card = p["card"]
     ranges = [f"{x['range'][0]:g} to {x['range'][1]:g}" if x["range"] else "no crossing"
               for x in (p["before"], p["after"])]
-    print(f"Card price {card['before']:g} -> {card['after']:g} {card['currency']}; "
-          f"price range (upper bound) {ranges[0]} -> {ranges[1]} {card['currency']}")
+    if p.get("mixed"):
+        before, after = result["before"], result["after"]
+        print(f"Prices not compared: {p['mixed']}. Card price {a} {before['price']:g} {unit(before)}, "
+              f"{b} {after['price']:g} {unit(after)}; price range (upper bound) {a} {ranges[0]}, {b} {ranges[1]}")
+    else:
+        per = f" per {card['period']}" if card.get("period") else ""
+        print(f"Card price {card['before']:g} -> {card['after']:g} {card['currency']}{per}; "
+              f"price range (upper bound) {ranges[0]} -> {ranges[1]} {card['currency']}{per}")
     print()
     print(f"| buyer | segment | change | {a} | {b} | intent | reason | in their words ({b}) |")
     print("|---|---|---|---|---|---|---|---|")
@@ -558,8 +565,8 @@ def cmd_revenue(args):
         raise RecordErrors(errors)
     first = loaded[0].meta
     for rnd in loaded[1:]:
-        for field in ("offer", "currency", "options"):
-            if rnd.meta[field] != first[field]:
+        for field in ("offer", "currency", "period", "options"):
+            if rnd.meta.get(field) != first.get(field):
                 raise UsageError(f"price rounds differ only in price: {rnd.label} has another {field} "
                                  f"than {first['label']}")
     prices = [rnd.meta["price"] for rnd in loaded]

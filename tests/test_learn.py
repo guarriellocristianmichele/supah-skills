@@ -174,6 +174,46 @@ class ExportCommand(Isolated):
         self.assertIn('"rule": "marked-word"', run.stdout)
 
 
+class Once(Isolated):
+    SCAN = os.path.join(ROOT, "skills", "ai-slop-prose", "scripts", "scan.py")
+
+    def run_scan(self, *args):
+        return subprocess.run([sys.executable, self.SCAN, *args], capture_output=True, text=True, encoding="utf-8",
+                              env=dict(os.environ, SUPAH_PROSE_HOME=self.dir), timeout=60)
+
+    def test_a_sweep_recorded_twice_counts_once(self):
+        orig = os.path.join(self.dir, "orig.md")
+        final = os.path.join(self.dir, "final.md")
+        with open(orig, "w", encoding="utf-8") as f:
+            f.write("We delve into the rich tapestry of options.\n")
+        with open(final, "w", encoding="utf-8") as f:
+            f.write("We look at the options.\n")
+        first = self.run_scan("verdict", orig, final)
+        second = self.run_scan("verdict", orig, final)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertNotIn("Recorded 0 verdicts", first.stdout)
+        self.assertIn("Recorded 0 verdicts", second.stdout)
+
+    def test_an_audit_file_labelled_twice_counts_once(self):
+        path = os.path.join(self.dir, "audit.tsv")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("label\tlang\trule\tcategory\ttier\tmatch\tcontext\n"
+                    "fp\ten\tmarked-word\tvocabulary\tM\tdelve\tthe delve library\n")
+        self.run_scan("label", path)
+        self.assertIn("Recorded 0 human verdicts", self.run_scan("label", path).stdout)
+
+    def test_export_without_out_writes_next_to_the_model_not_in_the_project(self):
+        learn.record([verdict("fp", i=i) for i in range(2)])
+        cwd = tempfile.mkdtemp()
+        try:
+            run = subprocess.run([sys.executable, self.SCAN, "export"], capture_output=True, text=True,
+                                 encoding="utf-8", env=dict(os.environ, SUPAH_PROSE_HOME=self.dir), cwd=cwd, timeout=60)
+            self.assertEqual(os.listdir(cwd), [])
+            self.assertTrue(os.path.exists(os.path.join(self.dir, "supah-prose-learning.json")), run.stdout)
+        finally:
+            shutil.rmtree(cwd, ignore_errors=True)
+
+
 class Stores(unittest.TestCase):
     """One learn.py serves the prose, design and code scanners, each with its own store."""
 

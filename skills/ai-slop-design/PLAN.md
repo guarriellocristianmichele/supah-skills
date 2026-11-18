@@ -20,7 +20,7 @@ Group the ledger's open findings into ordered batches that `sweep B<n>`, `craft 
 
    IDs are `B<n>` in plan order: every token/component batch, then the surface batches (`shared` first, then inventory order), then the handoff batches. They are never reused: a re-plan keeps each batch that has an issue as it is, minus the findings no longer `open` or `planned`, and numbers new batches from the plan's `Next:` line.
 5. **Checks**, written on every batch, the ones its issue and its sweep run:
-   - **rescan**: for surface, handoff and expand batches, `designscan.py --keep .slop-design/keep.tsv <files>` exits 0. A migrate or contract batch's files can still hold later batches' findings, so for those the platform rescan and `designscan.py reconcile .slop-design/findings.md .slop-design/hits.json --keep .slop-design/keep.tsv --json` show no copy of the group left in the batch's files (migrate) or the group's findings `fixed` (contract).
+   - **rescan**: for surface and handoff batches, `designscan.py --keep .slop-design/keep.tsv <files>` exits 0. A token/component batch's files can still hold later batches' findings, so for those the platform rescan and `designscan.py reconcile .slop-design/findings.md .slop-design/hits.json --keep .slop-design/keep.tsv --json` show no new hit in the batch's files (expand), no copy of the group left in them (migrate), or the group's findings `fixed` (contract).
    - **content**: every visible string, link, form field, handler and accessible name in the batch's files is unchanged against a snapshot taken before the batch.
    - **render**: where the user allows a browser, no horizontal scroll (`document.documentElement.scrollWidth` not above `clientWidth`) at 390, 768 and 1440 pixels on each of the batch's surfaces; without one, the batch is reported as render not checked.
 6. **Write** `plan.md` in the format below, set every batched finding to `planned`, rewrite `STATUS.md` (finding counts, next action `/ai-slop-design publish`, or `/ai-slop-design sweep all` when more than one batch qualifies for it (SWEEP.md, Several batches), else `/ai-slop-design sweep B1`), and show the batches in order: ID, kind, title, files, findings, depends-on. Ask with options: keep the plan (recommended), drop findings by ID with a reason (they become `rejected:<reason>` and the plan is rewritten), or split a batch named by ID.
@@ -47,7 +47,7 @@ Serves: DS-004
 Depends-on: none
 Change: add `--color-brand: #6d28d9` to the `@theme` block; no caller changes.
 Checks:
-- rescan: `designscan.py --keep .slop-design/keep.tsv app/globals.css` exits 0
+- rescan: the platform rescan and `reconcile --json` show no new hit in app/globals.css
 - content: app/globals.css keeps every rule it had
 - render: none, no caller changes
 Work: /ai-slop-design sweep B1

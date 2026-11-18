@@ -295,33 +295,54 @@ def scan_text(source, path, keep=None, model=None):
     return result
 
 
+def repo_relative(path):
+    """The path from the root of the git repository holding it, with forward slashes, so the same
+    file named relatively or absolutely is one file."""
+    full = os.path.abspath(path)
+    top = os.path.dirname(full)
+    while top and not os.path.exists(os.path.join(top, ".git")):
+        parent = os.path.dirname(top)
+        top = None if parent == top else parent
+    return (os.path.relpath(full, top) if top else full).replace("\\", "/")
+
+
 def cmd_verdict(argv):
-    """Turn an audit's judged hits into verdicts, once per file, line and rule."""
+    """Turn an audit's judged hits into verdicts, once per file, line, rule and source line."""
     p = argparse.ArgumentParser(prog="codescan.py verdict")
     p.add_argument("--judged", required=True, metavar="FILE", help="TSV: label, file, line, rule")
     p.add_argument("--source", choices=("model", "human"), default="model")
     a = p.parse_args(argv)
-    seen = {(r["rule"], r["reason"]) for r in learn.read_log() if r["reason"].startswith("judged:")}
-    scans, rows, skipped = {}, [], 0
+    key = lambda rule, reason, lang, match, context: (rule, reason, learn.context_key(rule, lang, match, context))
+    seen = learn.recorded(lambda r: key(r["rule"], r["reason"], r["lang"], r["match"], r["context"]))
+    scans, rows, touched, skipped = {}, [], set(), 0
     with open(a.judged, encoding="utf-8") as f:
         for raw in f:
             parts = raw.rstrip("\n").split("\t")
             if raw.startswith("#") or len(parts) < 4 or parts[0] not in ("tell", "fp"):
                 continue
             label, path, line, rule = parts[:4]
-            reason = "judged:%s:%s" % (path.replace("\\", "/"), line)
-            if (rule, reason) in seen:
-                skipped += 1
-                continue
             if path not in scans:
-                with open(path, encoding="utf-8", errors="replace") as src:
-                    scans[path] = scan_text(src.read(), path)
+                try:
+                    with open(path, encoding="utf-8", errors="replace") as src:
+                        scans[path] = scan_text(src.read(), path)
+                except OSError as e:
+                    scans[path] = None
+                    print("%s: cannot read (%s), skipped" % (path, e.strerror or e), file=sys.stderr)
+            if scans[path] is None:
+                continue
             hit = next((h for h in scans[path]["hits"] if h["rule"] == rule and str(h["line"]) == line), None)
             if hit is None:
                 print("no %s hit at %s:%s, skipped" % (rule, path, line), file=sys.stderr)
                 continue
-            seen.add((rule, reason))
-            rows.append({"lang": scans[path]["lang"], "rule": rule, "category": hit["category"], "tier": hit["tier"],
+            lang = scans[path]["lang"]
+            touched.add("%s/%s" % (rule, lang))
+            reason = "judged:%s:%s" % (repo_relative(path), line)
+            k = key(rule, reason, lang, hit["match"], hit["context"])
+            if k in seen:
+                skipped += 1
+                continue
+            seen.add(k)
+            rows.append({"lang": lang, "rule": rule, "category": hit["category"], "tier": hit["tier"],
                          "label": label, "reason": reason, "source": a.source, "match": hit["match"],
                          "context": hit["context"]})
     learn.record(rows)
@@ -331,7 +352,7 @@ def cmd_verdict(argv):
     print("recorded %d verdicts (%s), %d already recorded, in %s" % (
         len(rows), ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "none", skipped, learn.paths()[0]))
     model = learn.rebuild()
-    for line in learn.progress(model, sorted({"%s/%s" % (r["rule"], r["lang"]) for r in rows}), "codescan.py audit"):
+    for line in learn.progress(model, sorted(touched), "codescan.py audit"):
         print("  " + line)
     return 0
 

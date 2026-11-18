@@ -73,7 +73,30 @@ class Overlap(unittest.TestCase):
         self.assertEqual(data["frontier"], ["B3"])
 
 
+class Spelling(unittest.TestCase):
+    def test_one_file_spelled_three_ways_is_one_file(self):
+        code, data = frontier([("B1", "pending", "none", "src/a.py"), ("B2", "pending", "none", "./src/a.py"),
+                               ("B3", "pending", "none", "src\\a.py")])
+        self.assertEqual(data["frontier"], ["B1"])
+        self.assertEqual(data["implied"], {"B2": ["B1"], "B3": ["B2"]})
+
+    def test_an_empty_status_is_pending_and_case_does_not_matter(self):
+        code, data = frontier([("B1", "", "none", ""), ("B2", "DONE", "none", ""), ("B3", "Pending", "B2", "")])
+        self.assertEqual(data["frontier"], ["B1", "B3"])
+
+
 class Invalid(unittest.TestCase):
+    def test_a_unit_listed_twice_stops_the_job(self):
+        code, data = frontier([("B1", "pending", "none", ""), ("B1", "done", "none", "")])
+        self.assertEqual((code, data["duplicate"]), (2, ["B1"]))
+
+    def test_no_units_file_is_reported_not_raised(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = subprocess.run([sys.executable, GRAPH, "frontier", "--state", d], capture_output=True, text=True,
+                                 timeout=60)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("units.md", json.loads(out.stdout)["error"])
+
     def test_a_cycle_stops_the_job(self):
         code, data = frontier([("B1", "pending", "B3", ""), ("B2", "pending", "B1", ""),
                                ("B3", "pending", "B2", ""), ("B4", "pending", "none", "")])

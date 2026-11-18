@@ -1017,7 +1017,7 @@ class Verdicts(unittest.TestCase):
             with open(os.path.join(d, "verdicts.tsv"), encoding="utf-8") as f:
                 rows = [line.rstrip("\n").split("\t") for line in f][1:]
         self.assertEqual(out.returncode, 0, out.stderr)
-        got = sorted((r[1], r[4], r[5]) for r in rows)
+        got = sorted((r[1], r[4], r[5].split("@")[0].strip()) for r in rows)  # the reason ends with the run id
         self.assertEqual(got, [("emoji-icon", "fp", "fp"), ("glued-arrow", "reflex", "handoff"),
                                ("purple-gradient", "chosen", "brand"), ("transition-all", "reflex", "")])
         self.assertIn("1 unresolved", out.stdout)
@@ -1076,6 +1076,41 @@ class Learning(unittest.TestCase):
                          [("emoji-icon", "fp"), ("pure-black-white", "chosen"), ("purple-gradient", "reflex")])
         self.assertIn("recorded 0 verdicts", second.stdout)
         self.assertIn("purple-gradient/-: 1/30 verdicts", first.stdout)
+
+    def test_a_status_with_spaces_does_not_swallow_the_next_finding(self):
+        text = FINDINGS.replace("status: rejected:kept", "status: rejected:wontfix (#12)") + (
+            "\n### DS-004 · motion · status: open\nHit: transition-all · `transition: all 0.3s ease`\nWhere: page.css:1\n")
+        with tempfile.TemporaryDirectory() as d:
+            findings = write(d, "findings.md", text)
+            run("verdict", "--judged", findings, env={"SUPAH_DESIGN_HOME": d})
+            with open(os.path.join(d, "verdicts.tsv"), encoding="utf-8") as f:
+                rows = [line.rstrip("\n").split("\t") for line in f][1:]
+        self.assertEqual(sorted((r[1], r[5]) for r in rows),
+                         [("purple-gradient", "judged:DS-001"), ("transition-all", "judged:DS-004")])
+
+    def test_a_handoff_keep_line_is_a_reflex_as_in_a_sweep(self):
+        with tempfile.TemporaryDirectory() as d:
+            findings = write(d, "findings.md", "# Findings\n")
+            keep = write(d, "keep.tsv", "glued-arrow\tStart free trial \u2192\thandoff\n")
+            run("verdict", "--judged", findings, "--keep", keep, env={"SUPAH_DESIGN_HOME": d})
+            with open(os.path.join(d, "verdicts.tsv"), encoding="utf-8") as f:
+                rows = [line.rstrip("\n").split("\t") for line in f][1:]
+        self.assertEqual([(r[1], r[4]) for r in rows], [("glued-arrow", "reflex")])
+
+    def test_a_sweep_after_the_audit_records_only_what_the_audit_did_not(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(FIX, "slop.vue"), encoding="utf-8") as f:
+                orig = write(d, "orig.vue", f.read())
+            fixed = write(d, "page.vue", "<template>\n  <section>\n    <p>Plain</p>\n  </section>\n</template>\n")
+            env = {"SUPAH_DESIGN_HOME": os.path.join(d, "store")}
+            run("verdict", "--judged", write(d, "findings.md", FINDINGS), env=env)
+            first = run("verdict", orig, fixed, env=env)
+            again = run("verdict", orig, fixed, env=env)
+            with open(os.path.join(d, "store", "verdicts.tsv"), encoding="utf-8") as f:
+                rules = [line.split("\t")[1] for line in f][1:]
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(rules.count("purple-gradient"), 1)
+        self.assertIn("recorded 0 verdicts", again.stdout)
 
     def test_export_holds_counts_and_no_matches(self):
         with tempfile.TemporaryDirectory() as d:

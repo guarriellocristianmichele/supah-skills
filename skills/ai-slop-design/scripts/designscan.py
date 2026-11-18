@@ -1355,7 +1355,8 @@ def cmd_hits(argv):
 # A re-run audit compares a fresh hits file with the ledger's findings and keep file, so a
 # finding whose hit is gone closes, a returning one reopens, and a hit nobody judged is new.
 
-FINDING = re.compile(r"^### (DS-\d+) · ([^·\n]+?) · status: (\S+)[ \t]*$", re.M)
+# the status runs to the end of the line: `rejected:wontfix (#12)` holds spaces
+FINDING = re.compile(r"^### (DS-\d+) · ([^·\n]+?) · status: (\S[^\n]*?)[ \t]*$", re.M)
 
 
 def ledger_path(path):
@@ -1558,7 +1559,8 @@ def judged(findings_path, keep):
                      "file": where.group(1) if where else "", "match": hit.group(2).strip("`")})
     for (rule, match), reason in keep.items():
         if rule in RULES:
-            rows.append({"rule": rule, "label": "fp" if reason == "fp" else "chosen",
+            # a handoff is a reflex handed to craft, as judge() records it after a sweep
+            rows.append({"rule": rule, "label": "fp" if reason == "fp" else "reflex" if reason == "handoff" else "chosen",
                          "reason": "judged:keep " + reason, "file": "", "match": match})
     for r in rows:
         r.update(category=RULES[r["rule"]][0], tier=tier_of(r["rule"]), source="model", context="")
@@ -1589,6 +1591,13 @@ def cmd_verdict(argv):
         if not a.pairs or len(a.pairs) % 2:
             p.error("give ORIG FILE pairs")
         origs, files = a.pairs[0::2], a.pairs[1::2]
+        run = learn.run_id(*[read(x) for x in a.pairs])
+        log = learn.read_log()
+        if any(r["reason"].endswith("@" + run) for r in log):
+            print("recorded 0 verdicts: this sweep (%s) is already in %s" % (run, learn.paths()[0]))
+            return 0
+        # an audit's verdict --judged already counted these hits: the sweep that fixes them adds nothing
+        judged_hits = {(r["rule"], learn.clean(r["match"])) for r in log if r["reason"].startswith("judged:")}
         # scanned as one run each, so duplication is judged across the files as the sweep saw them
         befores = scan_many([(read(o), f) for o, f in zip(origs, files)])
         afters = scan_many([(read(f), f) for f in files])
@@ -1597,6 +1606,10 @@ def cmd_verdict(argv):
                 if label is None:
                     unresolved += 1
                     continue
+                if (h["rule"], learn.clean(h["match"])) in judged_hits:
+                    skipped += 1
+                    continue
+                reason = ("%s @%s" % (reason, run)).strip()
                 rows.append({"rule": h["rule"], "category": h["category"], "tier": h["tier"], "label": label,
                              "reason": reason, "source": a.source, "file": before["file"], "match": h["match"],
                              "context": h["context"]})
@@ -1605,7 +1618,7 @@ def cmd_verdict(argv):
     for row in rows:
         counts[row["label"]] = counts.get(row["label"], 0) + 1
     detail = ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "none"
-    tail = "%d already recorded" % skipped if a.judged else "%d unresolved" % unresolved
+    tail = "%d already recorded" % skipped if a.judged else "%d unresolved, %d counted by the audit" % (unresolved, skipped)
     print("recorded %d verdicts (%s), %s, in %s" % (len(rows), detail, tail, learn.paths()[0]))
     model = learn.rebuild()
     for line in learn.progress(model, sorted({"%s/%s" % (r["rule"], learn.NO_LANG) for r in rows}),

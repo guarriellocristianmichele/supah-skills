@@ -563,6 +563,11 @@ def cmd_verdict(argv):
     keep = load_keep(a.keep)
     before = scan_file(a.original, a.lang, {}, model=None)
     after = scan_file(a.final, before["lang"], {}, model=None)
+    with open(a.original, encoding="utf-8", errors="replace") as f1, open(a.final, encoding="utf-8", errors="replace") as f2:
+        run = learn.run_id(f1.read(), f2.read())
+    if run in learn.recorded(lambda r: r["reason"].rpartition("@")[2]):
+        print(f"Recorded 0 verdicts: this sweep ({run}) is already in {learn.paths()[0]}")
+        return 0
     remaining = {}
     for h in after["hits"]:
         k = (h["rule"], h["match"].lower())
@@ -584,7 +589,7 @@ def cmd_verdict(argv):
             label, reason = "tell", "rewritten"
         counts[label] += 1
         rows.append({"lang": before["lang"], "rule": h["rule"], "category": h["category"], "tier": h["tier"],
-                     "label": label, "reason": reason, "source": a.source, "match": h["match"],
+                     "label": label, "reason": f"{reason} @{run}", "source": a.source, "match": h["match"],
                      "context": h["context"]})
     learn.record(rows)
     model = learn.rebuild()

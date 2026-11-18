@@ -170,6 +170,17 @@ def read_log():
     return rows
 
 
+def run_id(*texts):
+    """A short id for one recorded run (a sweep's before and after), kept in each row's reason so the
+    same run recorded again adds nothing."""
+    return hashlib.sha1("\x1e".join(texts).encode("utf-8")).hexdigest()[:12]
+
+
+def recorded(key):
+    """The keys of the rows already in the log, as key(row) computes them."""
+    return {key(r) for r in read_log()}
+
+
 def effective_verdicts(rows):
     """Human verdicts override model verdicts for the same context, whatever their order."""
     human = {}
@@ -388,13 +399,16 @@ def cmd_label(argv, prog):
     p.add_argument("file")
     a = p.parse_args(argv)
     rows = []
+    seen = recorded(lambda r: (context_key(r["rule"], r["lang"], r["match"], r["context"]), r["source"], r["label"]))
     with open(a.file, encoding="utf-8") as f:
         for line in f:
             parts = line.rstrip("\n").split("\t")
             if line.startswith("#") or parts[0] == "label" or len(parts) < 7:
                 continue
             label, lang, rule, cat, tier, match, context = parts[:7]
-            if label in ("fp", "kept", "tell"):
+            key = (context_key(rule, lang, match, context), "human", label)
+            if label in ("fp", "kept", "tell") and key not in seen:
+                seen.add(key)
                 rows.append({"lang": lang, "rule": rule, "category": cat, "tier": tier, "label": label,
                              "reason": "audit", "source": "human", "match": match, "context": context})
     record(rows)
@@ -407,7 +421,7 @@ def cmd_export(argv, prog):
     """Write the per-rule aggregates to a file the user can read, then attach to an issue."""
     import argparse
     p = argparse.ArgumentParser(prog=f"{prog} export")
-    p.add_argument("--out", default=f"supah-{STORE['name']}-learning.json")
+    p.add_argument("--out", default=os.path.join(store_dir(), f"supah-{STORE['name']}-learning.json"))
     a = p.parse_args(argv)
     text = json.dumps(export(rebuild()), ensure_ascii=False, indent=1)
     with open(a.out, "w", encoding="utf-8") as f:

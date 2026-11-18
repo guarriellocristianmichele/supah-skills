@@ -132,6 +132,40 @@ class Learning(unittest.TestCase):
         self.assertEqual(learned["hits"][0]["kept"], "learned:context")
 
 
+class JudgedOnce(unittest.TestCase):
+    def test_the_same_hit_named_by_another_path_is_not_recorded_twice(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "client.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(WRAPPER)
+            judged = os.path.join(d, "judged.tsv")
+            env = {"SUPAH_CODE_HOME": os.path.join(d, "store")}
+            with open(judged, "w", encoding="utf-8") as f:
+                f.write("fp\t%s\t1\tforwarding-wrapper\n" % path)
+            run("verdict", "--judged", judged, env=env)
+            with open(judged, "w", encoding="utf-8") as f:
+                f.write("fp\t%s\t1\tforwarding-wrapper\n" % os.path.relpath(path))
+            second = run("verdict", "--judged", judged, env=env)
+        self.assertIn("recorded 0 verdicts", second.stdout)
+        self.assertIn("1 already recorded", second.stdout)
+        self.assertIn("forwarding-wrapper/py: 1/30 verdicts", second.stdout)
+
+    def test_a_missing_file_is_skipped_and_the_rest_recorded(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "client.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(WRAPPER)
+            judged = os.path.join(d, "judged.tsv")
+            with open(judged, "w", encoding="utf-8") as f:
+                f.write("fp\t%s\t1\tforwarding-wrapper\n" % os.path.join(d, "gone.py"))
+                f.write("fp\t%s\t1\tforwarding-wrapper\n" % d)
+                f.write("fp\t%s\t1\tforwarding-wrapper\n" % path)
+            out = run("verdict", "--judged", judged, env={"SUPAH_CODE_HOME": os.path.join(d, "store")})
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("recorded 1 verdicts", out.stdout)
+        self.assertIn("gone.py", out.stderr)
+
+
 class Calibration(unittest.TestCase):
     def test_every_rule_has_a_calibrated_tier(self):
         sys.path.insert(0, os.path.dirname(SCAN))

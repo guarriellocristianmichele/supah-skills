@@ -20,6 +20,8 @@ and [a bad anchor](docs/guide.md#nowhere), or [this section](#getting-started).
 python scripts/build.py --out dist
 python scripts/build.py --verbose
 python scripts/deploy.py
+python scripts
+python tools --out x --quiet
 npm run build
 npm run lint
 make test
@@ -48,6 +50,7 @@ class Check(unittest.TestCase):
         put(cls.root, "docs/guide.md", "# Guide\n\n## Setup\n")
         put(cls.root, "scripts/build.py", 'import argparse, os\np = argparse.ArgumentParser()\n'
                                           'p.add_argument("--out")\nTOKEN = os.environ["APP_TOKEN"]\n')
+        put(cls.root, "tools/__main__.py", 'import argparse\nargparse.ArgumentParser().add_argument("--out")\n')
         put(cls.root, "package.json", json.dumps({"scripts": {"build": "tsc"}}))
         put(cls.root, "Makefile", "test:\n\tpytest\n")
         put(cls.root, "config/app.toml", "x = 1\n")
@@ -69,6 +72,9 @@ class Check(unittest.TestCase):
         self.assertIn(("flag-unknown", "scripts/build.py --verbose"), self.found)
         self.assertNotIn(("flag-unknown", "scripts/build.py --out"), self.found)
         self.assertIn(("script-missing", "scripts/deploy.py"), self.found)
+        self.assertNotIn(("script-missing", "scripts"), self.found)  # a directory, read without crashing
+        self.assertIn(("flag-unknown", "tools --quiet"), self.found)  # flags read from tools/__main__.py
+        self.assertNotIn(("flag-unknown", "tools --out"), self.found)
         self.assertIn(("package-script-missing", "npm run lint"), self.found)
         self.assertNotIn(("package-script-missing", "npm run build"), self.found)
         self.assertIn(("make-target-missing", "make release"), self.found)

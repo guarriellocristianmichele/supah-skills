@@ -192,9 +192,11 @@ def check_command(cmd, repo, base):
             if not repo.exists(script, base):
                 found.append(("script-missing", script))
             else:
-                text = open(os.path.join(base if os.path.exists(os.path.join(base, script)) else repo.root, script),
-                            encoding="utf-8", errors="replace").read()
-                for flag in [a.split("=")[0] for a in args if re.match(r"^--[\w-]+", a)]:
+                path = os.path.join(base if os.path.exists(os.path.join(base, script)) else repo.root, script)
+                if os.path.isdir(path):  # `python pkg` runs pkg/__main__.py; any other directory has no flags to read
+                    path = os.path.join(path, "__main__.py")
+                text = open(path, encoding="utf-8", errors="replace").read() if os.path.isfile(path) else None
+                for flag in [a.split("=")[0] for a in args if text is not None and re.match(r"^--[\w-]+", a)]:
                     if flag not in text:
                         found.append(("flag-unknown", "%s %s" % (script, flag)))
         elif exe in ("npm", "pnpm", "yarn", "bun") and args:

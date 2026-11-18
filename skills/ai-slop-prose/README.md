@@ -77,7 +77,7 @@ Every step has a command or a check, so a run can be audited afterwards.
 | 5 | Sweep | work through `TELLS.md` one category at a time | each hit is rewritten or written to the keep file with a reason |
 | 6 | Facts | `scan.py compare <orig> <file>` | `Missing: 0` |
 | 7 | Rescan | `scan.py --keep <keep> <file>` | exit code 0 |
-| 8 | Learn | `scan.py verdict <orig> <file> --keep <keep>` | it prints the recorded verdicts and any tier changes |
+| 8 | Learn | `scan.py verdict <orig> <file> --keep <keep>` | it prints the recorded verdicts, any tier changes and each touched rule's progress toward 30 verdicts |
 | 9 | Report | one line per category, metrics before and after, diff, `fp` verdicts | all eleven categories are listed, zeros included |
 
 A rewrite that swaps one pattern for another (a contrast turned into a rhetorical question, say) shows up again at step 7, so the loop closes only when the text is clean.
@@ -135,9 +135,9 @@ Lists what the rewrite dropped: numbers, URLs, inline code, quoted strings, and 
 
 Records the verdicts of a finished sweep and rebuilds the learned model. A hit kept with reason `fp` becomes a false positive, one kept with any other reason becomes `kept` (a real tell left on purpose), and a hit that disappeared from FINAL becomes `tell` (rewritten). Hits still present without a keep entry, and hits resolved by context gates, are not recorded.
 
-### `scan.py learn`, `scan.py audit`, `scan.py label FILE`
+### `scan.py learn`, `scan.py audit`, `scan.py label FILE`, `scan.py export`
 
-`learn` rebuilds the model and prints each rule's verdict count, mean precision, 95% lower bound and tier. `audit [--fraction 0.1]` prints a random sample of the model's `fp` verdicts as TSV; edit the `label` column (`fp`, `kept` or `tell`) and record it with `label FILE` as human verdicts, which override the model's for the same context.
+`learn` rebuilds the model and prints each rule's verdict count, mean precision, 95% lower bound and tier. `audit [--fraction 0.1]` prints a random sample of the model's `fp` verdicts as TSV; edit the `label` column (`fp`, `kept` or `tell`) and record it with `label FILE` as human verdicts, which override the model's for the same context. A rule changes tier only after 30 verdicts; until then each sweep prints how far it is, and asks for an `audit` when the change would rest on the model's verdicts alone. `export [--out FILE]` writes each rule's counts, tier and estimated precision, with no text from your files, for you to read and attach to an issue if you want the shipped tiers recalibrated. The design and code scanners share this module and these commands (`designscan.py`, `codescan.py`), each with its own store (ADR 0018).
 
 ### `scan.py rules`
 
@@ -297,6 +297,7 @@ La skill si attiva da sola quando Claude scrive o rivede testi destinati a perso
 | `scan.py rules` | stampa tutte le regole, le soglie e i lessici | 0 |
 | `scan.py verdict ORIGINALE FINALE --keep KEEP` | registra i verdetti di una revisione (`fp`, `kept`, `tell`) e aggiorna la precisione misurata di ogni regola | 0 |
 | `scan.py audit`, poi `scan.py label FILE` | ti fa confermare un campione dei falsi positivi decisi dal modello | 0 |
+| `scan.py export [--out FILE]` | scrive per ogni regola conteggi, tier e precisione stimata, senza testo dei tuoi file, da allegare a una issue se vuoi | 0 |
 
 Opzioni di `scan.py`: `--lang auto|en|it` (lingua, rilevata in automatico), `--keep FILE` (eccezioni motivate), `--json` (output per programmi).
 

@@ -2,7 +2,8 @@
 """Release helper for supah-skills. Stdlib only.
 
   python scripts/release.py --check     run every repository check (CI runs this)
-  python scripts/release.py --sync      copy the prose and code scanners into plugins/slop-guard
+  python scripts/release.py --sync      copy learn.py next to the design and code scanners, and the
+                                        prose and code scanners into plugins/slop-guard
   python scripts/release.py 0.3.0       set the version everywhere, sync, then run the checks
 
 Checks: every skill folder is listed in plugin.json and has its own marketplace entry;
@@ -29,7 +30,11 @@ COPIES = [
     ("skills/ai-slop-prose/scripts", "plugins/slop-guard/scanner"),
     ("skills/ai-slop-audit/scripts", "plugins/slop-guard/codescan"),
 ]
+# one verdict-learning module for the three scanners (ADR 0018); per-skill installs need their own copy
+LEARN = "skills/ai-slop-prose/scripts/learn.py"
+LEARN_COPIES = ["skills/ai-slop-design/scripts/learn.py", "skills/ai-slop-audit/scripts/learn.py"]
 KEEP = os.path.join(ROOT, "docs", "readme-keep.tsv")
+LESSONS = "**Lessons.** At the start of a run, read this skill's section of `.supah/LESSONS.md` at the repo root when it exists, and follow its rules. Write a lesson only when the user corrects or undoes what this skill did, or when a run ends failed or partial for a cause the skill could have avoided: one entry under `## <skill>` (on first use create the file and add `.supah/` to `.git/info/exclude`) with the date, the trigger (`correction` or `failure`), the evidence (the user's words, the commit or the output), the step it changes, and the rule in one positive line. Keep at most 15 per skill: a lesson that contradicts an older one replaces it, and past 15 the oldest goes. A lesson about this skill's own instructions, true in any project, changes nothing here: draft an issue for guarriellocristianmichele/supah-skills (title, the SKILL.md step, what happened, no code or text from the project) and ask with options: open it with `gh issue create`, save it in `.supah/issue-drafts/`, or drop it. The report names the lessons added, replaced and drafted."
 NEXT_STEP = "**Next step.** End every run with the next step of the workflow, worked out from what this run left (the ledger's statuses, failed or blocked units, a question still open, the user's goal): the exact command and its reason in one line, and when two fit, both, the recommended one first; a skill that keeps a `STATUS.md` writes the same command as its next action. Put `/clear` before it (on another agent, a new session) when this run left its state on disk for that command to read; keep the session when the next step answers this run in conversation. When another skill called this one, hand the result back to it instead. When nothing is left, say the workflow is done."
 # ADR 0013: every SKILL.md carries this paragraph word for word
 ASK_WITH_OPTIONS = ("**Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when "
@@ -80,6 +85,9 @@ def scanner_files(top):
 
 
 def sync_scanner():
+    for dst in LEARN_COPIES:  # before the folder copies, so slop-guard's codescan carries it too
+        shutil.copyfile(os.path.join(ROOT, LEARN), os.path.join(ROOT, dst))
+        print(f"copied {LEARN} to {dst}")
     for src, dst in COPIES:
         src, dst = os.path.join(ROOT, src), os.path.join(ROOT, dst)
         shutil.rmtree(dst, ignore_errors=True)
@@ -90,7 +98,9 @@ def sync_scanner():
 
 
 def check_scanner_copy():
-    errors = []
+    errors = [f"{dst} differs from {LEARN}: run release.py --sync" for dst in LEARN_COPIES
+              if not os.path.exists(os.path.join(ROOT, dst))
+              or not filecmp.cmp(os.path.join(ROOT, LEARN), os.path.join(ROOT, dst), shallow=False)]
     for src_rel, dst_rel in COPIES:
         src, dst = os.path.join(ROOT, src_rel), os.path.join(ROOT, dst_rel)
         files = scanner_files(src)
@@ -139,6 +149,8 @@ def check_manifests():
                 errors.append(f"skills/{name}/SKILL.md lacks the Ask with options paragraph (ADR 0013)")
             if NEXT_STEP not in text:
                 errors.append(f"skills/{name}/SKILL.md lacks the Next step paragraph (ADR 0017)")
+            if LESSONS not in text:
+                errors.append(f"skills/{name}/SKILL.md lacks the Lessons paragraph (ADR 0019)")
     return errors + check_scanner_copy()
 
 

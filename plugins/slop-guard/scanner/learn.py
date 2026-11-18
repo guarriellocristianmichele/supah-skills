@@ -1,4 +1,7 @@
-"""Verdict learning for scan.py. Stdlib only.
+"""Verdict learning for the prose, design and code scanners. Stdlib only.
+
+One source, skills/ai-slop-prose/scripts/learn.py; release.py --sync copies it next to
+designscan.py and codescan.py, and each scanner calls configure() with its store name.
 
 Every reviewed hit becomes a verdict: `tell` (rewritten), `kept` (a real tell kept for a
 reason) or `fp` (not a tell). Verdicts are appended to a log in the user's config folder,
@@ -34,16 +37,49 @@ ORDER = ["S", "M", "W", "off"]
 NB_MIN, NB_MIN_CLASS, NB_SUPPRESS = 200, 30, 0.90
 CONTEXT_FP_MIN = 2
 FIELDS = ["time", "lang", "rule", "category", "tier", "label", "reason", "source", "match", "context"]
+NO_LANG = "-"  # scanners whose rules do not depend on a language
+STORE = {"name": "prose"}
+
+
+def configure(name):
+    """Select the scanner (prose, design, code) whose verdicts and model this module reads and writes."""
+    STORE["name"] = name
+
+
+def model_for(no_learn=False):
+    """The learned model, or None with --no-learn or SUPAH_<NAME>_NO_LEARN set (the shipped tiers)."""
+    if no_learn or os.environ.get("SUPAH_%s_NO_LEARN" % STORE["name"].upper()):
+        return None
+    return load_model()
+
+
+def repo_root(path):
+    """The root of the git repository holding path, or None."""
+    top = os.path.abspath(path if os.path.isdir(path) else os.path.dirname(os.path.abspath(path)))
+    while not os.path.exists(os.path.join(top, ".git")):
+        parent = os.path.dirname(top)
+        if parent == top:
+            return None
+        top = parent
+    return top
+
+
+def repo_id(path):
+    """A short id of the repository holding path, so judged locations of two projects stay apart.
+    Only the log keeps it; export never does."""
+    root = repo_root(path)
+    return hashlib.sha1(os.path.normcase(root).encode("utf-8")).hexdigest()[:8] if root else "-"
 
 
 def store_dir():
-    if os.environ.get("SUPAH_PROSE_HOME"):
-        return os.environ["SUPAH_PROSE_HOME"]
+    env = "SUPAH_%s_HOME" % STORE["name"].upper()
+    if os.environ.get(env):
+        return os.environ[env]
     if sys.platform == "win32" and os.environ.get("APPDATA"):
         base = os.environ["APPDATA"]
     else:
         base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
-    return os.path.join(base, "supah-skills", "prose")
+    return os.path.join(base, "supah-skills", STORE["name"])
 
 
 def paths():
@@ -116,17 +152,30 @@ def beta_quantile(q, a, b):
 
 # --- verdict log ---
 
-def record(rows):
+def header():
+    """The log's own columns: a scanner's log may carry more (design's `file`) or fewer (no `lang`)."""
+    log, _ = paths()
+    if os.path.exists(log):
+        with open(log, encoding="utf-8") as f:
+            first = f.readline().rstrip("\n")
+        if first:
+            return first.split("\t")
+    return None
+
+
+def record(rows, fields=FIELDS):
+    """Append verdicts in the log's columns; `fields` names them when the log is new."""
     log, _ = paths()
     os.makedirs(os.path.dirname(log), exist_ok=True)
-    new = not os.path.exists(log)
+    columns = header()
     with open(log, "a", encoding="utf-8", newline="\n") as f:
-        if new:
-            f.write("\t".join(FIELDS) + "\n")
+        if columns is None:
+            columns = fields
+            f.write("\t".join(columns) + "\n")
         for row in rows:
             row = dict(row, time=row.get("time") or time.strftime("%Y-%m-%dT%H:%M:%S"))
             f.write("\t".join(clean(str(row.get(k, ""))) if k in ("match", "context")
-                              else str(row.get(k, "")).replace("\t", " ") for k in FIELDS) + "\n")
+                              else str(row.get(k, "")).replace("\t", " ") for k in columns) + "\n")
 
 
 def read_log():
@@ -135,25 +184,52 @@ def read_log():
         return []
     with open(log, encoding="utf-8") as f:
         lines = f.read().splitlines()
-    return [dict(zip(FIELDS, l.split("\t"))) for l in lines[1:] if l.strip()]
+    if not lines:
+        return []
+    columns = lines[0].split("\t")
+    rows = [dict(zip(columns, l.split("\t"))) for l in lines[1:] if l.strip()]
+    for r in rows:
+        for k in FIELDS:
+            r.setdefault(k, "")
+        r["lang"] = r["lang"] or NO_LANG
+    return rows
+
+
+def run_id(*texts):
+    """A short id for one recorded run (a sweep's before and after), kept in each row's reason so the
+    same run recorded again adds nothing."""
+    return hashlib.sha1("\x1e".join(texts).encode("utf-8")).hexdigest()[:12]
+
+
+def recorded(key):
+    """The keys of the rows already in the log, as key(row) computes them."""
+    return {key(r) for r in read_log()}
 
 
 def effective_verdicts(rows):
-    """Human verdicts override model verdicts for the same context, whatever their order."""
-    human = {}
-    for r in rows:
+    """Human verdicts override model verdicts for the same context, whatever their order, and the
+    latest human verdict on a context replaces the earlier ones."""
+    latest = {}
+    for i, r in enumerate(rows):
         if r["source"] == "human":
-            human[context_key(r["rule"], r["lang"], r["match"], r["context"])] = r["label"]
+            latest[context_key(r["rule"], r["lang"], r["match"], r["context"])] = i
     out = []
-    for r in rows:
+    for i, r in enumerate(rows):
         k = context_key(r["rule"], r["lang"], r["match"], r["context"])
-        if r["source"] != "human" and k in human:
+        if k in latest and latest[k] != i:
             continue
         out.append(r)
     return out
 
 
 # --- model ---
+
+def label_class(label):
+    """tell, kept or fp, whatever a scanner calls its labels (design: reflex, chosen, fp)."""
+    if label == "fp":
+        return "fp"
+    return "kept" if label in ("kept", "chosen") else "tell"
+
 
 def _prior(tier, precisions):
     if len(precisions) >= 3:
@@ -180,11 +256,14 @@ def rebuild():
     for r in rows:
         key = f"{r['rule']}/{r['lang']}"
         s = stats.setdefault(key, {"rule": r["rule"], "lang": r["lang"], "tier": r["tier"],
-                                   "category": r["category"], "tp": 0.0, "fp": 0.0, "n": 0})
+                                   "category": r["category"], "tp": 0.0, "fp": 0.0, "n": 0, "human": 0,
+                                   "counts": {"tell": 0, "kept": 0, "fp": 0}})
         good = r["label"] != "fp"
         s["tp"] = GAMMA * s["tp"] + good
         s["fp"] = GAMMA * s["fp"] + (not good)
         s["n"] += 1
+        s["human"] += r["source"] == "human"
+        s["counts"][label_class(r["label"])] += 1
     by_tier = {}
     for s in stats.values():
         if s["n"] >= 10:
@@ -195,6 +274,8 @@ def rebuild():
         a, b = a0 + s["tp"], b0 + s["fp"]
         rules[key] = {
             "base": s["tier"], "tier": _decide(s["tier"], a, b, s["n"]), "n": s["n"],
+            "human": s["human"], "counts": s["counts"],
+            "leaning": _decide(s["tier"], a, b, MIN_VERDICTS),  # the tier the evidence points to so far
             "alpha": round(a, 4), "beta": round(b, 4), "mean": round(a / (a + b), 4),
             "lower95": round(beta_quantile(1 - CONFIDENCE, a, b), 4),
         }
@@ -223,6 +304,38 @@ def rebuild():
     with open(path, "w", encoding="utf-8") as f:
         json.dump(model, f, ensure_ascii=False, indent=1)
     return model
+
+
+def progress(model, keys, audit_command):
+    """One line per rule/lang key: how far it is from the minimum, its precision so far and tier.
+    A tier change resting on model verdicts alone asks for a human audit first."""
+    lines = []
+    for key in keys:
+        r = model.get("rules", {}).get(key)
+        if not r:
+            lines.append(f"{key}: 0/{MIN_VERDICTS} verdicts")
+            continue
+        count = f"{r['n']}/{MIN_VERDICTS}" if r["n"] < MIN_VERDICTS else str(r["n"])
+        tier = r["tier"] if r["tier"] == r["base"] else f"{r['tier']} (was {r['base']})"
+        line = f"{key}: {count} verdicts, precision so far {r['mean']:.2f}, tier {tier}"
+        near = r["n"] >= MIN_VERDICTS - 10  # within ten verdicts of the minimum, or past it
+        if not r.get("human") and near and r.get("leaning", r["base"]) != r["base"]:
+            rule = key.rpartition("/")[0]
+            line += (f"; it leans to {r['leaning']} on model verdicts alone: run `{audit_command} --rule {rule}` "
+                     f"to check a sample")
+        lines.append(line)
+    return lines
+
+
+def export(model):
+    """Per-rule aggregates for the maintainer's recalibration: counts and estimates, never a match or a context."""
+    rules = []
+    for key, r in sorted(model.get("rules", {}).items()):
+        rule, _, lang = key.rpartition("/")
+        rules.append({"rule": rule, "lang": lang, "base": r["base"], "tier": r["tier"], "verdicts": r["n"],
+                      "tell": r["counts"]["tell"], "kept": r["counts"]["kept"], "fp": r["counts"]["fp"],
+                      "human": r["human"], "precision": r["mean"], "lower95": r["lower95"]})
+    return {"store": STORE["name"], "built": model.get("built"), "rules": rules}
 
 
 def load_model():
@@ -272,8 +385,82 @@ def apply(model, hit, lang):
     return r["tier"], None
 
 
-def audit_sample(fraction=0.1, seed=None):
-    rows = [r for r in effective_verdicts(read_log()) if r["label"] == "fp" and r["source"] != "human"]
+def audit_sample(fraction=0.1, seed=None, rule=None):
+    rows = [r for r in effective_verdicts(read_log()) if r["label"] == "fp" and r["source"] != "human"
+            and (rule is None or r["rule"] == rule)]
     rng = random.Random(seed)
     k = max(1, math.ceil(len(rows) * fraction)) if rows else 0
     return rng.sample(rows, k)
+
+
+# --- commands every scanner shares: <scanner> learn | audit | label FILE | export [--out FILE] ---
+
+def cmd_learn(argv, prog):
+    """Rebuild the model from the verdict log and print per-rule precision."""
+    import argparse
+    argparse.ArgumentParser(prog=f"{prog} learn").parse_args(argv)
+    model = rebuild()
+    print(f"{model['verdicts']} verdicts · {len(model['suppress'])} suppressed contexts · "
+          f"{len(model['nb'])} trained context classifiers · {paths()[1]}\n")
+    print("| rule/lang | verdicts | precision (mean) | 95% lower bound | tier |\n|---|---|---|---|---|")
+    for key, r in sorted(model["rules"].items(), key=lambda kv: kv[1]["lower95"]):
+        tier = r["tier"] if r["tier"] == r["base"] else f"{r['base']} -> {r['tier']}"
+        print(f"| {key} | {r['n']} | {r['mean']:.2f} | {r['lower95']:.2f} | {tier} |")
+    return 0
+
+
+def cmd_audit(argv, prog):
+    """Print a random sample of the model's fp verdicts as TSV for a human to confirm."""
+    import argparse
+    p = argparse.ArgumentParser(prog=f"{prog} audit")
+    p.add_argument("--fraction", type=float, default=0.1)
+    p.add_argument("--rule", help="sample only this rule's verdicts")
+    a = p.parse_args(argv)
+    print(f"# Set label to fp (not what the rule names), kept, or tell, then: {prog} label <this file>")
+    print("label\tlang\trule\tcategory\ttier\tmatch\tcontext")
+    for r in audit_sample(a.fraction, rule=a.rule):
+        print("\t".join([r["label"], r["lang"], r["rule"], r["category"], r["tier"], r["match"], r["context"]]))
+    return 0
+
+
+def cmd_label(argv, prog):
+    """Record human verdicts from an edited audit file; they override model verdicts."""
+    import argparse
+    p = argparse.ArgumentParser(prog=f"{prog} label")
+    p.add_argument("file")
+    a = p.parse_args(argv)
+    rows = []
+    seen = recorded(lambda r: (context_key(r["rule"], r["lang"], r["match"], r["context"]), r["source"], r["label"]))
+    with open(a.file, encoding="utf-8") as f:
+        for line in f:
+            parts = line.rstrip("\n").split("\t")
+            if line.startswith("#") or parts[0] == "label" or len(parts) < 7:
+                continue
+            label, lang, rule, cat, tier, match, context = parts[:7]
+            key = (context_key(rule, lang, match, context), "human", label)
+            if label in ("fp", "kept", "tell") and key not in seen:
+                seen.add(key)
+                rows.append({"lang": lang, "rule": rule, "category": cat, "tier": tier, "label": label,
+                             "reason": "audit", "source": "human", "match": match, "context": context})
+    record(rows)
+    rebuild()
+    print(f"Recorded {len(rows)} human verdicts.")
+    return 0
+
+
+def cmd_export(argv, prog):
+    """Write the per-rule aggregates to a file the user can read, then attach to an issue."""
+    import argparse
+    p = argparse.ArgumentParser(prog=f"{prog} export")
+    p.add_argument("--out", default=os.path.join(store_dir(), f"supah-{STORE['name']}-learning.json"))
+    a = p.parse_args(argv)
+    text = json.dumps(export(rebuild()), ensure_ascii=False, indent=1)
+    with open(a.out, "w", encoding="utf-8") as f:
+        f.write(text + "\n")
+    print(text)
+    print(f"\nWrote {a.out}: rule names, tiers and counts only, no text from your files. Read it before "
+          f"attaching it to an issue on guarriellocristianmichele/supah-skills.")
+    return 0
+
+
+COMMANDS = {"learn": cmd_learn, "audit": cmd_audit, "label": cmd_label, "export": cmd_export}

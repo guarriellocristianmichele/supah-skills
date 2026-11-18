@@ -1,6 +1,6 @@
 # verify
 
-Scope: `git diff <baseline>`, where the baseline commit is the one in `checks.md`.
+Scope: `git diff <baseline>` in the checkout that holds the fixes, where the baseline commit is the one in `checks.md`: the user's checkout, or for a several-batch `fix` the integration branch's worktree (FIX.md, Several batches), where every step below runs.
 
 ## Steps
 

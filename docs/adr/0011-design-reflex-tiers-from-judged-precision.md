@@ -14,7 +14,7 @@ A `chosen` verdict (a brand colour, a real sequence, a live status dot) counts a
 ## Considered options
 
 - Likelihood-ratio tiers (ADR 0007): rejected, for the reason above; a reflex is unchosen whoever wrote it.
-- Per-user learning from the verdict log, as ai-slop-prose does: deferred. The log (`designscan.py verdict`) records evidence for the maintainer to copy into `PRECISION`; the scanner never reads it, so two users' scans of the same file always agree.
+- Per-user learning from the verdict log, as ai-slop-prose does: deferred here, then adopted by ADR 0018 for file scans. Inventory scans, `reconcile` and a batch's checks keep the calibrated tiers, so two users' audits of the same platform agree while their file scans may differ. The log also stays evidence for the maintainer to copy into `PRECISION`.
 - Rendering pages (headless Chrome) for computed styles: rejected for the skill script (ADR 0002). Contrast is therefore checked only where text and background are declared on the same element or in the same CSS block, and render-level reflexes (a centred hero, dead bands) are judged from screenshots when a browser tool exists.
 - Reusing ai-slop-prose's extractor (`extract.py`): rejected; it reads the visible text of a page, while most design rules read class strings and CSS declarations, so the design scanner has its own reader and needs no copy kept in sync.
 - Calling impeccable's or hallmark's detectors: rejected; they need Node and Chrome, and their rules change upstream (ADR 0005).

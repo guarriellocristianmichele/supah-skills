@@ -6,6 +6,15 @@
       Exit 0 when nothing is left to resolve (no open S or M hit), else 1.
   codescan.py rules
       Print every rule with category, tier and languages.
+  codescan.py verdict --judged FILE [--source model|human]
+      Record an audit's judgments of scanner hits, one TSV line each: label (tell: it became a
+      finding; fp: the falsification disproved it), file, line, rule. A line already recorded
+      is not recorded twice. Prints each rule's progress toward the 30 verdicts that move a tier.
+  codescan.py learn | audit [--fraction F] | label FILE | export [--out FILE]
+      Rebuild the learned model and print each rule's precision; sample the model's fp verdicts
+      for a human to confirm; record that confirmed file; write per-rule counts (no code) to
+      attach to an issue. The model lives in SUPAH_CODE_HOME (default: the user config folder,
+      supah-skills/code); --no-learn ignores it in a scan (ADR 0018).
 
 Python is read with ast and tokenize, so comments, strings and structure are exact; a file
 whose syntax this interpreter cannot parse is reported as skipped. JavaScript and TypeScript
@@ -24,6 +33,9 @@ import re
 import sys
 import tokenize
 import warnings
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import learn  # noqa: E402  (a copy of ai-slop-prose's learn.py, kept equal by release.py --sync)
 
 CALIBRATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "codescan-calibration.json")
 PY = (".py",)
@@ -253,7 +265,7 @@ def language(path):
     return "py" if ext in PY else "js" if ext in JS else None
 
 
-def scan_text(source, path, keep=None):
+def scan_text(source, path, keep=None, model=None):
     lang = language(path)
     result = {"file": path, "lang": lang, "skipped": None, "hits": []}
     if lang is None:
@@ -267,14 +279,81 @@ def scan_text(source, path, keep=None):
         return result
     keep = keep or {}
     seen = set()
+    lines = source.splitlines()
     for rule, line, match in sorted(raw, key=lambda h: (h[1], h[0])):
         if (rule, line) in seen:
             continue
         seen.add((rule, line))
         category = RULES[rule][0]
-        result["hits"].append({"line": line, "rule": rule, "category": category, "tier": tier_of(rule, lang),
-                               "match": match[:120], "kept": keep.get((rule, match[:120]))})
+        hit = {"line": line, "rule": rule, "category": category, "tier": tier_of(rule, lang),
+               "match": match[:120], "context": lines[line - 1].strip()[:160] if 0 < line <= len(lines) else "",
+               "kept": keep.get((rule, match[:120]))}
+        if model:
+            hit["tier"], learned = learn.apply(model, hit, lang)
+            hit["kept"] = hit["kept"] or learned
+        result["hits"].append(hit)
     return result
+
+
+def judged_place(path, line):
+    """`<repo id>:<path from the repo root>:<line>`, so the same file named relatively or absolutely
+    is one place, and the same path in another project is another."""
+    full, top = os.path.abspath(path), learn.repo_root(path)
+    rel = (os.path.relpath(full, top) if top else full).replace("\\", "/")
+    return "%s:%s:%s" % (learn.repo_id(path), rel, line)
+
+
+def cmd_verdict(argv):
+    """Turn an audit's judged hits into verdicts, once per file, line, rule and source line."""
+    p = argparse.ArgumentParser(prog="codescan.py verdict")
+    p.add_argument("--judged", required=True, metavar="FILE", help="TSV: label, file, line, rule")
+    p.add_argument("--source", choices=("model", "human"), default="model")
+    a = p.parse_args(argv)
+    def key(rule, reason, lang, match, context):
+        return rule, reason, learn.context_key(rule, lang, match, context)
+
+    seen = learn.recorded(lambda r: key(r["rule"], r["reason"], r["lang"], r["match"], r["context"]))
+    scans, rows, touched, skipped = {}, [], set(), 0
+    with open(a.judged, encoding="utf-8") as f:
+        for raw in f:
+            parts = raw.rstrip("\n").split("\t")
+            if raw.startswith("#") or len(parts) < 4 or parts[0] not in ("tell", "fp"):
+                continue
+            label, path, line, rule = parts[:4]
+            if path not in scans:
+                try:
+                    with open(path, encoding="utf-8", errors="replace") as src:
+                        scans[path] = scan_text(src.read(), path)
+                except OSError as e:
+                    scans[path] = None
+                    print("%s: cannot read (%s), skipped" % (path, e.strerror or e), file=sys.stderr)
+            if scans[path] is None:
+                continue
+            hit = next((h for h in scans[path]["hits"] if h["rule"] == rule and str(h["line"]) == line), None)
+            if hit is None:
+                print("no %s hit at %s:%s, skipped" % (rule, path, line), file=sys.stderr)
+                continue
+            lang = scans[path]["lang"]
+            touched.add("%s/%s" % (rule, lang))
+            reason = "judged:" + judged_place(path, line)
+            k = key(rule, reason, lang, hit["match"], hit["context"])
+            if k in seen:
+                skipped += 1
+                continue
+            seen.add(k)
+            rows.append({"lang": lang, "rule": rule, "category": hit["category"], "tier": hit["tier"],
+                         "label": label, "reason": reason, "source": a.source, "match": hit["match"],
+                         "context": hit["context"]})
+    learn.record(rows)
+    counts = {}
+    for r in rows:
+        counts[r["label"]] = counts.get(r["label"], 0) + 1
+    print("recorded %d verdicts (%s), %d already recorded, in %s" % (
+        len(rows), ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "none", skipped, learn.paths()[0]))
+    model = learn.rebuild()
+    for line in learn.progress(model, sorted(touched), "codescan.py audit"):
+        print("  " + line)
+    return 0
 
 
 def load_keep(path):
@@ -310,9 +389,14 @@ def open_hits(result):
 
 
 def main():
+    learn.configure("code")
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
+    if sys.argv[1:2] == ["verdict"]:
+        return cmd_verdict(sys.argv[2:])
+    if sys.argv[1:2] and sys.argv[1] in learn.COMMANDS:
+        return learn.COMMANDS[sys.argv[1]](sys.argv[2:], "codescan.py")
     if sys.argv[1:2] == ["rules"]:
         print("| rule | category | tier | languages |\n|---|---|---|---|")
         for rule, (cat, tier, langs) in RULES.items():
@@ -322,12 +406,14 @@ def main():
     p.add_argument("files", nargs="+")
     p.add_argument("--json", action="store_true")
     p.add_argument("--keep")
+    p.add_argument("--no-learn", action="store_true", help="ignore the learned model (tiers, suppressions)")
     a = p.parse_args()
     keep = load_keep(a.keep)
+    model = learn.model_for(a.no_learn)
     results = []
     for path in expand(a.files):
         with open(path, encoding="utf-8", errors="replace") as f:
-            results.append(scan_text(f.read(), path, keep))
+            results.append(scan_text(f.read(), path, keep, model))
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
     else:

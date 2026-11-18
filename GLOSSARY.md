@@ -157,6 +157,16 @@ _Avoid_: savepoint, progress flag
 The background script that measures free memory and writes stop flags when it falls below the reserve.
 _Avoid_: monitor, supervisor
 
+### Learning
+
+**Verdict**:
+The judgment recorded on one scanner hit after review (`tell`: a real one, fixed; `kept`: a real one left with a reason; `fp`: not what the rule names), kept per user so a rule's measured precision can move its tier.
+_Avoid_: rating, feedback, label (the verdict's field, not the record)
+
+**Lesson**:
+A note a skill writes when the user corrects what it did, or when a job fails for a cause it could have avoided; about the project, it is read at the start of the next run there; about the skill itself, it becomes an issue draft for the user to open, never an edit of the skill.
+_Avoid_: memory (the agent's own), learning (the verdicts' tier changes), retro
+
 ### Distribution
 
 **Scope**:

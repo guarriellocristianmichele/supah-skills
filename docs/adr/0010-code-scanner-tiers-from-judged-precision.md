@@ -19,5 +19,6 @@ The prose rule (ADR 0007) measures authorship evidence: a pattern earns a tier w
 ## Consequences
 
 - Rates and likelihood ratios stay in `docs/research/2026-11-code-calibration-results.md` as context: they say where today's models differ, not whether a hit is real.
+- ADR 0018 adds per-user learning on top of these shipped tiers: an audit's judged hits go into the user's own log, and after 30 verdicts a rule's tier follows them on that machine.
 - Eight verdicts per rule is the minimum for S. More verdicts, from audits or slop-guard sessions, go into `PRECISION`, then `calibrate_code.py report` and `release.py --sync`.
 - The next corpus for frontier slop is agent patches against human patches for the same task (SWE-bench-style), where design-level slop shows up.

@@ -14,6 +14,14 @@ class Copies(unittest.TestCase):
         self.assertEqual(release.check_scanner_copy(), [])
 
 
+class ReadmeSweep(unittest.TestCase):
+    def test_readme_exceptions_come_only_from_docs_readme_keep(self):
+        # a root .slop-prose-keep.tsv must not silently exempt README hits (AGENTS.md)
+        cmd = release.readme_sweep(["README.md"])
+        self.assertIn("--no-repo-keep", cmd)
+        self.assertEqual(cmd[cmd.index("--keep") + 1], release.KEEP)
+
+
 class Paragraphs(unittest.TestCase):
     def test_every_skill_carries_the_three_shared_paragraphs_in_order(self):
         for path in glob.glob(os.path.join(ROOT, "skills", "*", "SKILL.md")):

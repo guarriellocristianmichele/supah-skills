@@ -238,6 +238,48 @@ class Once(Isolated):
         self.assertNotIn("Recorded 0 verdicts", first.stdout)
         self.assertIn("Recorded 0 verdicts", second.stdout)
 
+    def repo_with_keep(self, line):
+        repo = os.path.join(self.dir, "repo")
+        os.makedirs(repo)
+        with open(os.path.join(repo, ".git"), "w") as f:
+            f.write("gitdir: elsewhere\n")
+        with open(os.path.join(repo, ".slop-prose-keep.tsv"), "w", encoding="utf-8") as f:
+            f.write(line)
+        return repo
+
+    def test_a_keep_entry_seen_by_two_sweeps_is_one_judgment(self):
+        # ADR 0018: each judgment once. The repository keep file is read on every sweep, so its entry
+        # must not pile up verdicts (and two fp verdicts in one context would suppress it).
+        repo = self.repo_with_keep("marked-word\tdelve\tfp\n")
+        orig = os.path.join(self.dir, "doc.orig.md")
+        final = os.path.join(repo, "doc.md")
+        with open(orig, "w", encoding="utf-8") as f:
+            f.write("We delve into the rich tapestry of options.\n")
+        for text in ("We delve into the options.\n", "We delve into the set of options.\n"):
+            with open(final, "w", encoding="utf-8") as f:
+                f.write(text)
+            out = self.run_scan("verdict", orig, final)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertNotIn("Recorded 0 verdicts", out.stdout)
+        model = learn.rebuild()
+        rule = model["rules"]["marked-word/en"]
+        self.assertEqual(rule["counts"]["fp"], 1, rule)
+        self.assertEqual(rule["tier"], rule["base"])
+        self.assertEqual(model["suppress"], [])
+
+    def test_a_rewritten_hit_is_a_tell_even_when_a_keep_line_matches_it(self):
+        repo = self.repo_with_keep("marked-word\tdelve\tfp\n")
+        orig = os.path.join(self.dir, "doc.orig.md")
+        final = os.path.join(repo, "doc.md")
+        with open(orig, "w", encoding="utf-8") as f:
+            f.write("We delve into the options.\n")
+        with open(final, "w", encoding="utf-8") as f:
+            f.write("We look at the options.\n")
+        out = self.run_scan("verdict", orig, final)
+        self.assertIn("fp 0", out.stdout)
+        rows = [r for r in learn.read_log() if r["match"] == "delve"]
+        self.assertEqual([r["label"] for r in rows], ["tell"])
+
     def test_an_audit_file_labelled_twice_counts_once(self):
         path = os.path.join(self.dir, "audit.tsv")
         with open(path, "w", encoding="utf-8") as f:

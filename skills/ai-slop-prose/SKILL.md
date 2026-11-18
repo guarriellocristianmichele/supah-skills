@@ -31,7 +31,7 @@ When another writing skill builds the article block by block and preserves the u
 
 `$ARGUMENTS` names the files; text pasted in chat goes to a scratchpad file first. In source files (components, templates, locale files) only what users read is scanned: strings, template text, translations. Each hit carries a `purpose` (button, error, heading...); when the user states what a document is for, pass it as `--purpose`. Rewrites follow `${CLAUDE_SKILL_DIR}/PURPOSES.md` for that purpose.
 
-1. **Snapshot** each file to the scratchpad as `<stem>.orig<ext>` (`Signup.tsx` → `Signup.orig.tsx`): the scanner picks its reader by extension, so the snapshot must keep it. More than 3 files: run the `orchestrate` skill when installed (job `prose-sweep`, units = files, profile `light`, unit brief = steps 2–9 for one file, each worker may edit its own file), else sweep them in sequence.
+1. **Snapshot** each file to the scratchpad as `<stem>.orig<ext>` (`Signup.tsx` → `Signup.orig.tsx`): the scanner picks its reader by extension, so the snapshot must keep it. More than 3 files: run the `orchestrate` skill when installed (job `prose-sweep`, units = files, profile `light`, unit brief = steps 2–9 for one file, each worker may edit its own file and writes its keep lines to its own keep file in the scratchpad, passed as `--keep`, never to `.slop-prose-keep.tsv`; the coordinator appends them to `.slop-prose-keep.tsv` once every unit is done, then rescans), else sweep them in sequence.
 2. **Fix**: `scan.py fix <file>` applies the unambiguous punctuation and accent corrections.
 3. **Scan**: `scan.py --json [--purpose "<what it is for>"] <file>`; each hit carries its `context` (five tokens either side) and `purpose`. Exit 2 means a file could not be read (missing, a directory or not UTF-8): its stderr line names it and the other files are still in the output.
 4. **Voice.** From the passages with no hits, note person, sentence-length range, contractions, humour, punctuation habits and recurring idioms; a sample the user supplies overrides them. Every rewrite matches this voice.
@@ -40,7 +40,7 @@ When another writing skill builds the article block by block and preserves the u
    - **kept**: a real tell the text needs; append `rule<TAB>match<TAB>reason` to `.slop-prose-keep.tsv` at the repository root (create it, commit it with the rewrite) with reason `quote`, `voice`, `literal`, `term` or `dialogue`;
    - **fp**: the text is not doing what the rule names (a contrast the argument genuinely draws, a literal `_`, a product called Delve); keep it with reason `fp`.
 
-   Run from inside the repository: the scanner always reads that file, so a hit kept once stays kept in the next session. Text outside any repository (pasted in chat) uses a keep file in the scratchpad, passed as `--keep`.
+   The scanner always reads the keep file of the repository holding the scanned file, so a hit kept once stays kept in the next session, and `verdict` records each keep line once. Text outside any repository (pasted in chat) uses a keep file in the scratchpad, passed as `--keep`.
 
    Act on the tier each hit reports (TELLS.md, top): W, `auto:` and `learned:` hits leave the rescan clean, so rewrite one when it is in fact a tell. Then read the whole text once for the category's tells the scanner cannot see.
 6. **Facts**: `scan.py compare <orig> <file>` must list nothing missing; restore every lost number, name, link, code span or quote.

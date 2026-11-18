@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic scanner for AI writing tells in English and Italian prose. Stdlib only.
 
-  scan.py [--lang auto|en|it] [--keep FILE] [--json] FILE...
+  scan.py [--lang auto|en|it] [--keep FILE] [--no-repo-keep] [--json] FILE...
       List every catalogued tell with line, tier and category, plus density metrics.
       Exit 0 when nothing is left to resolve (S/M hits all kept, no metric flagged), else 1.
       Exit 2 when a FILE is missing, a directory or not UTF-8: each is one line on stderr, the
@@ -18,7 +18,8 @@
 
   scan.py verdict ORIGINAL FINAL [--keep FILE] [--source model|human]
       Record the verdicts of a finished sweep (keep reason fp -> fp, other reasons -> kept,
-      hit gone from FINAL -> tell) and rebuild the learned model.
+      hit gone from FINAL -> tell) and rebuild the learned model. A hit gone from FINAL is a tell
+      whatever the keep file says, and a keep entry is recorded once, however many sweeps read it.
   scan.py learn              rebuild the model and print each rule's measured precision
   scan.py audit [--fraction F]   sample the model's fp verdicts as TSV for a human to confirm
   scan.py label FILE         record the confirmed audit file as human verdicts
@@ -37,8 +38,9 @@ supah-skills/prose); --no-learn ignores it.
 Tiers: S = one hit is enough to rewrite; M = rewrite unless there is a keep reason;
 W = acted on only when its density metric is flagged.
 Keep file: TSV lines `rule<TAB>matched text<TAB>reason`; matching hits count as resolved.
-`.slop-prose-keep.tsv` at the repository root is always read, so a hit kept on purpose stays kept
-in the next session; `--keep FILE` adds more.
+`.slop-prose-keep.tsv` at the root of the repository holding each scanned file (verdict: FINAL) is
+always read, so a hit kept on purpose stays kept in the next session; `--keep FILE` adds more, and
+`--no-repo-keep` ignores the repository's file.
 Reasons: quote, voice, literal, term, dialogue (a real tell kept) or fp (not a tell).
 A flagged metric is kept with `metric<TAB><metric name><TAB>reason`.
 Per-1k densities need at least 300 words; shorter texts show n/a.
@@ -458,18 +460,24 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>", purpos
 REPO_KEEP = ".slop-prose-keep.tsv"
 
 
-def repo_keep():
-    """The keep file at the repository root: the first folder up from the current one holding a `.git`
-    entry (a folder, or a worktree's file), else the current folder. No git process: on Windows a
-    git.exe planted in the scanned repository would run before the one on PATH."""
-    here = start = os.path.abspath(os.getcwd())
+def repo_top(start):
+    """The first folder up from start holding a `.git` entry (a folder, or a worktree's file), or None."""
+    here = os.path.abspath(start)
     while not os.path.exists(os.path.join(here, ".git")):
         parent = os.path.dirname(here)
         if parent == here:
-            here = start
-            break
+            return None
         here = parent
-    return os.path.join(here, REPO_KEEP)
+    return here
+
+
+def repo_keep(path=None):
+    """The keep file at the root of the repository holding path; when path is in no repository, the one
+    of the repository holding the current folder, else of the current folder. No git process: on
+    Windows a git.exe planted in the scanned repository would run before the one on PATH."""
+    top = repo_top(os.path.dirname(os.path.abspath(path))) if path else None
+    cwd = os.getcwd()
+    return os.path.join(top or repo_top(cwd) or cwd, REPO_KEEP)
 
 
 def load_keep(*paths):
@@ -485,11 +493,19 @@ def load_keep(*paths):
     return keep
 
 
-def keep_arg(parser, path):
-    """The repository keep file, plus the one --keep names (an error when it does not exist)."""
+def keep_arg(parser, path, repo=True):
+    """For a scanned file, its repository's keep file (unless repo is False) plus the one --keep names
+    (an error when it does not exist)."""
     if path and not os.path.isfile(path):
         parser.error(f"keep file not found: {path}")
-    return load_keep(repo_keep(), path)
+    cache = {}
+
+    def keep_for(scanned):
+        where = repo_keep(scanned) if repo else None
+        if where not in cache:
+            cache[where] = load_keep(where, path)
+        return cache[where]
+    return keep_for
 
 
 def print_report(result):
@@ -638,9 +654,17 @@ def list_rules():
 KEPT_REASONS = {"quote", "voice", "literal", "term", "dialogue"}
 
 
+def keep_judgment(row):
+    """The keep entry a logged verdict came from, or None for a rewrite or a human audit label."""
+    if row["label"] in ("fp", "kept") and row["reason"].split(" ")[0] in KEPT_REASONS | {"fp"}:
+        return (row["rule"], row["lang"], row["match"], row["label"])
+    return None
+
+
 def cmd_verdict(argv):
-    """Turn a finished sweep into verdicts: kept-file `fp` -> fp, other reasons -> kept,
-    a hit gone from the final text -> tell. Hits still present without a keep entry are skipped."""
+    """Turn a finished sweep into verdicts: a hit gone from the final text -> tell; a hit still there
+    with keep reason `fp` -> fp, with another reason -> kept, recorded once per keep entry. Hits still
+    present without a keep entry are skipped."""
     p = argparse.ArgumentParser(prog="scan.py verdict")
     p.add_argument("original")
     p.add_argument("final")
@@ -648,7 +672,7 @@ def cmd_verdict(argv):
     p.add_argument("--lang", choices=("auto", "en", "it"), default="auto")
     p.add_argument("--source", choices=("model", "human"), default="model")
     a = p.parse_args(argv)
-    keep = keep_arg(p, a.keep)
+    keep = keep_arg(p, a.keep)(a.final)  # the snapshot sits in the scratchpad; the final is in the repository
     try:
         before = scan_file(a.original, a.lang, {}, model=None)
         after = scan_file(a.final, before["lang"], {}, model=None)
@@ -664,21 +688,26 @@ def cmd_verdict(argv):
     for h in after["hits"]:
         k = (h["rule"], h["match"].lower())
         remaining[k] = remaining.get(k, 0) + 1
+    # a keep entry is one judgment, however many sweeps (or hits) see it again: the repository keep
+    # file is read on every sweep (ADR 0018, each judgment once)
+    judged = learn.recorded(keep_judgment)
     rows, counts = [], {"tell": 0, "kept": 0, "fp": 0}
     for h in before["hits"]:
         if h["kept"]:  # gated (quote, heading, name, dialogue): never reviewed
             continue
         k = (h["rule"], h["match"].lower())
-        reason = keep.get(k)
-        if reason == "fp":
-            label = "fp"
-        elif reason in KEPT_REASONS:
-            label = "kept"
-        elif remaining.get(k, 0) > 0:
-            remaining[k] -= 1
-            continue
-        else:
+        if remaining.get(k, 0) == 0:  # rewritten this run: a tell, whatever the keep file says
             label, reason = "tell", "rewritten"
+        else:
+            remaining[k] -= 1
+            reason = keep.get(k)
+            label = "fp" if reason == "fp" else "kept" if reason in KEPT_REASONS else None
+            if label is None:
+                continue
+            row_key = (h["rule"], before["lang"], learn.clean(h["match"]), label)
+            if row_key in judged:
+                continue
+            judged.add(row_key)
         counts[label] += 1
         rows.append({"lang": before["lang"], "rule": h["rule"], "category": h["category"], "tier": h["tier"],
                      "label": label, "reason": f"{reason} @{run}", "source": a.source, "match": h["match"],
@@ -724,15 +753,17 @@ def main():
     p.add_argument("files", nargs="+")
     p.add_argument("--lang", choices=("auto", "en", "it"), default="auto")
     p.add_argument("--keep")
+    p.add_argument("--no-repo-keep", action="store_true",
+                   help="ignore the repository's .slop-prose-keep.tsv: only --keep exempts a hit")
     p.add_argument("--json", action="store_true")
     p.add_argument("--no-gates", action="store_true", help="report hits in quotes, headings, names and dialogue too")
     p.add_argument("--no-learn", action="store_true", help="ignore the learned model (rule tiers, suppressions)")
     p.add_argument("--purpose", help="what the text is for (landing page, onboarding email, error messages...): "
                                      "reported with every hit that has no purpose of its own")
     a = p.parse_args()
-    keep = keep_arg(p, a.keep)
+    keep_for = keep_arg(p, a.keep, repo=not a.no_repo_keep)
     model = None if a.no_learn else learn.load_model()
-    results, failed = each_input(a.files, lambda f: scan_file(f, a.lang, keep, gates=not a.no_gates, model=model,
+    results, failed = each_input(a.files, lambda f: scan_file(f, a.lang, keep_for(f), gates=not a.no_gates, model=model,
                                                               purpose=a.purpose))
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))

@@ -152,6 +152,21 @@ class KeepFile(unittest.TestCase):
         self.assertEqual(missing.returncode, 2)
         self.assertIn("keep file not found", missing.stderr)
 
+    def test_the_keep_file_is_the_one_of_the_scanned_files_repository_not_of_the_current_folder(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo, elsewhere = os.path.join(d, "repo"), os.path.join(d, "elsewhere")
+            os.makedirs(os.path.join(repo, ".git"))
+            os.makedirs(os.path.join(elsewhere, ".git"))
+            doc = os.path.join(repo, "post.md")
+            shutil.copy(os.path.join(FIX, "compare-original.md"), doc)
+            with open(os.path.join(repo, ".slop-prose-keep.tsv"), "w", encoding="utf-8") as f:
+                f.write("not-x-its-y\tisn't just a trend — it's\tquote\nem-dash\t—\tquote\n")
+            with open(os.path.join(elsewhere, ".slop-prose-keep.tsv"), "w", encoding="utf-8") as f:
+                f.write("# another project\n")
+            self.assertEqual(run(doc, cwd=elsewhere).returncode, 0)
+            # --no-repo-keep: only --keep exempts a hit (the release check's README sweep)
+            self.assertEqual(run("--no-repo-keep", doc, cwd=repo).returncode, 1)
+
     def test_outside_a_repository_the_keep_file_of_the_current_folder_is_read(self):
         with tempfile.TemporaryDirectory() as d:
             doc = os.path.join(d, "post.md")
@@ -285,6 +300,18 @@ class Rules(unittest.TestCase):
                  if line.startswith("| ") and line.count("|") == 5 and "category" not in line}
         for rule in rules:
             self.assertIn(f"`{rule}`", tells, rule)
+
+
+class SweepDoc(unittest.TestCase):
+    def test_parallel_workers_never_write_the_shared_keep_file(self):
+        # orchestrate workers run at once: each keeps its own scratchpad keep file, the coordinator
+        # appends them to the repository's before the rescan (as doc-truth does)
+        skill = read(os.path.join(ROOT, "skills", "ai-slop-prose", "SKILL.md"))
+        step = skill.split("1. **Snapshot**", 1)[1].split("\n2. ", 1)[0]
+        self.assertIn("its own keep file in the scratchpad", step)
+        self.assertIn("never to `.slop-prose-keep.tsv`", step)
+        self.assertIn("the coordinator appends them to `.slop-prose-keep.tsv`", step)
+        self.assertIn("then rescans", step)
 
 
 class BadInput(unittest.TestCase):

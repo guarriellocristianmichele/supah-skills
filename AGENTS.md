@@ -5,7 +5,7 @@ Agent skills (Agent Skills format) for cleaning AI slop out of code and prose, p
 ## Rules for changing this repo
 
 - A new skill lives in `skills/<name>/` and is listed in `.claude-plugin/plugin.json` and as its own entry (`source: ./skills/<name>`) in `.claude-plugin/marketplace.json`.
-- Every SKILL.md carries the **Ask with options** paragraph verbatim after its placeholder line (ADR 0013).
+- Every SKILL.md carries the **Ask with options** paragraph verbatim after its placeholder line (ADR 0013), then the **Next step** paragraph verbatim (ADR 0017).
 - buyer-panel's anchor statements, default intent weights and check thresholds (round checks and buyer variety) change only with a source in `docs/research/2026-11-synthetic-panels.md` and a reason in ADR 0014, and come with a fixture or an assertion in `tests/`; its edges to orchestrate, ai-slop-prose and ai-slop-design are in ADR 0012's call graph.
 - A skill that calls another follows ADR 0012: add the edge to its call graph, say what happens when the target is not installed, and fan out over more than three units through `orchestrate`.
 - A plugin that is not a skill (hooks) lives in `plugins/<name>/` with its own `.claude-plugin/plugin.json` and a marketplace entry `source: ./plugins/<name>`; never add `hooks/` at the repo root, it would attach to the bundle (ADR 0008).

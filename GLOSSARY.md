@@ -134,8 +134,20 @@ Work split into independent units, run inline or across parallel workers.
 _Avoid_: task, workflow, run
 
 **Unit**:
-The smallest piece of a job; it needs no other unit's output.
+The smallest piece of a job; it needs no output from any unit except its blockers.
 _Avoid_: item, chunk, step
+
+**Blocker**:
+A unit that must be done before another unit of the same job starts: a dependency the plan declares, or an earlier unit in plan order that edits the same files.
+_Avoid_: dependency (the plan's word for the declared kind only), prerequisite
+
+**Frontier**:
+The pending units whose blockers are all done, the only ones a job may start; it grows each time a unit is done, without waiting for the rest.
+_Avoid_: wave, ready queue
+
+**Integration branch**:
+The branch a job that changes code merges every done unit into, and from whose tip each unit starts, so a unit sees its blockers' changes.
+_Avoid_: feature branch, release branch
 
 **Checkpoint**:
 The `<!-- unit:<id> done -->` marker a worker writes after finishing a unit; it outranks every other record of progress.

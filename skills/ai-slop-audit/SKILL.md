@@ -1,7 +1,7 @@
 ---
 name: ai-slop-audit
-description: Evidence-backed audit and cleanup of needless complexity across a codebase (dead code, duplication, wrappers, comment noise, tautological tests). Modes audit, plan, publish (GitHub issues), fix <ID>, verify.
-argument-hint: "audit [path] | plan | publish [B<n>…] | fix <SLOP-ID[,ID]|B<n>|#issue> | verify"
+description: Evidence-backed audit and cleanup of needless complexity across a codebase (dead code, duplication, wrappers, comment noise, tautological tests). Modes audit, plan, publish (GitHub issues), fix <ID> (or several batches in parallel, merged into one branch), verify.
+argument-hint: "audit [path] | plan | publish [B<n>…] | fix <SLOP-ID[,ID]|B<n>|#issue> | fix <B<n>…|#map|all> | verify"
 arguments: [mode, target]
 disable-model-invocation: true
 effort: high
@@ -21,6 +21,8 @@ Claude Code fills in the placeholders and command output above, and `${CLAUDE_SK
 
 **Ask with options.** Settle a doubt by looking first: the repo, its docs, and a web search when the answer is a fact about the world. What only the user can decide, ask as one question with 2 to 4 ready answers, the recommended one first and each saying what it changes; Claude Code's `AskUserQuestion` shows them on screen, other agents number them in the reply.
 
+**Next step.** End every run with the next step of the workflow, worked out from what this run left (the ledger's statuses, failed or blocked units, a question still open, the user's goal): the exact command and its reason in one line, and when two fit, both, the recommended one first; a skill that keeps a `STATUS.md` writes the same command as its next action. Put `/clear` before it (on another agent, a new session) when this run left its state on disk for that command to read; keep the session when the next step answers this run in conversation. When another skill called this one, hand the result back to it instead. When nothing is left, say the workflow is done.
+
 **Slop** is complexity the code's behaviour does not need. Judge each candidate by what the code does and which reach paths hit it; style, length and suspected AI origin are not evidence. A claim without reproducible **evidence** stays out of the ledger.
 
 ## Modes
@@ -33,9 +35,10 @@ Read the mode's file in `${CLAUDE_SKILL_DIR}/` and follow it to its completion c
 | `plan` | `PLAN.md` | ledger |
 | `publish [batches]` | `PUBLISH.md` | issue tracker, ledger |
 | `fix <IDs>` | `FIX.md` | code the IDs name, ledger |
+| `fix <B<n>…\|#map\|all>` | `FIX.md` (Several batches) | an integration branch, ledger |
 | `verify` | `VERIFY.md` | ledger |
 
-Code changes happen in `fix` only, for the IDs given; tracker writes in `publish` only. Any other mode: show the argument-hint and `STATUS.md`, then stop.
+Code changes happen in `fix` only, for the IDs given; tracker writes in `publish` only, plus the pull request a several-batch `fix` offers at its end. Any other mode: show the argument-hint and `STATUS.md`, then stop.
 
 ## Ledger
 
@@ -57,6 +60,7 @@ The skill runs **standalone**, or **integrated** with the mattpocock engineering
 |---|---|---|
 | issue tracker | the operations in `docs/agents/issue-tracker.md`, labels from `docs/agents/triage-labels.md` | `gh` when `origin` is on GitHub and `gh auth status` passes; otherwise files in `.slop-audit/issues/` |
 | vocabulary and decisions | `GLOSSARY.md` and `docs/adr/` when present | the same files when present |
+| several batches at once | the `orchestrate` skill, as a graph job (FIX.md, Several batches) | the same; without orchestrate, one batch after another on the integration branch |
 | a fix that needs a new interface instead of a deletion | `handoff:improve-codebase-architecture` | `handoff:design`, listed for the human |
 | a published batch already closed by `/implement` | synced to `fixed`, never rebuilt | the same |
 | review in `verify` | the `code-review` skill (`mattpocock-skills:code-review` as a plugin) | `verify`'s own checks |

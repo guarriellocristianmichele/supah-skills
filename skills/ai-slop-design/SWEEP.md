@@ -6,7 +6,7 @@ Read `REFLEXES.md` (in this folder) in full before step 3.
 
 ## Batch
 
-`sweep B<n>` works one batch of `.slop-design/plan.md` (PLAN.md, plan.md format), so fixing follows the plan. The steps below run as for files, with these changes:
+`sweep B<n>` works one batch of `.slop-design/plan.md` (several batches: see Several batches) (PLAN.md, plan.md format), so fixing follows the plan. The steps below run as for files, with these changes:
 
 - **Load**: read the batch's block only. Its `Status:` must be `planned` and every batch in its `Depends-on:` `done`; when one is not, name it and ask with options: work that batch first (recommended) or stop. A handoff batch is worked by its `Work:` line, `craft <surface>`: name the command and stop.
 - **Scope** (step 1): the batch's `Files:`, nothing else, and no threshold question. A fix that needs a file outside them is not made: the report lists it for a re-plan.
@@ -15,6 +15,18 @@ Read `REFLEXES.md` (in this folder) in full before step 3.
 - **Read and copy** (steps 6 and 7): the batch's judgment-only and copy findings are fixed as written, and the read and the screenshots cover the batch's `Surfaces:`.
 - **Rescan** (step 8): the batch's `Checks:` lines as written: its rescan (for a migrate or contract batch, the platform rescan and the reconcile it names), the content check against the step 1 snapshots, and the render check.
 - **Ledger** (step 11) closes the batch.
+
+## Several batches
+
+`sweep B2 B5`, `sweep #<map>` (the map issue `STATUS.md` names: every batch in `plan.md` with an `Issue:` line) or `sweep all` (every `planned` batch) works the batches in parallel, each in its own worktree, merged into one integration branch in the order their `Depends-on:` sets. One batch named this way runs as Batch says.
+
+1. **Select.** A batch runs here when it is a token/component or surface batch and every finding in its `Findings:` and `Serves:` is a scanner hit with a `reflex` verdict and a `Fix:` line (the batches PUBLISH.md step 4 labels `ready-for-agent`). Handoff batches, and batches holding a judgment, copy or lane finding or one `Scanned: <sha>-dirty`, stay out, and so does every batch that depends on one of them, directly or through another: list each with its `Work:` line, a dependent as `blocked by B<n>`. Load's checks apply to the rest, except that a `Depends-on:` batch may also be one of this job; one outside the job, not `done` and not left out: ask with options: add it to the job (recommended) or drop the batches that need it. Ask once, for the whole job, whether a browser may be opened for the render check (step 6's question).
+2. **Job** through the `orchestrate` skill, as a graph job: job `design-batches`, state dir `.slop-design/`, profile `light`, units = the selected batches in plan order, each with `blocked-by` = its `Depends-on:` inside the run and `files` = its `Files:`. Integration branch: `slop/design-<HEAD>` for a new job (a resumed job keeps its own). Setup: `none`. After each merge: the batch's rescan line. Unit brief: Batch and steps 1 to 10 for that batch, reading `.slop-design/` at the main checkout's absolute path, without step 6's screenshots, step 8's render check and step 11, then one commit `<B> · <batch title>` whose body lists the finding IDs and `Refs #<n>` when the batch has an issue; the reply gives the report, the IDs closed, and the keep lines to append. Record step, yours: after a merge, append those keep lines to `.slop-design/keep.tsv` and apply step 11 for the batch; after a failure, the batch stays `planned` with its findings as they were, and its failure output goes into the report and `STATUS.md`.
+   Without orchestrate: work the batches yourself in plan order, a batch only after its blockers are `done`, each committed on the integration branch.
+3. **Checks** on the integration branch, in its worktree: the platform rescan, `designscan.py reconcile` as AUDIT.md step 4 runs it, and, with the browser allowed, each merged batch's render check on its `Surfaces:`. A failure becomes a new `open` finding; none is fixed in this job.
+4. **Report** each batch `done`, `failed:<reason>` or `blocked by B<n>`, the batches left out with their `Work:` lines, the checks and the integration branch, then, on GitHub, ask with options: open one pull request from the integration branch (recommended: push it, then `gh pr create`, the body carrying `Closes #<n>` for every done batch's `Issue:`, and `Closes #<map>` when every batch of the map is done, else `Part of #<map>`), or leave the branch for the user. That pull request, after your answer, is the job's only write toward the tracker; issues are closed by its merge and synced by `publish`. Local issues: report the branch only. Write the branch in `STATUS.md`; running the same command again resumes the job.
+
+**Completion** (several batches). Every selected batch is `done`, `failed:<reason>` or `blocked by B<n>`; every done batch has `Status: done` and its commit on the integration branch; the checks ran there; and the user's checkout is still on the branch it started on.
 
 ## Steps
 

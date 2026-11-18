@@ -1,6 +1,6 @@
 # fix
 
-The IDs in the arguments are the approval: finding IDs (`SLOP-012`, `SLOP-012,SLOP-014`), one batch (`B3`), or a published batch's issue (`#123`, resolved through `plan.md`). Change exactly what they name.
+The IDs in the arguments are the approval: finding IDs (`SLOP-012`, `SLOP-012,SLOP-014`), one batch (`B3`), or a published batch's issue (`#123`, resolved through `plan.md`). Change exactly what they name. Several batches (`B2 B5`, the map issue `#<map>`, or `all`) run as one job: see Several batches.
 
 ## Steps
 
@@ -17,3 +17,15 @@ Verification red because of the change: restore the files this batch touched (`g
 
 - New dependencies are out of scope. A fix that needs one goes back to `open` with the reason.
 - A test is deleted or merged only with proof its behaviour stays asserted: the name and assertion of the test that covers it, or, where the project measures coverage, before/after numbers for the production code it exercised.
+
+## Several batches
+
+`fix B2 B5`, `fix #<map>` (the map issue `STATUS.md` names: every batch in `plan.md` with an issue) or `fix all` (every `planned` batch) works the batches in parallel, each one in its own worktree, merged into one integration branch in the order their `depends-on` sets. One batch named this way runs the Steps above.
+
+1. **Preconditions**, once for the job: step 1's checks for every batch, except that a batch's `depends-on` may also be a batch of this job. A blocker outside the job and not `fixed`: ask with options: add it to the job (recommended) or drop the batches that need it. A batch whose issue is closed is synced to `fixed` and leaves the job.
+2. **Job** through the `orchestrate` skill, as a graph job: job `audit-fix`, state dir `.slop-audit/`, profile `build`, units = the batches in plan order, each with `blocked-by` = its `depends-on` inside the run and `files` = its files. Integration branch: `slop/audit-<HEAD>` for a new job (a resumed job keeps its own). Setup: the install command `checks.md` records. After each merge: the batch's protecting checks. Unit brief: steps 2 to 5 for that batch, reading `.slop-audit/` at the main checkout's absolute path, then one commit `<B> · <batch title>` whose body lists the finding IDs and `Refs #<n>` when the batch has an issue; the reply gives each finding's result (`fixed` with its one-line summary, or `open` with the failure output) and every new finding noticed. A red step 5 restores the files and ends the unit without a commit. Record step, yours, after each merge or failure: write those results into `findings.md`, giving new findings the next IDs.
+   Without orchestrate: work the batches yourself in plan order, a batch only after its blockers are `fixed`, each committed on the integration branch.
+3. **Verify** on the integration branch, in its worktree: VERIFY.md against the baseline commit in `checks.md`. Its failures become `open` findings; none is fixed in this job.
+4. **Report** each batch `done`, `failed:<reason>` (its findings back to `open`) or `blocked by B<n>`, the `verify` table and the integration branch. On GitHub, ask with options: open one pull request from the integration branch (recommended: push it, then `gh pr create`, the body carrying `Closes #<n>` for every done batch with an issue, and `Closes #<map>` when every batch of the map is done, else `Part of #<map>`), or leave the branch for the user. Local issues: report the branch only. Write the branch in `STATUS.md`; running the same command again resumes the job.
+
+**Completion.** Every batch of the job is `done`, `failed:<reason>` or `blocked by B<n>`; every done batch's findings are `fixed` in `findings.md` and its commit is on the integration branch; `verify` ran there; and the user's checkout is still on the branch it started on.

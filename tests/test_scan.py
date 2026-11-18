@@ -152,6 +152,21 @@ class KeepFile(unittest.TestCase):
         self.assertEqual(missing.returncode, 2)
         self.assertIn("keep file not found", missing.stderr)
 
+    def test_the_keep_file_is_the_one_of_the_scanned_files_repository_not_of_the_current_folder(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo, elsewhere = os.path.join(d, "repo"), os.path.join(d, "elsewhere")
+            os.makedirs(os.path.join(repo, ".git"))
+            os.makedirs(os.path.join(elsewhere, ".git"))
+            doc = os.path.join(repo, "post.md")
+            shutil.copy(os.path.join(FIX, "compare-original.md"), doc)
+            with open(os.path.join(repo, ".slop-prose-keep.tsv"), "w", encoding="utf-8") as f:
+                f.write("not-x-its-y\tisn't just a trend — it's\tquote\nem-dash\t—\tquote\n")
+            with open(os.path.join(elsewhere, ".slop-prose-keep.tsv"), "w", encoding="utf-8") as f:
+                f.write("# another project\n")
+            self.assertEqual(run(doc, cwd=elsewhere).returncode, 0)
+            # --no-repo-keep: only --keep exempts a hit (the release check's README sweep)
+            self.assertEqual(run("--no-repo-keep", doc, cwd=repo).returncode, 1)
+
     def test_outside_a_repository_the_keep_file_of_the_current_folder_is_read(self):
         with tempfile.TemporaryDirectory() as d:
             doc = os.path.join(d, "post.md")
@@ -211,9 +226,10 @@ class Compare(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             orig, final = os.path.join(d, "orig.md"), os.path.join(d, "final.md")
             with open(orig, "w", encoding="utf-8") as f:
-                f.write("# Unlock The Power Of Your Data\n\nWe send every report to Acme Corp.\n")
+                f.write("# Unlock The Power Of Your Data\n\n## Release: Seamless Data Pipelines\n\n"
+                        "We send every report to Acme Corp.\n")
             with open(final, "w", encoding="utf-8") as f:
-                f.write("# Get more from your data\n\nWe send every report to Acme Corp.\n")
+                f.write("# Get more from your data\n\n## Release notes\n\nWe send every report to Acme Corp.\n")
             out = run("compare", orig, final)
             self.assertEqual(out.returncode, 0, out.stdout)
             with open(final, "w", encoding="utf-8") as f:
@@ -221,6 +237,19 @@ class Compare(unittest.TestCase):
             out = run("compare", orig, final)
         self.assertEqual(out.returncode, 1)  # a name in a sentence is still a fact
         self.assertIn("Acme Corp", out.stdout)
+
+    def test_a_name_on_a_signature_or_byline_line_is_still_a_fact(self):
+        for line, name in (("Thanks, Maria Rossi", "Maria Rossi"), ("Author: Jane Doe", "Jane Doe"),
+                           ("Grazie, Maria Grazia Rossi.", "Maria Grazia Rossi")):
+            with self.subTest(line=line), tempfile.TemporaryDirectory() as d:
+                orig, final = os.path.join(d, "orig.md"), os.path.join(d, "final.md")
+                with open(orig, "w", encoding="utf-8") as f:
+                    f.write(f"The report is attached.\n\n{line}\n")
+                with open(final, "w", encoding="utf-8") as f:
+                    f.write("The report is attached.\n\nThanks\n")
+                out = run("compare", orig, final)
+                self.assertEqual(out.returncode, 1, out.stdout)
+                self.assertIn(f"| name | {name} |", out.stdout)
 
     def test_identical_files_pass(self):
         path = os.path.join(FIX, "slop-en.md")
@@ -285,6 +314,24 @@ class Rules(unittest.TestCase):
                  if line.startswith("| ") and line.count("|") == 5 and "category" not in line}
         for rule in rules:
             self.assertIn(f"`{rule}`", tells, rule)
+
+
+class SweepDoc(unittest.TestCase):
+    def test_parallel_workers_never_write_the_shared_keep_file(self):
+        # orchestrate workers run at once: each keeps its own scratchpad keep file, the coordinator
+        # appends them to the repository's before the rescan (as doc-truth does)
+        skill = read(os.path.join(ROOT, "skills", "ai-slop-prose", "SKILL.md"))
+        step = skill.split("1. **Snapshot**", 1)[1].split("\n2. ", 1)[0]
+        self.assertIn("its own keep file in the scratchpad", step)
+        self.assertIn("never to `.slop-prose-keep.tsv`", step)
+        self.assertIn("the coordinator appends them to `.slop-prose-keep.tsv`", step)
+        self.assertIn("then rescans", step)
+
+    def test_tells_explains_the_isolated_mark(self):
+        # the report prints `isolated` in its kept column (#43): TELLS.md says what it means
+        tells = read(os.path.join(ROOT, "skills", "ai-slop-prose", "TELLS.md"))
+        self.assertIn("A hit marked `isolated` is an M hit shown at W", tells)
+        self.assertIn("one rule alone is not enough evidence", tells)
 
 
 class BadInput(unittest.TestCase):

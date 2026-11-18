@@ -1297,6 +1297,34 @@ class Calibration(unittest.TestCase):
         listed = {line.split("|")[1].strip() for line in run("rules").stdout.splitlines()[2:]}
         self.assertEqual(listed, calibrated)
 
+class TrackerWrites(unittest.TestCase):
+    """Tracker writes happen in publish only; on the local route sweep, craft and fix also close a
+    batch's issue file with `State: done`, since no pull request closes a file. Every place that
+    states the invariant names that exception (spec #53, item 9)."""
+
+    def test_design_states_the_local_route_exception_where_it_states_the_invariant(self):
+        self.assertIn("Tracker writes happen in `publish` only, plus the pull request a several-batch `sweep` "
+                      "offers at its end and, on the local route, the `State: done` line `sweep B<n>` and "
+                      "`craft <surface>` write in a closed batch's issue file.", doc("skills", "ai-slop-design", "SKILL.md"))
+        sweep = doc("skills", "ai-slop-design", "SWEEP.md")
+        self.assertIn("A local issue file is the one exception", sweep)
+        self.assertIn("the tracker untouched (on the local route, its issue file at `State: done`)", sweep)
+        readme = doc("skills", "ai-slop-design", "README.md")
+        self.assertIn("sweep never writes to the tracker, except on the local route, where it sets the batch's "
+                      "issue file to `State: done`", readme)
+        self.assertIn("`sweep` non scrive mai nel tracker, tranne sul percorso locale, dove imposta a "
+                      "`State: done` il file della issue del lotto", readme)
+        adr = doc("docs", "adr", "0015-design-audits-a-platform-by-surface-into-a-ledger.md")
+        self.assertIn("never writes the tracker, except on the local route", adr)
+
+    def test_audit_states_the_local_route_exception_where_it_states_the_invariant(self):
+        self.assertIn("tracker writes in `publish` only, plus the pull request a several-batch `fix` offers at "
+                      "its end and, on the local route, the `State: done` line `fix` writes in a fixed batch's "
+                      "issue file.", doc("skills", "ai-slop-audit", "SKILL.md"))
+        adr = doc("docs", "adr", "0016-plans-run-as-a-blocker-graph-on-worktrees-through-orchestrate.md")
+        self.assertIn("nothing else is written to the tracker, except on the local route", adr)
+
+
 
 if __name__ == "__main__":
     unittest.main()

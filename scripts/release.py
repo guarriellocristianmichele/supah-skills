@@ -163,6 +163,12 @@ def run(label, cmd):
     return result.returncode == 0
 
 
+def readme_sweep(readmes):
+    """The prose scanner over the READMEs: exceptions come from docs/readme-keep.tsv only, never from a
+    .slop-prose-keep.tsv at the repository root (AGENTS.md)."""
+    return [sys.executable, SCAN, "--no-learn", "--no-repo-keep", "--keep", KEEP, *readmes]
+
+
 def checks():
     ok = True
     errors = check_manifests()
@@ -172,7 +178,7 @@ def checks():
     readmes = [os.path.relpath(p, ROOT) for p in
                [os.path.join(ROOT, "README.md")] + sorted(glob.glob(os.path.join(ROOT, "skills", "*", "README.md")))
                + sorted(glob.glob(os.path.join(ROOT, "plugins", "*", "README.md")))]
-    ok &= run("readme sweep", [sys.executable, SCAN, "--no-learn", "--keep", KEEP, *readmes])
+    ok &= run("readme sweep", readme_sweep(readmes))
     docs = readmes + ["AGENTS.md", "GLOSSARY.md"] + sorted(os.path.relpath(p, ROOT) for p in glob.glob(os.path.join(ROOT, "docs", "adr", "*.md")))
     ok &= run("doc truth", [sys.executable, os.path.join(ROOT, "skills", "doc-truth", "scripts", "doctruth.py"), "--root", ROOT, *docs])
     if shutil.which("claude"):

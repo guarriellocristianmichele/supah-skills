@@ -94,6 +94,7 @@ Scans each file and prints a report.
 |---|---|---|
 | `--lang auto\|en\|it` | `auto` | Language of the rules. `auto` counts common function words of each language and picks the larger count. |
 | `--keep FILE` | none | A keep file read on top of the repository's `.slop-prose-keep.tsv` (see below); an error when it does not exist. Matching hits and metrics count as resolved. |
+| `--no-repo-keep` | off | Ignore the repository's `.slop-prose-keep.tsv`: only `--keep` resolves hits. The release check sweeps the READMEs this way, with `docs/readme-keep.tsv`. |
 | `--json` | off | Print a JSON array instead of Markdown: `file`, `lang`, `hits[]` (`line`, `col`, `tier`, `category`, `rule`, `match`, `context`, `kept`, `isolated`), `metrics`, `flags`, `kept_flags`. |
 | `--no-gates` | off | Also report hits inside quotes and blockquotes, vocabulary in headings, capitalised names and Italian dialogue dashes, which are otherwise kept as `auto:*`. |
 | `--no-learn` | off | Ignore the learned model (tiers and suppressions learned from verdicts). |
@@ -129,11 +130,11 @@ Code fences, inline code, URLs, front matter and HTML comments are never touched
 
 ### `scan.py compare ORIGINAL REWRITE`
 
-Lists what the rewrite dropped: numbers, URLs, inline code, quoted strings, and capitalised names that appear mid-sentence. A Title Case run ("The Power Of Your Data", or a line where every word is capitalised) is a style, not a name, so fixing it loses nothing. A source file is compared on the text its users read, so a rewritten UI string is not a lost quote. Exit 0 means nothing is missing, 2 that either file is missing, a directory or not UTF-8. Run it after every rewrite; a missing token is restored, or the report explains why it was meant to go.
+Lists what the rewrite dropped: numbers, URLs, inline code, quoted strings, and capitalised names that appear mid-sentence. A Title Case run ("The Power Of Your Data", or a line where every word is capitalised) is a style, not a name, so fixing it loses nothing; a name closing a signature or byline ("Thanks, Maria Rossi", "Author: Jane Doe") is still a name. A source file is compared on the text its users read, so a rewritten UI string is not a lost quote. Exit 0 means nothing is missing, 2 that either file is missing, a directory or not UTF-8. Run it after every rewrite; a missing token is restored, or the report explains why it was meant to go.
 
 ### `scan.py verdict ORIGINAL FINAL [--keep FILE] [--source model|human]`
 
-Records the verdicts of a finished sweep and rebuilds the learned model. A hit kept with reason `fp` becomes a false positive, one kept with any other reason becomes `kept` (a real tell left on purpose), and a hit that disappeared from FINAL becomes `tell` (rewritten). Hits still present without a keep entry, and hits resolved by context gates, are not recorded.
+Records the verdicts of a finished sweep and rebuilds the learned model. A hit kept with reason `fp` becomes a false positive, one kept with any other reason becomes `kept` (a real tell left on purpose), and a hit that disappeared from FINAL becomes `tell` (rewritten), even when a keep line matches it. A keep entry counts as one verdict however many sweeps read it, so the repository keep file does not tilt a rule's precision over time. The keep file is the one of the repository holding FINAL. Hits still present without a keep entry, and hits resolved by context gates, are not recorded.
 
 ### `scan.py learn`, `scan.py audit`, `scan.py label FILE`, `scan.py export`
 
@@ -145,7 +146,7 @@ Prints every rule id with its category, tier and language, the metric thresholds
 
 ### Keep file
 
-`.slop-prose-keep.tsv` at the repository root (the first folder up from where you run it that holds `.git`, else that folder) is always read, so a hit kept on purpose stays kept in the next session; commit it with the rewrite. `--keep FILE` adds another, for text outside any repository. It is a tab-separated file, one entry per line, saved as UTF-8 with or without a BOM. Lines starting with `#` are ignored.
+`.slop-prose-keep.tsv` at the root of the repository holding the scanned file (the first folder up from the file that holds `.git`; for a file outside any repository, the one of the folder you run from) is always read, so a hit kept on purpose stays kept in the next session; commit it with the rewrite. `--keep FILE` adds another, for text outside any repository. It is a tab-separated file, one entry per line, saved as UTF-8 with or without a BOM. Lines starting with `#` are ignored.
 
 ```tsv
 # rule	matched text (as printed in the hit table)	reason
@@ -299,7 +300,7 @@ La skill si attiva da sola quando Claude scrive o rivede testi destinati a perso
 | `scan.py audit`, poi `scan.py label FILE` | ti fa confermare un campione dei falsi positivi decisi dal modello | 0 |
 | `scan.py export [--out FILE]` | scrive per ogni regola conteggi, tier e precisione stimata, senza testo dei tuoi file, da allegare a una issue se vuoi | 0 |
 
-Opzioni di `scan.py`: `--lang auto|en|it` (lingua, rilevata in automatico), `--keep FILE` (altre eccezioni motivate, oltre a `.slop-prose-keep.tsv`), `--json` (output per programmi).
+Opzioni di `scan.py`: `--lang auto|en|it` (lingua, rilevata in automatico), `--keep FILE` (altre eccezioni motivate, oltre a `.slop-prose-keep.tsv`), `--no-repo-keep` (ignora `.slop-prose-keep.tsv`: valgono solo le eccezioni di `--keep`), `--json` (output per programmi).
 
 ### Flusso di revisione
 
@@ -322,7 +323,7 @@ Livelli e soglie sono calibrati su circa 5.200 testi umani (scritti prima di Cha
 
 ### Keep file
 
-`.slop-prose-keep.tsv` nella radice del repository viene letto sempre, così una segnalazione mantenuta di proposito resta tale anche nella sessione dopo: va committato insieme alla riscrittura. `--keep FILE` ne aggiunge un altro, per i testi fuori da un repository. È un file TSV con tre colonne: regola, testo trovato, motivo. I motivi ammessi sono `fp` (non è un segnale AI), `quote`, `voice`, `literal`, `term` e `dialogue`. Per mantenere una metrica: `metric`, nome della metrica, motivo.
+`.slop-prose-keep.tsv` nella radice del repository che contiene il file analizzato viene letto sempre, così una segnalazione mantenuta di proposito resta tale anche nella sessione dopo: va committato insieme alla riscrittura. `verdict` conta ogni riga una volta sola, anche se la rilegge a ogni revisione, e registra come `tell` una segnalazione riscritta anche quando una riga del file la copre. `--keep FILE` ne aggiunge un altro, per i testi fuori da un repository. È un file TSV con tre colonne: regola, testo trovato, motivo. I motivi ammessi sono `fp` (non è un segnale AI), `quote`, `voice`, `literal`, `term` e `dialogue`. Per mantenere una metrica: `metric`, nome della metrica, motivo.
 
 ### Trattini e punteggiatura
 

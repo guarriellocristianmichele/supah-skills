@@ -75,9 +75,29 @@ def anchors(path, cache={}):
     return cache[path]
 
 
+def find_exe(name):
+    """The full path of name on PATH, searching absolute entries only. On Windows, CreateProcess and
+    shutil.which (Python 3.10) look in the current folder first, where a scanned repository could plant
+    a git.exe; a relative entry, an empty one or the current folder itself is skipped for the same
+    reason. FileNotFoundError when name is on no such entry."""
+    here = os.path.normcase(os.path.abspath(os.getcwd()))
+    exts = [""]
+    if os.name == "nt":
+        exts = [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep) if e]
+    for folder in os.environ.get("PATH", "").split(os.pathsep):
+        folder = folder.strip().strip('"')
+        if not folder or not os.path.isabs(folder) or os.path.normcase(os.path.abspath(folder)) == here:
+            continue
+        for ext in exts:
+            candidate = os.path.join(folder, name + ext)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+    raise FileNotFoundError("%s: not found on PATH" % name)
+
+
 def tracked_sources(root, every=False):
     try:
-        out = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True, check=True).stdout
+        out = subprocess.run([find_exe("git"), "ls-files"], cwd=root, capture_output=True, text=True, check=True).stdout
         files = out.splitlines()
     except (OSError, subprocess.CalledProcessError):
         files = []
@@ -313,7 +333,7 @@ def main():
     a = p.parse_args()
     root = a.root
     if not root:
-        out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+        out = subprocess.run([find_exe("git"), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
         root = out.stdout.strip() if out.returncode == 0 else os.getcwd()
     if a.keep and not os.path.isfile(a.keep):
         p.error("keep file not found: %s" % a.keep)

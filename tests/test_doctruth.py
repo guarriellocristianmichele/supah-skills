@@ -118,6 +118,31 @@ class RepositoryKeepFile(unittest.TestCase):
         self.assertEqual(finding["kept"], "created by the program")
 
 
+class BadInput(unittest.TestCase):
+    """A missing path, a directory or a file that is not UTF-8: one line on stderr, the other docs go on, exit 2."""
+
+    def test_each_bad_path_is_one_line_and_the_rest_is_checked(self):
+        root = tempfile.mkdtemp()
+        put(root, "README.md", "# Demo\n\nSee [gone](docs/missing.md).\n")
+        os.makedirs(os.path.join(root, "docs"))
+        latin = os.path.join(root, "LATIN.md")
+        with open(latin, "wb") as f:
+            f.write("# Caffè\n".encode("cp1252"))
+        missing, folder, good = os.path.join(root, "GONE.md"), os.path.join(root, "docs"), os.path.join(root, "README.md")
+        out = subprocess.run([sys.executable, DOCTRUTH, "--root", root, "--json", missing, folder, latin, good],
+                             capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("Traceback", out.stderr)
+        lines = out.stderr.strip().splitlines()
+        self.assertEqual(len(lines), 3, out.stderr)
+        for line, path in zip(lines, (missing, folder, latin)):
+            self.assertIn(path, line)
+        self.assertIn("not UTF-8", lines[2])
+        [result] = json.loads(out.stdout)
+        self.assertEqual(result["file"], good)
+        self.assertEqual([f["kind"] for f in result["findings"]], ["link-missing"])  # the readable doc is still checked
+
+
 def doc(*parts):
     with open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
         return f.read()

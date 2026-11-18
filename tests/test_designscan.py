@@ -71,6 +71,34 @@ class Basics(unittest.TestCase):
         self.assertEqual(r["read_as"], "cp1252")
         self.assertIn("%s: not UTF-8, read as cp1252" % path, plain)
 
+    def test_a_missing_path_or_a_directory_is_one_line_and_the_rest_is_scanned(self):
+        with tempfile.TemporaryDirectory() as d:
+            good = write(d, "page.html", '<h1 class="bg-clip-text text-transparent">Hi</h1>\n')
+            latin = os.path.join(d, "menu.html")
+            with open(latin, "wb") as f:
+                f.write("<p>Café · Wine · Bar</p>\n".encode("latin-1"))
+            missing, folder = os.path.join(d, "gone.html"), os.path.join(d, "sub")
+            os.makedirs(folder)
+            out = run("--json", missing, folder, latin, good)
+            alone = scan(good)[0]
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("Traceback", out.stderr)
+        lines = out.stderr.strip().splitlines()
+        self.assertEqual(len(lines), 2, out.stderr)  # a file that is not UTF-8 is read as cp1252, not an error
+        self.assertIn(missing, lines[0])
+        self.assertIn(folder, lines[1])
+        results = json.loads(out.stdout)
+        self.assertEqual([r["file"] for r in results], [latin, good])
+        self.assertEqual(results[0]["read_as"], "cp1252")
+        self.assertEqual(results[1]["hits"], alone["hits"])  # the readable file's hits are unchanged
+
+    def test_a_missing_keep_file_is_a_usage_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = run("--keep", os.path.join(d, "no-such-keep.tsv"), write(d, "a.html", "<p>x</p>\n"))
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("Traceback", out.stderr)
+        self.assertIn("no-such-keep.tsv", out.stderr)
+
     def test_non_frontend_file_is_skipped(self):
         with tempfile.TemporaryDirectory() as d:
             r, code = scan(write(d, "notes.py", "x = 'bg-clip-text text-transparent'\n"))
@@ -425,6 +453,25 @@ class HitsFile(unittest.TestCase):
             summary = run("--surfaces", inv, "--out", hits).stdout
         self.assertIn("1 hits", summary)
         self.assertIn("not UTF-8, read as cp1252: %s/menu/index.html" % d.replace("\\", "/"), summary)
+
+    def test_a_file_deleted_since_the_inventory_is_one_line_and_the_rest_is_scanned(self):
+        with tempfile.TemporaryDirectory() as d:
+            for sub in ("a", "b"):
+                os.makedirs(os.path.join(d, sub))
+                write(os.path.join(d, sub), "index.html", '<h1 class="bg-clip-text text-transparent">Hi</h1>\n')
+            inv, hits = os.path.join(d, "surfaces.json"), os.path.join(d, "hits.json")
+            run("surfaces", d, "--out", inv)
+            os.remove(os.path.join(d, "a", "index.html"))
+            out = run("--surfaces", inv, "--out", hits)
+            with open(hits, encoding="utf-8") as f:
+                grouped = json.load(f)
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("Traceback", out.stderr)
+        self.assertEqual(len(out.stderr.strip().splitlines()), 1, out.stderr)
+        self.assertIn("index.html", out.stderr)
+        files = {u["unit"]: [os.path.basename(os.path.dirname(r["file"])) for r in u["files"]] for u in grouped["units"]}
+        self.assertEqual(files, {"a": [], "b": ["b"]})
+        self.assertIn("gradient-text", {h["rule"] for u in grouped["units"] for r in u["files"] for h in r["hits"]})
 
     def test_a_worker_reads_its_unit_without_the_duplication_hits(self):
         with tempfile.TemporaryDirectory() as d:

@@ -33,7 +33,7 @@ When another writing skill builds the article block by block and preserves the u
 
 1. **Snapshot** each file to the scratchpad as `<stem>.orig<ext>` (`Signup.tsx` → `Signup.orig.tsx`): the scanner picks its reader by extension, so the snapshot must keep it. More than 3 files: run the `orchestrate` skill when installed (job `prose-sweep`, units = files, profile `light`, unit brief = steps 2–9 for one file, each worker may edit its own file), else sweep them in sequence.
 2. **Fix**: `scan.py fix <file>` applies the unambiguous punctuation and accent corrections.
-3. **Scan**: `scan.py --json [--purpose "<what it is for>"] <file>`; each hit carries its `context` (five tokens either side) and `purpose`.
+3. **Scan**: `scan.py --json [--purpose "<what it is for>"] <file>`; each hit carries its `context` (five tokens either side) and `purpose`. Exit 2 means a file could not be read (missing, a directory or not UTF-8): its stderr line names it and the other files are still in the output.
 4. **Voice.** From the passages with no hits, note person, sentence-length range, contractions, humour, punctuation habits and recurring idioms; a sample the user supplies overrides them. Every rewrite matches this voice.
 5. **Judge and sweep** TELLS.md category by category. Read each hit in its context, then give it one verdict:
    - **tell**: rewrite it;

@@ -35,7 +35,7 @@ With no arguments it checks every tracked Markdown file. It is user-invoked, so 
 | a repo path in a code span | it does not exist (often a path in your project, so review only) | W |
 | a command | not installed on this machine (review only) | W |
 
-The script reads files and runs nothing. The agent then reads each finding next to the code: when the code changed on purpose the doc is fixed, when the doc still describes what users need the lost behaviour is reported, and paths that belong to the user's project are kept with a reason. It also reads the prose for claims no pattern can check, such as defaults and output formats.
+The script reads files and runs nothing. It exits 0 when nothing is left to resolve, 1 when an S or M finding is open, and 2 when a file you named is missing, a directory or not UTF-8: one line on stderr names it, the other files are still checked, and 2 wins over 1. The agent then reads each finding next to the code: when the code changed on purpose the doc is fixed, when the doc still describes what users need the lost behaviour is reported, and paths that belong to the user's project are kept with a reason. It also reads the prose for claims no pattern can check, such as defaults and output formats.
 
 A claim kept on purpose goes in `.doc-truth-keep.tsv` at the repository root, one line per claim: kind, claim and reason, separated by tabs. The script always reads that file, so once you commit it the next run does not report those claims again.
 
@@ -48,6 +48,6 @@ La documentazione invecchia: un README tiene un comando dopo che lo script è st
 Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s doc-truth`, oppure come plugin di Claude Code con `claude plugin install doc-truth --marketplace guarriellocristianmichele/supah-skills --scope user`. Si avvia a mano (`/doc-truth`), quindi non occupa contesto nelle altre sessioni.
 
 - Controlla link e ancore, script e flag nei blocchi shell, script npm e target make, variabili d'ambiente.
-- Lo script legge i file e non esegue niente; l'agente decide caso per caso se va corretto il documento o segnalato il codice.
+- Lo script legge i file e non esegue niente. Esce con 0 se non resta niente da risolvere, 1 se c'è una segnalazione S o M aperta, 2 se un file indicato manca, è una cartella o non è UTF-8: una riga su stderr lo nomina, gli altri file vengono controllati lo stesso e il 2 prevale sull'1. L'agente decide caso per caso se va corretto il documento o segnalato il codice.
 - Legge anche il testo per le affermazioni che nessun controllo automatico vede, come valori predefiniti e formati di output.
 - Le eccezioni volute vanno in `.doc-truth-keep.tsv` nella radice del repository (tipo, affermazione e motivo separati da tab): lo script lo legge sempre, quindi una volta committato le esecuzioni successive non le segnalano più.

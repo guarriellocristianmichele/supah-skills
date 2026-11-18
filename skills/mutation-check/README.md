@@ -39,7 +39,7 @@ The file is changed in place while your tests run and restored after every mutan
 ## Limits
 
 - Python is mutated through `ast`, JavaScript and TypeScript through their operators and literals outside strings and comments. `--function` works on Python only; for JavaScript and TypeScript, pass the function's lines with `--lines`.
-- Exit codes: 0 when every mutant was killed, 1 when some survived, 2 when the run was refused, 3 when your tests already fail on the unchanged file.
+- Exit codes: 0 when every mutant was killed, 1 when some survived, 2 when the run was refused (bad arguments, an uncommitted file, or a FILE that is missing, a directory or not UTF-8, named in one line on stderr), 3 when your tests already fail on the unchanged file.
 - Mutants run one at a time, so a slow suite makes a slow run: narrow the scope with `--function` or `--lines`.
 - Deciding that a survivor is equivalent is a judgement, made by reading the code; the report says why for each one.
 
@@ -51,6 +51,6 @@ Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s 
 
 - Ogni modifica sopravvissuta riceve un verdetto: equivalente (stesso comportamento per ogni input) oppure buco nei test, con l'input che nessun test prova.
 - Il file viene modificato sul posto e ripristinato byte per byte dopo ogni mutante, anche in caso di errore, con Ctrl+C o Ctrl+Break, alla chiusura del terminale e con i fine riga CRLF. Se lo script viene terminato di colpo, una copia nella cartella git del repository rimette l'originale alla prossima esecuzione, o subito con `mutate.py restore <file>`. Un mutante che blocca i test scade al timeout e lo script chiude il comando di test con tutti i processi che ha avviato, anche su Windows.
-- `--function` vale solo per Python; per JavaScript e TypeScript si passano le righe della funzione con `--lines`. Codici di uscita: 0 nessun sopravvissuto, 1 sopravvissuti, 2 esecuzione rifiutata, 3 test già rossi sul file originale.
+- `--function` vale solo per Python; per JavaScript e TypeScript si passano le righe della funzione con `--lines`. Codici di uscita: 0 nessun sopravvissuto, 1 sopravvissuti, 2 esecuzione rifiutata (argomenti sbagliati, file con modifiche non committate, oppure un FILE che manca, è una cartella o non è UTF-8, nominato in una riga su stderr), 3 test già rossi sul file originale.
 - Lo script rifiuta file con modifiche non committate, e la skill propone di metterle da parte con uno stash che riprende alla fine.
 - `ai-slop-audit` la usa come prova per i test tautologici.

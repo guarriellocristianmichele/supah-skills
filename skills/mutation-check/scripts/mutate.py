@@ -7,7 +7,8 @@
       Run CMD once on the original (it must pass), then once per mutant, and report each mutant
       as killed (CMD failed), survived (CMD passed) or timeout (CMD and every process it started
       are killed). Exit 0: no mutant survived; 1: survivors; 2: refused (arguments, uncommitted
-      file); 3: CMD fails on the original file; 128 + signal number: interrupted, file restored.
+      file, FILE missing, a directory or not UTF-8: one line on stderr naming it); 3: CMD fails on
+      the original file; 128 + signal number: interrupted, file restored. `list` refuses FILE the same way.
   mutate.py restore [PATH]
       Put back any file in PATH's repository that a killed run left mutated (`run` does this first).
 
@@ -199,6 +200,21 @@ def read(path):
         return f.read()
 
 
+def check_input(path):
+    """Refuse, in one line naming it, a FILE that does not exist, is a directory or is not UTF-8."""
+    if os.path.isdir(path):
+        refuse("%s: a directory, not a file: give one Python, JavaScript or TypeScript file" % path)
+    try:
+        read(path)
+    except FileNotFoundError:
+        refuse("%s: no such file" % path)
+    except UnicodeDecodeError as e:
+        refuse("%s: not UTF-8 (byte 0x%02x at offset %d): mutants are written as UTF-8, so save it as UTF-8 "
+               "and commit it first" % (path, e.object[e.start], e.start))
+    except OSError as e:
+        refuse("%s: cannot be read (%s)" % (path, e.strerror or e))
+
+
 def write(path, text):
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write(text)
@@ -307,6 +323,7 @@ def run_tests(cmd, timeout):
 
 
 def cmd_run(a):
+    check_input(a.file)
     recover(a.file)
     if dirty(a.file):
         refuse("%s has uncommitted changes (or is not in git): commit or stash it first" % a.file)
@@ -369,6 +386,7 @@ def main():
             s.add_argument("--timeout", type=float, default=0, help="seconds per run (default: 3x the baseline + 5)")
     a = p.parse_args()
     if a.cmd == "list":
+        check_input(a.file)
         _, found = mutants(a.file, a.lines, a.function)
         if a.json:
             print(json.dumps([{k: m[k] for k in ("id", "line", "change")} for m in found], indent=1))
@@ -377,6 +395,8 @@ def main():
                 print("%-5s line %-5d %s" % (m["id"], m["line"], m["change"]))
         return 0
     if a.cmd == "restore":
+        if not os.path.exists(a.file):
+            refuse("%s: no such file or folder" % a.file)
         recover(a.file)
         return 0
     try:

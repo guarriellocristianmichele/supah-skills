@@ -3,7 +3,9 @@
 
   doctruth.py [--root DIR] [--json] [--keep FILE] FILE...
       List every claim that does not hold, with file, line, kind and tier.
-      Exit 0 when nothing is left to resolve (no open S or M finding), else 1.
+      Exit 0 when nothing is left to resolve (no open S or M finding), else 1. A FILE that is
+      missing, a directory or not UTF-8 is one line on stderr, the others are still checked and
+      reported, and the exit is 2, which wins over 1 (look at the report for findings).
 
 Claims checked:
   relative links and their #anchors             link-missing (S), anchor-missing (M)
@@ -220,8 +222,27 @@ def check_command(cmd, repo, base):
     return found
 
 
+class InputError(Exception):
+    """A doc that cannot be read as text: missing, a directory, unreadable or not UTF-8."""
+
+
+def read_doc(path):
+    if os.path.isdir(path):
+        raise InputError("%s: a directory, not a file" % path)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        raise InputError("%s: no such file" % path)
+    except UnicodeDecodeError as e:
+        raise InputError("%s: not UTF-8 (byte 0x%02x at offset %d); save it as UTF-8 and check it again"
+                         % (path, e.object[e.start], e.start))
+    except OSError as e:
+        raise InputError("%s: cannot be read (%s)" % (path, e.strerror or e))
+
+
 def check_file(path, repo, keep):
-    text = open(path, encoding="utf-8", errors="replace").read()
+    text = read_doc(path)
     base = os.path.dirname(os.path.abspath(path))
     findings = []
 
@@ -298,7 +319,13 @@ def main():
         p.error("keep file not found: %s" % a.keep)
     repo = Repo(os.path.abspath(root))
     keep = load_keep(os.path.join(repo.root, REPO_KEEP), a.keep)
-    results = [check_file(f, repo, keep) for f in a.files]
+    results, failed = [], False
+    for f in a.files:
+        try:
+            results.append(check_file(f, repo, keep))
+        except InputError as e:
+            print("doctruth.py: %s" % e, file=sys.stderr, flush=True)
+            failed = True
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
     else:
@@ -307,7 +334,7 @@ def main():
                 print("%s:%d  %s %-22s %s%s" % (r["file"], f["line"], f["tier"], f["kind"], f["claim"],
                                                "  [kept: %s]" % f["kept"] if f["kept"] else ""))
     open_ = any(not f["kept"] and f["tier"] in ("S", "M") for r in results for f in r["findings"])
-    return 1 if open_ else 0
+    return 2 if failed else 1 if open_ else 0
 
 
 if __name__ == "__main__":

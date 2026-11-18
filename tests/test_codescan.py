@@ -85,6 +85,37 @@ class Directories(unittest.TestCase):
         self.assertTrue({"slop.py", "human.py", "slop.ts"} <= files, files)
 
 
+class BadInput(unittest.TestCase):
+    def test_a_missing_path_is_one_line_and_the_rest_is_scanned(self):
+        with tempfile.TemporaryDirectory() as d:
+            gone = os.path.join(d, "gone.py")
+            good = os.path.join(FIX, "slop.py")
+            out = run("--json", gone, good)
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("Traceback", out.stderr)
+        self.assertEqual(len(out.stderr.strip().splitlines()), 1, out.stderr)
+        self.assertIn(gone, out.stderr)
+        results = json.loads(out.stdout)
+        self.assertEqual([r["file"] for r in results], [good])
+        self.assertEqual(rules(results[0]), rules(scan(good)[0]))  # the readable file's hits are unchanged
+
+    def test_a_missing_keep_file_is_a_usage_error(self):
+        out = run("--keep", os.path.join(FIX, "no-such-keep.tsv"), os.path.join(FIX, "slop.py"))
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("Traceback", out.stderr)
+        self.assertIn("no-such-keep.tsv", out.stderr)
+
+    def test_a_file_that_is_not_utf8_is_still_scanned(self):
+        # source code is read with replacement characters: its rules look at code, not at accented text
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "latin.py")
+            with open(path, "wb") as f:
+                f.write("# caffè\ndef f(x):\n    return x\n".encode("cp1252"))
+            out = run("--json", path)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(json.loads(out.stdout)[0]["file"], path)
+
+
 WRAPPER = "def get_json(url):\n    return fetch_json(url)\n"
 
 

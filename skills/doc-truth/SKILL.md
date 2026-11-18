@@ -21,7 +21,7 @@ Claude Code fills in `${CLAUDE_SKILL_DIR}` (this skill's folder) and `$ARGUMENTS
 ## Steps
 
 1. **Scope**: the files in `$ARGUMENTS`, or every tracked Markdown file (`git ls-files '*.md'`) except vendored and generated ones. More than 3 files: scan them all in step 2, then run the `orchestrate` skill when installed (job `doc-truth`, profile `light`, units = files, unit brief = steps 3 and 4 for one file with its findings, each worker may edit its own file and append its kept claims to its own keep file in the scratchpad, appended to `.doc-truth-keep.tsv` before step 5); without it, work the files in sequence.
-2. **Scan**: `doctruth.py --json <files>`.
+2. **Scan**: `doctruth.py --json <files>`. Exit 2 means a file could not be read (missing, a directory or not UTF-8): its stderr line names it; the other files are in the JSON. Fix the path, or save the file as UTF-8, and scan it again.
 3. **Judge each finding** by reading the doc line and the code it points at:
    - **doc is wrong**: the thing was renamed, moved or removed on purpose; fix the doc to what the code does now. The history tells you when: `git log --diff-filter=D -- <path>` for a file that is gone (script, linked page), `git log -S<name>` for a flag, target or name inside a file.
    - **code is wrong**: the doc describes behaviour that was lost by accident; report it, with the commit that dropped it, and leave the code alone. The doc keeps the promise: append the claim to the keep file with reason `regression <commit>`.

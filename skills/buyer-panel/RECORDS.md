@@ -45,7 +45,8 @@ Round labels are short and unique within the panel: `r1` for the first round; la
 | `audience` | text | who would pay |
 | `price` | number | the seller's price |
 | `currency` | text | ISO code, `EUR` |
-| `alternatives` | list | each `{name, price}` (plus any `note`): what the audience buys or uses instead, at real prices; `offer` and `nothing` are reserved names |
+| `period` | text, optional | what one payment of the price covers: `month`, `year`, `booking`; the rounds copy it |
+| `alternatives` | list | each `{name, price}`, plus `currency` (ISO code) when it is not the brief's, `period` when it is not the brief's and any `note`: what the audience buys or uses instead, at real prices, still on sale when `research.md` saw it; `offer` and `nothing` are reserved names |
 
 ## plan.json
 
@@ -80,6 +81,7 @@ With `plan.json` in the same folder (or in the same `validate` call), each buyer
 | `offer` | text | the offer as the card shows it |
 | `price` | number | the price on the card |
 | `currency` | text | |
+| `period` | text, optional | what one payment of the price covers, as the card says it: `month`, `booking`. Write it on every new round: `diff` prints no price change, `revenue` refuses and a grounding gives no corrected figure across rounds in another period, and a round without one counts as a period of its own |
 | `options` | list | option ids shown: `offer`, `nothing` and the alternatives' names, distinct |
 | `model` | text | the model that wrote the buyers' answers, with its version |
 | `interviews` | `orchestrate` or `inline` | fresh contexts in batches, or one buyer at a time in one context |
@@ -144,7 +146,7 @@ Written by `panel.py diff ROUND_A ROUND_B --out FILE`, never by hand. Both round
 
 | field | what |
 |---|---|
-| `before`, `after` | each round's label, offer, price, currency, model, interviews, batch size |
+| `before`, `after` | each round's label, offer, price, currency, period (null when not stated), model, interviews, batch size |
 | `buyers` | `both` (how many compared), `only_before`, `only_after` (ids left out) |
 | `flips` | `pass_to_buy`, `buy_to_pass`: buyer ids |
 | `switches` | each `{buyer_id, from, to}`: every change of option, between competitors too |
@@ -152,7 +154,7 @@ Written by `panel.py diff ROUND_A ROUND_B --out FILE`, never by hand. Both round
 | `buy_share` | `before` and `after` (buyers, buy, raw, discounted), `raw_change`, `discounted_change`, `scheme` |
 | `intent` | mean `before`, `after` and `change`; `up` and `down` (ids), `same` (a count) |
 | `pass_reasons`, `buy_reasons` | `before` and `after` top five with counts; `new` and `gone` tags |
-| `price` | `card` (before, after, change, currency), each round's price range, `range_change`, `optimal_change`, `indifference_change` |
+| `price` | `card` (before, after, change, currency, period), each round's price range, `range_change`, `optimal_change`, `indifference_change`; `mixed`, null when both rounds price in one currency and period, otherwise why not (`r1 is priced in EUR per month, r2 in EUR per booking`), and then every change is null and the Markdown prints `Prices not compared` with both prices |
 | `rows` | per buyer: id, name, segment, `change` (`pass-to-buy`, `buy-to-pass`, `switch`, `same`) and `before`, `after` (choice, decision, intent, reason, quote, give-up, price answers) |
 | `competitor` | only from `panel.py competitor`: `name`, `change` (`added` or `repriced`), `price` (before, after), `chosen` (buyers before, after), `switched_to` (each `{buyer_id, from, reason, quote}`), `left` (each `{buyer_id, to, reason, quote}`), `other_switches` (switches between other options), `stayed` (each `{option, buyers, reasons}`: who kept their choice and the reasons, with counts, that held them in ROUND_B) |
 
@@ -198,12 +200,12 @@ Written by `panel.py ground` into `.buyer-panel/grounding.jsonl`, beside the pan
 |---|---|
 | `panel` | the folder name of the panel whose round was tested; with `label`, unique in the file |
 | `label`, `test`, `round`, `date`, `source` | copied from the real-results file |
-| `offer`, `price`, `currency` | the round's, as its card showed them |
+| `offer`, `price`, `currency`, `period` | the round's, as its card showed them (`period` null when the round stated none) |
 | `real` | `{reached, acted, rate, measure}`: the two counts, their ratio to 4 places, and what it measures |
 | `predicted` | `{buyers, buy, raw, discounted, weights}`: the round's BUY share as `aggregate` gives it, with the weights used |
 | `ratio` | the real rate divided by the round's discounted share, to 4 places |
 
-Every subcommand that prints a BUY share (`aggregate`, `diff`, `competitor`, `compare`, `revenue`, `quotes`, `objections` and `page`) applies the line with the latest `date`, from any panel (on a tie, the one written later), to the buyers behind that share: its `corrected` field holds `figure` (their discounted share times `ratio`, to 4 places), `ratio`, `panel`, `grounding` (the label), `test`, `round`, `date`, `reached`, `acted` and `measure`, and its Markdown prints a `Corrected` line. It sits at the top of `aggregate`'s result, under `corrected` with `before` and `after` in `diff` and `competitor`, in each half of `compare`, in each round of `revenue`, in `first_round` of `quotes`, in `predicted` of `objections` and in the page data's `summary`. A round aggregated with weights other than the grounding's gets `figure: null` and a `problem` saying why. Without `grounding.jsonl` there is no `corrected` field.
+Every subcommand that prints a BUY share (`aggregate`, `diff`, `competitor`, `compare`, `revenue`, `quotes`, `objections` and `page`) applies the line with the latest `date`, from any panel (on a tie, the one written later), to the buyers behind that share: its `corrected` field holds `figure` (their discounted share times `ratio`, to 4 places), `ratio`, `panel`, `grounding` (the label), `test`, `round`, `date`, `reached`, `acted` and `measure`, and its Markdown prints a `Corrected` line. It sits at the top of `aggregate`'s result, under `corrected` with `before` and `after` in `diff` and `competitor`, in each half of `compare`, in each round of `revenue`, in `first_round` of `quotes`, in `predicted` of `objections` and in the page data's `summary`. A round aggregated with weights other than the grounding's, or priced per another period than the round the grounding tested, gets `figure: null` and a `problem` saying why. Without `grounding.jsonl` there is no `corrected` field.
 
 ## Exit codes
 

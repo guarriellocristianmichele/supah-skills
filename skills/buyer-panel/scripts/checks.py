@@ -111,13 +111,13 @@ def paying_users(rnd, rows):
 
 
 def keep_rate(rnd, rows):
-    """(share of paying users who take an option rather than nothing, the buyer ids who chose nothing);
-    (None, []) below MIN_KEEP_BUYERS."""
+    """(share of paying users who take an option rather than nothing, the buyer ids who chose nothing, how many
+    paying users there are); (None, [], n) below MIN_KEEP_BUYERS."""
     users = paying_users(rnd, rows)
     if len(users) < MIN_KEEP_BUYERS:
-        return None, []
+        return None, [], len(users)
     left = [r["buyer_id"] for r in users if r["choice"] == NOTHING]
-    return round(1 - len(left) / len(users), 3), left
+    return round(1 - len(left) / len(users), 3), left, len(users)
 
 
 def runs(text):
@@ -128,13 +128,14 @@ def runs(text):
 
 def persona_copy(rnd, rows):
     """(share of reactions holding a run of the buyer's own objection, the same share with objections shuffled
-    across buyers, one-sided permutation p); (None, None, None) below MIN_PERSONA_BUYERS. A real respondent never
+    across buyers, one-sided permutation p, the buyers with an objection to copy); (None, None, None, n) below
+    MIN_PERSONA_BUYERS. A real respondent never
     read the written persona, so copying it is a simulation artefact; the shuffle discounts stock phrases."""
     pairs = [(runs(rnd.buyers[r["buyer_id"]].get("objection") or ""), runs(rnd.answers[r["buyer_id"]]["reaction"]))
              for r in rows]
     pairs = [(o, a) for o, a in pairs if o]
     if len(pairs) < MIN_PERSONA_BUYERS:
-        return None, None, None
+        return None, None, None, len(pairs)
     objections = [o for o, _ in pairs]
 
     def rate(order):
@@ -146,7 +147,7 @@ def persona_copy(rnd, rows):
         rng.shuffle(order)
         shuffled.append(rate(order))
     p = (1 + sum(x >= own for x in shuffled)) / (PERSONA_SHUFFLES + 1)
-    return round(own, 3), round(sum(shuffled) / len(shuffled), 3), round(p, 3)
+    return round(own, 3), round(sum(shuffled) / len(shuffled), 3), round(p, 3), len(pairs)
 
 
 def check(name, what, value, threshold, passed):
@@ -178,17 +179,18 @@ def run_checks(rnd, advisory=False):
     found.append(dict(check("order", "share choosing the option shown first", first,
                             f"< {MAX_FIRST_TIMES_CHANCE:g} x chance ({bound})", lambda v: v < bound),
                       chance=chance))
-    kept, left = keep_rate(rnd, rows)
-    keep_check = check("keep", f"share of buyers paying for an option shown who still take one "
-                               f"(measured from {MIN_KEEP_BUYERS} such buyers)", kept, f">= {MIN_KEEP:g}",
-                       lambda v: v >= MIN_KEEP)
-    found.append(dict(keep_check, passed=kept is None or keep_check["passed"], buyers=left))   # too few: not measured
-    own, shuffled, p = persona_copy(rnd, rows)
+    kept, left, paying = keep_rate(rnd, rows)
+    keep_check = check("keep", f"share of buyers paying for an option shown who still take one, "
+                               f"over {paying} such buyers (measured from {MIN_KEEP_BUYERS})", kept,
+                       f">= {MIN_KEEP:g}", lambda v: v >= MIN_KEEP)
+    found.append(dict(keep_check, passed=kept is None or keep_check["passed"], buyers=left,   # too few: not measured
+                      measured=paying))
+    own, shuffled, p, objecting = persona_copy(rnd, rows)
     found.append(dict(check("persona", f"share of reactions holding {PERSONA_RUN} words in a row of the buyer's "
-                                       f"own objection (measured from {MIN_PERSONA_BUYERS} buyers)", own,
-                            f"no more than shuffled buyers ({shuffled}), p >= {PERSONA_ALPHA:g}",
+                                       f"own objection, over {objecting} buyers (measured from {MIN_PERSONA_BUYERS})",
+                            own, f"no more than shuffled buyers ({shuffled}), p >= {PERSONA_ALPHA:g}",
                             lambda v: p >= PERSONA_ALPHA), passed=p is None or p >= PERSONA_ALPHA,
-                      shuffled=shuffled, p=p, advisory=True))
+                      shuffled=shuffled, p=p, advisory=True, measured=objecting))
     warned = [c["name"] for c in found if not c["passed"] and c["name"] in ADVISORY_CHECKS]
     failed = [c["name"] for c in found if not c["passed"] and c["name"] not in ADVISORY_CHECKS]
     named = ", ".join(LABELS[n] for n in failed)

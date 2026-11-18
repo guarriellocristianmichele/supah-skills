@@ -29,11 +29,11 @@ Read the mode's file and follow it to its completion criterion. The first word o
 | mode | file | writes |
 |---|---|---|
 | `run [idea]` (default) | `${CLAUDE_SKILL_DIR}/RUN.md` | the panel (brief, plan, buyers), round `r1` and its report |
-| `fix [reason]` | `${CLAUDE_SKILL_DIR}/FIX.md` | three screening rounds, a full round, its diff and report |
+| `fix [reason]` | `${CLAUDE_SKILL_DIR}/FIX.md` | three screening rounds, a full round, its diff, report and page |
 | `price [low mid high]` | `${CLAUDE_SKILL_DIR}/PRICE.md` | three price rounds, revenue per price |
 | `pitch [type]` | `${CLAUDE_SKILL_DIR}/PITCH.md` | a pitch with traced quotes, its try-out round |
 | `compare A B` | `${CLAUDE_SKILL_DIR}/COMPARE.md` | two half-panel rounds balanced by segment, `compare.json` and the report |
-| `competitor` | `${CLAUDE_SKILL_DIR}/COMPETITOR.md` | a round with a competitor added or repriced, its diff and report |
+| `competitor` | `${CLAUDE_SKILL_DIR}/COMPETITOR.md` | a round with a competitor added, repriced or removed, its diff and report |
 | `test` | `${CLAUDE_SKILL_DIR}/TEST.md` | the real-test kit in `test/`: interview script, landing brief, `test.json` thresholds |
 | `ground` | `${CLAUDE_SKILL_DIR}/GROUND.md` | real results and the grounding ratio |
 
@@ -49,6 +49,7 @@ No arguments: with no panel in the ledger, `run` drafts the brief from the proje
 6. **Numbers from the script.** Raw BUY share always sits next to the discounted one with the scheme named; prices are an upper bound; differences between buyer types are descriptive, never findings (`READING.md`).
 7. **Checked, then critiqued.** Every round goes through `panel.py checks`, and every report that shows a round's numbers shows its Checks section. On a round shown to the panel or to a compare half, a failed check makes the verdict `Do not trust this round`; on a screening or try-out round, a subset of the panel, the checks are advisory and the report says so. Every report written to READING.md's template (`run`, `fix`, `compare`, `competitor`) carries a devil's advocate section by a critic in its own context (`CRITIQUE.md`), never mixed into a buyer's answer; the price and pitch reports have templates of their own without one.
 8. **Ends in the world.** A report ends with a verdict and the first real test to run this week.
+9. **Rules over lessons.** A lesson from `.supah/LESSONS.md` changes how a step is done in this project (which browser, a batch size, how a brief is drafted), never a rule above, a check's threshold or a mode's completion criterion. When a lesson would break one of them, follow the rule, keep the lesson for the steps it can change, and say in the report which lesson gave way to which rule.
 
 ## Steps the modes share
 

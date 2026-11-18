@@ -227,6 +227,27 @@ class Corrected(unittest.TestCase):
         self.assertIsNone(result["corrected"]["figure"])
         self.assertIn("top-box 75/25/10/5/2", result["corrected"]["problem"])
 
+    def test_a_round_priced_in_another_period_gets_no_corrected_figure(self):
+        # smoke-1 grounded r1 at 9 EUR per month; r2 sells the same offer per booking
+        with tempfile.TemporaryDirectory() as d:
+            panel = panel_with(d, ("smoke-1", {}))
+            r1 = os.path.join(panel, "rounds", "r1")
+            with open(os.path.join(r1, "round.json"), encoding="utf-8") as f:
+                meta = json.load(f)
+            write(r1, "round.json", json.dumps(dict(meta, period="month")))
+            run_json("ground", os.path.join(panel, "real", "smoke-1.json"))
+            stored = lines(os.path.join(d, "grounding.jsonl"))
+            r2 = second_round(panel)
+            write(r2, "round.json", json.dumps(dict(meta, label="r2", period="booking", price=1.5)))
+            result, code = run_json("aggregate", r2)
+            same, _ = run_json("aggregate", r1)
+        self.assertEqual(stored[0]["period"], "month")
+        self.assertEqual(code, 0, result)
+        self.assertIsNone(result["corrected"]["figure"])
+        self.assertEqual(result["corrected"]["problem"],
+                         "the ratio was measured on a round priced per month, this round is priced per booking")
+        self.assertEqual(same["corrected"]["figure"], 0.055)
+
     def test_a_damaged_grounding_ledger_is_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             panel = panel_with(d)

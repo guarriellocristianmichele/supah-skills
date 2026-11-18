@@ -134,14 +134,18 @@ def score_errors(rec):
 
 def brief_errors(rec):
     alts = rec.get("alternatives")
+    errors = period_errors(rec)
     if not (isinstance(alts, list) and alts):
-        return [("alternatives", "must list the real alternatives with their prices")]
-    errors = []
+        return errors + [("alternatives", "must list the real alternatives with their prices")]
     for i, alt in enumerate(alts):
         if not isinstance(alt, dict):
             errors.append((f"alternatives[{i}]", "must be an object with name and price"))
             continue
         errors += [(f"alternatives[{i}].{f}", m) for f, m in field_errors(alt, {"name": TEXT, "price": NUMBER})]
+        if "currency" in alt and not (isinstance(alt["currency"], str) and alt["currency"].strip()):
+            errors.append((f"alternatives[{i}].currency", "must be an ISO code such as EUR; leave it out for the "
+                                                          "brief's currency"))
+        errors += [(f"alternatives[{i}].{f}", m) for f, m in period_errors(alt)]
         if alt.get("name") in (OFFER, NOTHING):
             errors.append((f"alternatives[{i}].name", f"{alt['name']!r} is a reserved option id"))
     return errors
@@ -187,8 +191,15 @@ def competitor_errors(rec):
     return errors
 
 
+def period_errors(rec, field="period"):
+    """An optional price period ("month", "booking"): when present, non-empty text."""
+    if field in rec and not (isinstance(rec[field], str) and rec[field].strip()):
+        return [(field, "must be the period the price is for, such as month or booking")]
+    return []
+
+
 def round_errors(rec):
-    errors = option_errors(rec.get("options"))
+    errors = option_errors(rec.get("options")) + period_errors(rec)
     if rec.get("interviews") not in INTERVIEWS:
         errors.append(("interviews", f"must be one of {', '.join(INTERVIEWS)}"))
     if not is_count(rec.get("batch_size")):
@@ -450,7 +461,22 @@ class Round:
                 "scores": [b for b in self.answers if b not in self.scores]}
 
     def described(self):
-        return {k: self.meta[k] for k in ("label", "offer", "price", "currency", "model", "interviews", "batch_size")}
+        return dict({k: self.meta[k] for k in ("label", "offer", "price", "currency", "model", "interviews",
+                                               "batch_size")}, period=self.meta.get("period"))
+
+
+def unit(meta):
+    """How a round's price reads: "EUR per month", or "EUR with no period stated" for a round written without one."""
+    period = meta.get("period")
+    return f"{meta['currency']} per {period}" if period else f"{meta['currency']} with no period stated"
+
+
+def mixed_units(meta_a, meta_b):
+    """None when two rounds price in the same currency and period; otherwise why their prices cannot be
+    subtracted. Two rounds that both state no period count as one unit, as rounds written before `period` did."""
+    if (meta_a["currency"], meta_a.get("period")) == (meta_b["currency"], meta_b.get("period")):
+        return None
+    return f"{meta_a['label']} is priced in {unit(meta_a)}, {meta_b['label']} in {unit(meta_b)}"
 
 
 def panel_of(round_dir):

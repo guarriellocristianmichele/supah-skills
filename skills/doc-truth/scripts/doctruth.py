@@ -16,7 +16,9 @@ Claims checked:
   ENV_VARS in code spans or `export X=`        env-unread (M: no source file reads the name)
 
 Keep file: TSV lines `kind<TAB>claim<TAB>reason` for deliberate exceptions (a path the program creates,
-a link to a file generated at build time). The scanner finds candidates; whether the doc or the code is
+a link to a file generated at build time), `#` lines are comments. `.doc-truth-keep.tsv` at the repository
+root is always read, so a claim kept on purpose stays kept in the next session; `--keep FILE` adds more.
+The scanner finds candidates; whether the doc or the code is
 wrong is decided by reading both (ADR 0003).
 """
 import argparse
@@ -37,6 +39,7 @@ PATHLIKE = re.compile(r"^(\./|\.\./)?[\w.-]+(/[\w.@-]+)+/?$|^[\w-]+\.(md|py|json
 ENV = re.compile(r"^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$")
 PLACEHOLDER = re.compile(r"[<>*{}$]|\b(NNNN|DIR|PATH|FILE|NAME|SLUG|X+|Y+)\b")  # docs/adr/NNNN-slug.md, DIR/state.json
 WRAPPERS = {"sudo", "env", "time", "npx", "pnpx", "bunx", "uvx", "exec"}
+BUILTINS = {"export", "cd", "source", ".", "set", "unset", "alias", "pushd", "popd", "eval", "exit", "ulimit", "umask"}
 INTERPRETERS = {"python", "python3", "py", "node", "bash", "sh", "pwsh", "powershell", "ruby", "deno", "bun", "tsx", "ts-node"}
 WELL_KNOWN_ENV = {"PATH", "HOME", "USERPROFILE", "PWD", "SHELL", "TERM", "LANG", "TMPDIR", "TEMP", "NODE_ENV",
                   "CI", "GITHUB_TOKEN", "EDITOR"}
@@ -183,6 +186,8 @@ def check_command(cmd, repo, base):
         if not toks:
             continue
         exe, args = toks[0], toks[1:]
+        if exe in BUILTINS:  # part of the shell, never on PATH
+            continue
         script = None
         if exe in INTERPRETERS and args and not args[0].startswith("-"):
             script, args = args[0], args[1:]
@@ -260,10 +265,15 @@ def check_file(path, repo, keep):
     return {"file": path, "findings": unique}
 
 
-def load_keep(path):
+REPO_KEEP = ".doc-truth-keep.tsv"
+
+
+def load_keep(*paths):
     keep = {}
-    if path:
-        for line in open(path, encoding="utf-8"):
+    for path in paths:
+        if not path or not os.path.isfile(path):
+            continue
+        for line in open(path, encoding="utf-8-sig"):
             parts = line.rstrip("\n").split("\t")
             if len(parts) >= 3 and not line.startswith("#"):
                 keep[(parts[0], parts[1])] = parts[2]
@@ -278,13 +288,16 @@ def main():
     p.add_argument("files", nargs="+")
     p.add_argument("--root", help="repository root (default: the git top level of the current folder)")
     p.add_argument("--json", action="store_true")
-    p.add_argument("--keep")
+    p.add_argument("--keep", help="a keep file read on top of %s at the repository root" % REPO_KEEP)
     a = p.parse_args()
     root = a.root
     if not root:
         out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
         root = out.stdout.strip() if out.returncode == 0 else os.getcwd()
-    repo, keep = Repo(os.path.abspath(root)), load_keep(a.keep)
+    if a.keep and not os.path.isfile(a.keep):
+        p.error("keep file not found: %s" % a.keep)
+    repo = Repo(os.path.abspath(root))
+    keep = load_keep(os.path.join(repo.root, REPO_KEEP), a.keep)
     results = [check_file(f, repo, keep) for f in a.files]
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))

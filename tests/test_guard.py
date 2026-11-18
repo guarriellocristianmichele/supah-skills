@@ -12,9 +12,9 @@ HOME = tempfile.mkdtemp()  # empty learned model, so results don't depend on the
 SLOP = "This isn't about speed. It's about trust. I hope this helps — let me know!\n"
 
 
-def run(command, event=None):
+def run(command, event=None, raw=None):
     env = dict(os.environ, SUPAH_PROSE_HOME=HOME)
-    data = json.dumps(event) if event is not None else ""
+    data = raw if raw is not None else json.dumps(event) if event is not None else ""
     return subprocess.run([sys.executable, GUARD, command], input=data, capture_output=True,
                           text=True, encoding="utf-8", env=env, timeout=60)
 
@@ -91,6 +91,32 @@ class Post(unittest.TestCase):
         os.makedirs(os.path.join(HOME, "skill"), exist_ok=True)
         open(os.path.join(HOME, "skill", "SKILL.md"), "w").close()
         self.assertEqual(run("post", write(os.path.join(HOME, "skill", "README.md"), SLOP)).returncode, 2)
+
+
+class MalformedInput(unittest.TestCase):
+    """A hook that crashes prints a traceback into the session; bad input is not the writer's slop."""
+
+    def assertSilent(self, out):
+        self.assertEqual((out.returncode, out.stdout, out.stderr), (0, "", ""))
+
+    def test_empty_stdin_is_silent(self):
+        self.assertSilent(run("post"))
+
+    def test_malformed_json_is_silent(self):
+        self.assertSilent(run("post", raw='{"tool_name": "Write", "tool_input": {'))
+
+    def test_json_array_is_silent(self):
+        self.assertSilent(run("post", [write(os.path.join(HOME, "notes.md"), SLOP)]))
+
+    def test_fields_of_the_wrong_type_are_silent(self):
+        notes = os.path.join(HOME, "notes.md")
+        for tool_input in ("notes.md", ["notes.md"], {"file_path": 7, "content": SLOP},
+                           {"file_path": notes, "content": 7}, {"file_path": notes, "content": None},
+                           {"file_path": notes, "edits": "Fine."}, {"file_path": notes, "edits": [SLOP]},
+                           {"file_path": notes, "edits": [{"new_string": 7}]},
+                           {"file_path": notes, "new_string": ["Fine."]}):
+            with self.subTest(tool_input=tool_input):
+                self.assertSilent(run("post", {"tool_name": "Write", "tool_input": tool_input}))
 
 
 if __name__ == "__main__":

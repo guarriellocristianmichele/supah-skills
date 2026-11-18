@@ -20,15 +20,16 @@ Claude Code fills in `${CLAUDE_SKILL_DIR}` (this skill's folder) and `$ARGUMENTS
 
 ## Steps
 
-1. **Scope**: the files in `$ARGUMENTS`, or every tracked Markdown file (`git ls-files '*.md'`) except vendored and generated ones. More than 3 files: scan them all in step 2, then run the `orchestrate` skill when installed (job `doc-truth`, profile `light`, units = files, unit brief = steps 3 and 4 for one file with its findings, each worker may edit its own file and append to its own keep file, concatenated into one before step 5); without it, work the files in sequence.
+1. **Scope**: the files in `$ARGUMENTS`, or every tracked Markdown file (`git ls-files '*.md'`) except vendored and generated ones. More than 3 files: scan them all in step 2, then run the `orchestrate` skill when installed (job `doc-truth`, profile `light`, units = files, unit brief = steps 3 and 4 for one file with its findings, each worker may edit its own file and append its kept claims to its own keep file in the scratchpad, appended to `.doc-truth-keep.tsv` before step 5); without it, work the files in sequence.
 2. **Scan**: `doctruth.py --json <files>`.
 3. **Judge each finding** by reading the doc line and the code it points at:
-   - **doc is wrong**: the thing was renamed, moved or removed on purpose (`git log -S<name>` tells you when); fix the doc to what the code does now.
+   - **doc is wrong**: the thing was renamed, moved or removed on purpose; fix the doc to what the code does now. The history tells you when: `git log --diff-filter=D -- <path>` for a file that is gone (script, linked page), `git log -S<name>` for a flag, target or name inside a file.
    - **code is wrong**: the doc describes behaviour that was lost by accident; report it, with the commit that dropped it, and leave the code alone. The doc keeps the promise: append the claim to the keep file with reason `regression <commit>`.
    - When the history cannot tell which side changed on purpose, ask with options: fix the doc, report the code, or keep the claim.
-   - **fp**: the claim is about the user's project or a path the program creates (`.claude/settings.json`, a state file); append `kind<TAB>claim<TAB>reason` to a keep file in the scratchpad.
+   - **fp**: the claim is about the user's project or a path the program creates (`.claude/settings.json`, a state file); append it to the keep file with its reason.
+   - The keep file is `.doc-truth-keep.tsv` at the repository root, one `kind<TAB>claim<TAB>reason` line per claim (`#` starts a comment). The scanner always reads it, so commit it with the doc fixes and the next run does not raise the same claims again.
 4. **Read for what the scanner can't see**: behaviour the doc describes (defaults, output formats, supported versions) checked against the code that implements it, one section at a time.
-5. **Rescan** with `--keep <keep file>`: exit 0.
+5. **Rescan**: `doctruth.py <files>` exits 0; it reads `.doc-truth-keep.tsv` by itself.
 6. **Report**: per file, the fixes made, the code regressions reported, the kept claims with reasons, and the behaviour claims read in step 4.
 
 **Completion.** The rescan exits 0, every W finding was read, and every section of every file in scope was read for behaviour claims.

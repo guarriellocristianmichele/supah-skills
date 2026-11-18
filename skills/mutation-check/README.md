@@ -34,11 +34,12 @@ Each survivor gets a verdict. It is either equivalent (the change behaves the sa
 
 ## Safety
 
-The file is changed in place while your tests run and restored after every mutant, on errors and on Ctrl+C. The script refuses a file with uncommitted changes, so `git checkout -- <file>` always brings it back; when yours has some, the skill offers to stash them for the run and pops the stash afterwards. The file comes back byte for byte, CRLF line endings included, and every test run gets a fresh Python bytecode cache, so a mutant never runs the previous one's compiled code. Your test command runs through the shell exactly as written, so the skill never pre-approves it: Claude Code asks you to confirm each run with the command in full.
+The file is changed in place while your tests run and restored after every mutant, on errors, on Ctrl+C or Ctrl+Break, and when the terminal closes. If the script is killed outright, a backup kept in the repository's git folder brings the original back on the next run, or at once with `mutate.py restore <file>`. A mutant that hangs your tests hits the timeout, and the script kills the test command with every process it started, on Windows too. The script refuses a file with uncommitted changes, so `git checkout -- <file>` always brings it back; when yours has some, the skill offers to stash them for the run and pops the stash afterwards. The file comes back byte for byte, CRLF line endings included, and every test run gets a fresh Python bytecode cache, so a mutant never runs the previous one's compiled code. Your test command runs through the shell exactly as written, so the skill never pre-approves it: Claude Code asks you to confirm each run with the command in full.
 
 ## Limits
 
-- Python is mutated through `ast`, JavaScript and TypeScript through their operators and literals outside strings and comments.
+- Python is mutated through `ast`, JavaScript and TypeScript through their operators and literals outside strings and comments. `--function` works on Python only; for JavaScript and TypeScript, pass the function's lines with `--lines`.
+- Exit codes: 0 when every mutant was killed, 1 when some survived, 2 when the run was refused, 3 when your tests already fail on the unchanged file.
 - Mutants run one at a time, so a slow suite makes a slow run: narrow the scope with `--function` or `--lines`.
 - Deciding that a survivor is equivalent is a judgement, made by reading the code; the report says why for each one.
 
@@ -49,5 +50,7 @@ Controlla se i tuoi test si accorgono quando il codice cambia. Fa una piccola mo
 Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s mutation-check`, oppure come plugin di Claude Code con `claude plugin install mutation-check --marketplace guarriellocristianmichele/supah-skills --scope user`. Richiede Python 3.10 o superiore e git.
 
 - Ogni modifica sopravvissuta riceve un verdetto: equivalente (stesso comportamento per ogni input) oppure buco nei test, con l'input che nessun test prova.
-- Il file viene modificato sul posto e ripristinato byte per byte dopo ogni mutante, anche in caso di errore e con i fine riga CRLF; lo script rifiuta file con modifiche non committate, e la skill propone di metterle da parte con uno stash che riprende alla fine.
+- Il file viene modificato sul posto e ripristinato byte per byte dopo ogni mutante, anche in caso di errore, con Ctrl+C o Ctrl+Break, alla chiusura del terminale e con i fine riga CRLF. Se lo script viene terminato di colpo, una copia nella cartella git del repository rimette l'originale alla prossima esecuzione, o subito con `mutate.py restore <file>`. Un mutante che blocca i test scade al timeout e lo script chiude il comando di test con tutti i processi che ha avviato, anche su Windows.
+- `--function` vale solo per Python; per JavaScript e TypeScript si passano le righe della funzione con `--lines`. Codici di uscita: 0 nessun sopravvissuto, 1 sopravvissuti, 2 esecuzione rifiutata, 3 test già rossi sul file originale.
+- Lo script rifiuta file con modifiche non committate, e la skill propone di metterle da parte con uno stash che riprende alla fine.
 - `ai-slop-audit` la usa come prova per i test tautologici.

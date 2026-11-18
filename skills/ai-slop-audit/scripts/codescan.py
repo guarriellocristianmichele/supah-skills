@@ -3,7 +3,10 @@
 
   codescan.py [--json] [--keep FILE] FILE...
       List every catalogued pattern with line, rule, category and tier.
-      Exit 0 when nothing is left to resolve (no open S or M hit), else 1.
+      Exit 0 when nothing is left to resolve (no open S or M hit), else 1. A FILE that does not
+      exist or cannot be read is one line on stderr, the others are still scanned and reported,
+      and the exit is 2, which wins over 1 (look at the report for hits). A directory is scanned
+      file by file; a file that is not UTF-8 is read with replacement characters.
   codescan.py rules
       Print every rule with category, tier and languages.
   codescan.py verdict --judged FILE [--source model|human]
@@ -408,12 +411,21 @@ def main():
     p.add_argument("--keep")
     p.add_argument("--no-learn", action="store_true", help="ignore the learned model (tiers, suppressions)")
     a = p.parse_args()
+    if a.keep and not os.path.isfile(a.keep):
+        p.error("keep file not found: %s" % a.keep)
     keep = load_keep(a.keep)
     model = learn.model_for(a.no_learn)
-    results = []
+    results, failed = [], False
     for path in expand(a.files):
-        with open(path, encoding="utf-8", errors="replace") as f:
-            results.append(scan_text(f.read(), path, keep, model))
+        try:
+            with open(path, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError as e:
+            reason = "no such file" if isinstance(e, FileNotFoundError) else "cannot be read (%s)" % (e.strerror or e)
+            print("codescan.py: %s: %s" % (path, reason), file=sys.stderr, flush=True)
+            failed = True
+            continue
+        results.append(scan_text(text, path, keep, model))
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
     else:
@@ -423,7 +435,7 @@ def main():
             for h in r["hits"]:
                 print("%s:%d  %s %-20s %s%s" % (r["file"], h["line"], h["tier"], h["rule"], h["match"],
                                                "  [kept: %s]" % h["kept"] if h["kept"] else ""))
-    return 1 if any(open_hits(r) for r in results) else 0
+    return 2 if failed else 1 if any(open_hits(r) for r in results) else 0
 
 
 if __name__ == "__main__":

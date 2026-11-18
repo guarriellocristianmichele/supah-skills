@@ -80,6 +80,21 @@ class Watch(unittest.TestCase):
                 f.write('{"session": "s1", "workers": [{"id": "w1", "status": "runn')
             self.assert_clean_error(run("watch", "--state", d, "--interval", "0.05"), "unreadable")
 
+    def test_a_state_json_that_is_a_directory_or_not_utf8_is_a_clean_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "state.json"))
+            self.assert_clean_error(run("watch", "--state", d, "--interval", "0.05"), "state.json")
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "state.json"), "wb") as f:
+                f.write('{"session": "caffè", "workers": []}'.encode("cp1252"))
+            self.assert_clean_error(run("watch", "--state", d, "--interval", "0.05"), "unreadable")
+
+    def test_a_state_dir_that_is_a_file_is_a_clean_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "state.json")
+            state(d, workers=[])
+            self.assert_clean_error(run("watch", "--state", path, "--interval", "0.05"), "state.json")
+
     def test_a_state_file_that_is_not_a_job_state_is_a_clean_error(self):
         for body in ("[]", '{"workers": {"w1": "running"}}', '{"workers": ["w1"]}'):
             with self.subTest(body=body), tempfile.TemporaryDirectory() as d:

@@ -3,7 +3,9 @@
 
   designscan.py [--json] [--keep FILE] FILE...
       List every catalogued reflex with line, rule, category, tier and context.
-      Exit 0 when nothing is left to resolve (no open S or M hit), else 1.
+      Exit 0 when nothing is left to resolve (no open S or M hit), else 1. A FILE that does not
+      exist, is a directory or cannot be read is one line on stderr, the others are still scanned
+      and reported, and the exit is 2, which wins over 1 (look at the report for hits).
   designscan.py rules
       Print every rule with category and tier.
   designscan.py surfaces [ROOT] [--out FILE]
@@ -14,7 +16,8 @@
       one line is printed: surfaces, shared units, frontend files and the framework.
   designscan.py --surfaces INVENTORY --out HITS [--keep FILE]
       Scan every file of the inventory in one run, write the results grouped by unit to HITS
-      and print a summary per unit plus the duplication groups. Exit codes as for a scan.
+      and print a summary per unit plus the duplication groups. Exit codes as for a scan: a file
+      of the inventory deleted since is one line on stderr, left out of HITS, and the exit is 2.
       HITS records the commit and, as dirty, the scanned files with uncommitted changes.
   designscan.py hits HITS [UNIT]
       The summary again, or one unit's results as JSON without its duplication hits. A route
@@ -988,6 +991,27 @@ def read(path):
         return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
+
+def read_inputs(paths):
+    """(text, path) for every path that can be read, and whether any could not: a missing path, a directory
+    or an unreadable file is one line on stderr and the rest go on. A file that is not UTF-8 is read (read())."""
+    pairs, failed = [], False
+    for path in paths:
+        if os.path.isdir(path):
+            reason = "a directory, not a file"
+        else:
+            try:
+                pairs.append((read(path), path))
+                continue
+            except FileNotFoundError:
+                reason = "no such file"
+            except OSError as e:
+                reason = "cannot be read (%s)" % (e.strerror or e)
+        print("designscan.py: %s: %s" % (path, reason), file=sys.stderr, flush=True)
+        failed = True
+    return pairs, failed
+
+
 # --- surfaces -----------------------------------------------------------------------------
 # A surface is a route or page plus the files only it reaches. Files reached by several
 # surfaces, or by none a static read can find, form the shared unit. Every frontend file
@@ -1297,7 +1321,9 @@ def scan_inventory(inventory_path, keep, out):
     with open(inventory_path, encoding="utf-8") as f:
         inv = json.load(f)
     files = [f for u in inv["units"] for f in u["files"]]
-    results = iter(scan_many([(read(f), f) for f in files], keep))
+    pairs, failed = read_inputs(files)
+    readable = {path for _, path in pairs}
+    results = iter(scan_many(pairs, keep))
     try:
         commit = subprocess.run(["git", "-C", inv["root"], "rev-parse", "--short", "HEAD"], capture_output=True,
                                 text=True, timeout=30).stdout.strip() or None
@@ -1306,12 +1332,12 @@ def scan_inventory(inventory_path, keep, out):
     dirty = {root_path(inv["root"], f) for f in git_dirty(inv["root"])} if commit else set()
     data = {"root": inv["root"], "framework": inv["framework"], "commit": commit,
             "dirty": [f for f in files if f in dirty],
-            "units": [{"unit": u["unit"], "kind": u["kind"], "files": [next(results) for _ in u["files"]]}
-                      for u in inv["units"]]}
+            "units": [{"unit": u["unit"], "kind": u["kind"],
+                       "files": [next(results) for f in u["files"] if f in readable]} for u in inv["units"]]}
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
     print(hits_summary(data, out))
-    return 1 if any(open_hits(r) for u in data["units"] for r in u["files"]) else 0
+    return 2 if failed else 1 if any(open_hits(r) for u in data["units"] for r in u["files"]) else 0
 
 
 def hits_summary(data, path):
@@ -1700,12 +1726,15 @@ def main():
     p.add_argument("--no-learn", action="store_true", help="ignore the learned model (tiers, suppressions)")
     a = p.parse_args()
     model = learn.model_for(a.no_learn)
+    if a.keep and not os.path.isfile(a.keep):
+        p.error("keep file not found: %s" % a.keep)
     keep = load_keep(a.keep)
     if bool(a.surfaces) != bool(a.out) or bool(a.surfaces) == bool(a.files):
         p.error("give FILE... or --surfaces INVENTORY --out HITS")
     if a.surfaces:
         return scan_inventory(a.surfaces, keep, a.out)
-    results = scan_many([(read(path), path) for path in a.files], keep, model)
+    pairs, failed = read_inputs(a.files)
+    results = scan_many(pairs, keep, model)
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
     else:
@@ -1717,7 +1746,7 @@ def main():
             for h in r["hits"]:
                 print("%s:%d  %s %-22s %s%s" % (r["file"], h["line"], h["tier"], h["rule"], h["match"],
                                                "  [kept: %s]" % h["kept"] if h["kept"] else ""))
-    return 1 if any(open_hits(r) for r in results) else 0
+    return 2 if failed else 1 if any(open_hits(r) for r in results) else 0
 
 
 if __name__ == "__main__":

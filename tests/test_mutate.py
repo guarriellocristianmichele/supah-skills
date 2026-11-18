@@ -104,6 +104,27 @@ class Project(unittest.TestCase):
         self.assertEqual(out.returncode, 2)
         self.assertIn("uncommitted", out.stderr)
 
+    def test_a_missing_path_a_directory_or_a_non_utf8_file_is_refused_in_one_line(self):
+        os.makedirs(os.path.join(self.dir, "pkg"))
+        with open(os.path.join(self.dir, "latin.py"), "wb") as f:
+            f.write("# caffè\ndef f(x):\n    return x + 1\n".encode("cp1252"))
+        git(self.dir, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+        git(self.dir, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "latin")
+        cases = [("gone.py", "no such file"), (os.path.join("nowhere", "gone.py"), "no such file"),
+                 ("pkg", "a directory"), ("latin.py", "not UTF-8")]
+        for path, reason in cases:
+            for args in (("list", path), ("run", path, "--test", "echo ok")):
+                with self.subTest(args=args):
+                    out = run(self.dir, *args)
+                    self.assertEqual(out.returncode, 2)
+                    self.assertNotIn("Traceback", out.stderr)
+                    self.assertEqual(len(out.stderr.strip().splitlines()), 1, out.stderr)
+                    self.assertIn(path, out.stderr)
+                    self.assertIn(reason, out.stderr)
+        out = run(self.dir, "restore", os.path.join("nowhere", "gone.py"))
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("Traceback", out.stderr)
+
     def test_red_baseline_has_its_own_exit_code(self):
         # 1 means "survivors found"; tests that fail before any mutant are a different answer
         out = run(self.dir, "run", "calc.py", "--test", '"%s" -c "raise SystemExit(1)"' % sys.executable)

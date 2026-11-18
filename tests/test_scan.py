@@ -287,5 +287,56 @@ class Rules(unittest.TestCase):
             self.assertIn(f"`{rule}`", tells, rule)
 
 
+class BadInput(unittest.TestCase):
+    """A missing path, a directory or a file that is not UTF-8: one line on stderr, the other files go on, exit 2."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir)
+        self.missing = os.path.join(self.dir, "gone.md")
+        self.latin = os.path.join(self.dir, "latin.md")
+        with open(self.latin, "wb") as f:
+            f.write("Caffè e perché.\n".encode("cp1252"))
+        self.good = os.path.join(FIX, "slop-en.md")
+
+    def assert_one_line_each(self, out, *paths):
+        self.assertNotIn("Traceback", out.stderr)
+        lines = out.stderr.strip().splitlines()
+        self.assertEqual(len(lines), len(paths), out.stderr)
+        for line, path in zip(lines, paths):
+            self.assertIn(path, line)
+
+    def test_scan_reports_each_bad_path_and_scans_the_rest(self):
+        out = run("--json", self.missing, self.dir, self.latin, self.good)
+        self.assertEqual(out.returncode, 2)
+        self.assert_one_line_each(out, self.missing, self.dir, self.latin)
+        self.assertIn("not UTF-8", out.stderr)
+        results = json.loads(out.stdout)
+        self.assertEqual([r["file"] for r in results], [self.good])
+        self.assertEqual(rules(results[0]), rules(scan_json("slop-en.md")[0]))  # the readable file's hits are unchanged
+
+    def test_markdown_report_still_lists_the_readable_file(self):
+        out = run(self.missing, self.good)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn(self.good, out.stdout)
+
+    def test_only_bad_paths_is_still_exit_2(self):
+        self.assertEqual(run(self.missing).returncode, 2)
+
+    def test_fix_skips_a_bad_path(self):
+        good = os.path.join(self.dir, "good.md")
+        with open(good, "w", encoding="utf-8") as f:
+            f.write("Ciao , mondo.\n")
+        out = run("fix", self.missing, good)
+        self.assertEqual(out.returncode, 2)
+        self.assert_one_line_each(out, self.missing)
+        self.assertEqual(read(good), "Ciao, mondo.\n")
+
+    def test_compare_names_the_bad_path(self):
+        out = run("compare", self.good, self.latin)
+        self.assertEqual(out.returncode, 2)
+        self.assert_one_line_each(out, self.latin)
+
+
 if __name__ == "__main__":
     unittest.main()

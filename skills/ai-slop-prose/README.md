@@ -109,9 +109,9 @@ The Markdown report has three parts per file:
 |---|---|
 | 0 | Nothing open: every S and M hit is kept, and no metric is flagged |
 | 1 | At least one open S or M hit, or a flagged metric |
-| 2 | Bad arguments (from argparse) |
+| 2 | Bad arguments (from argparse), or a FILE that is missing, a directory or not UTF-8 |
 
-W hits are listed for context and never change the exit code; their metric does.
+W hits are listed for context and never change the exit code; their metric does. A FILE that cannot be read is one line on stderr naming it, and the other files are still scanned and reported; 2 wins over 1, so after an exit 2 read the report for open hits.
 
 ### `scan.py fix [--lang auto|en|it] FILE...`
 
@@ -125,11 +125,11 @@ Applies the corrections that have exactly one right answer, in place, and prints
 | `space-after-comma` | `bene,anche` → `bene, anche` |
 | `space-after-period` | `cambia.Qual` → `cambia. Qual` |
 
-Code fences, inline code, URLs, front matter and HTML comments are never touched. Overlapping fixes are resolved by running up to five passes. Dashes are reported and left to the rewrite, because the right replacement (comma, colon, parentheses or full stop) depends on the sentence.
+Code fences, inline code, URLs, front matter and HTML comments are never touched. Overlapping fixes are resolved by running up to five passes. A FILE that cannot be read is one line on stderr, the others are fixed, and the exit code is 2. Dashes are reported and left to the rewrite, because the right replacement (comma, colon, parentheses or full stop) depends on the sentence.
 
 ### `scan.py compare ORIGINAL REWRITE`
 
-Lists what the rewrite dropped: numbers, URLs, inline code, quoted strings, and capitalised names that appear mid-sentence. A Title Case run ("The Power Of Your Data", or a line where every word is capitalised) is a style, not a name, so fixing it loses nothing. A source file is compared on the text its users read, so a rewritten UI string is not a lost quote. Exit 0 means nothing is missing. Run it after every rewrite; a missing token is restored, or the report explains why it was meant to go.
+Lists what the rewrite dropped: numbers, URLs, inline code, quoted strings, and capitalised names that appear mid-sentence. A Title Case run ("The Power Of Your Data", or a line where every word is capitalised) is a style, not a name, so fixing it loses nothing. A source file is compared on the text its users read, so a rewritten UI string is not a lost quote. Exit 0 means nothing is missing, 2 that either file is missing, a directory or not UTF-8. Run it after every rewrite; a missing token is restored, or the report explains why it was meant to go.
 
 ### `scan.py verdict ORIGINAL FINAL [--keep FILE] [--source model|human]`
 
@@ -291,9 +291,9 @@ La skill si attiva da sola quando Claude scrive o rivede testi destinati a perso
 
 | Comando | A cosa serve | Exit code |
 |---|---|---|
-| `scan.py FILE...` | elenca ogni schema trovato con riga, livello, categoria e metriche | 0 se non resta niente da risolvere, 1 altrimenti |
-| `scan.py fix FILE...` | applica le correzioni sicure: accenti (perchè → perché, qual'è → qual è, E' → È, pò → po'), doppi spazi, spazio prima della punteggiatura, spazio mancante dopo virgola e punto | 0 |
-| `scan.py compare ORIGINALE RISCRITTO` | elenca numeri, link, codice, citazioni e nomi spariti nella riscrittura | 0 se non manca nulla |
+| `scan.py FILE...` | elenca ogni schema trovato con riga, livello, categoria e metriche | 0 se non resta niente da risolvere, 1 altrimenti; 2 se un file manca, è una cartella o non è UTF-8 (una riga su stderr, gli altri file vengono analizzati lo stesso) |
+| `scan.py fix FILE...` | applica le correzioni sicure: accenti (perchè → perché, qual'è → qual è, E' → È, pò → po'), doppi spazi, spazio prima della punteggiatura, spazio mancante dopo virgola e punto | 0; 2 se un file non si può leggere |
+| `scan.py compare ORIGINALE RISCRITTO` | elenca numeri, link, codice, citazioni e nomi spariti nella riscrittura | 0 se non manca nulla, 2 se uno dei due file non si può leggere |
 | `scan.py rules` | stampa tutte le regole, le soglie e i lessici | 0 |
 | `scan.py verdict ORIGINALE FINALE --keep KEEP` | registra i verdetti di una revisione (`fp`, `kept`, `tell`) e aggiorna la precisione misurata di ogni regola | 0 |
 | `scan.py audit`, poi `scan.py label FILE` | ti fa confermare un campione dei falsi positivi decisi dal modello | 0 |

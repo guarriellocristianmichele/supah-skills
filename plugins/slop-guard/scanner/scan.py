@@ -4,10 +4,13 @@
   scan.py [--lang auto|en|it] [--keep FILE] [--json] FILE...
       List every catalogued tell with line, tier and category, plus density metrics.
       Exit 0 when nothing is left to resolve (S/M hits all kept, no metric flagged), else 1.
+      Exit 2 when a FILE is missing, a directory or not UTF-8: each is one line on stderr, the
+      other files are still scanned and reported, and 2 wins over 1 (look at the report for hits).
 
   scan.py fix [--lang auto|en|it] FILE...
       Apply the unambiguous corrections (Italian accent errors such as perchè, qual'è,
       E'; double spaces; space before punctuation; missing space after a comma) in place.
+      A FILE that cannot be read is one line on stderr, the others are fixed, and the exit is 2.
 
   scan.py rules
       Print every rule id with category, tier and language, the metric thresholds
@@ -28,7 +31,8 @@ supah-skills/prose); --no-learn ignores it.
 
   scan.py compare ORIGINAL REWRITE
       List numbers, URLs, code spans, quotes and proper nouns present in ORIGINAL
-      but missing from REWRITE. Exit 0 when nothing is missing, else 1.
+      but missing from REWRITE. Exit 0 when nothing is missing, else 1; 2 when either file
+      is missing, a directory or not UTF-8.
 
 Tiers: S = one hit is enough to rewrite; M = rewrite unless there is a keep reason;
 W = acted on only when its density metric is flagged.
@@ -291,9 +295,41 @@ def visible_text(raw, path):
     return (mask(raw), [], "prose") if text is None else (text, spans, kind)
 
 
+class InputError(Exception):
+    """A path that cannot be read as text: missing, a directory, unreadable or not UTF-8."""
+
+
+def read_input(path, newline=None):
+    """The text of a file given on the command line; InputError, naming the path, when it cannot be read."""
+    if os.path.isdir(path):
+        raise InputError(f"{path}: a directory, not a file")
+    try:
+        with open(path, encoding="utf-8", newline=newline) as f:
+            return f.read()
+    except FileNotFoundError:
+        raise InputError(f"{path}: no such file")
+    except UnicodeDecodeError as e:
+        raise InputError(f"{path}: not UTF-8 (byte 0x{e.object[e.start]:02x} at offset {e.start}); "
+                         "save it as UTF-8 and scan it again")
+    except OSError as e:
+        raise InputError(f"{path}: cannot be read ({e.strerror or e})")
+
+
+def each_input(paths, work):
+    """work(path) for every path; a path that cannot be read is one line on stderr and the rest go on.
+    Returns the results of the readable paths and whether any path failed."""
+    results, failed = [], False
+    for path in paths:
+        try:
+            results.append(work(path))
+        except InputError as e:
+            print(f"scan.py: {e}", file=sys.stderr, flush=True)
+            failed = True
+    return results, failed
+
+
 def scan_file(path, lang_opt, keep, gates=True, model=None, purpose=None):
-    with open(path, encoding="utf-8") as f:
-        return scan_text(f.read(), lang_opt, keep, gates=gates, model=model, path=path, purpose=purpose)
+    return scan_text(read_input(path), lang_opt, keep, gates=gates, model=model, path=path, purpose=purpose)
 
 
 def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>", purpose=None):
@@ -505,14 +541,16 @@ def title_case(token, line):
 
 def fact_text(path):
     """Prose as written (code spans and URLs are facts), a source file as the text its users read."""
-    with open(path, encoding="utf-8") as f:
-        raw = f.read()
+    raw = read_input(path)
     text = extract.view(raw, path)[0]
     return raw if text is None else text
 
 
 def compare(original, rewrite):
-    a, b = fact_text(original), fact_text(rewrite)
+    texts, failed = each_input([original, rewrite], fact_text)
+    if failed:
+        return 2
+    a, b = texts
     missing = []
     for kind, pattern in FACT_PATTERNS:
         found = re.finditer(pattern, a)
@@ -534,8 +572,7 @@ def compare(original, rewrite):
 
 
 def fix(path, lang_opt):
-    with open(path, encoding="utf-8", newline="") as f:
-        original = f.read()
+    original = read_input(path, newline="")
     newline = "\r\n" if "\r\n" in original else "\n"  # written back in the file's own style
     raw = original.replace("\r\n", "\n")
     counts = {}
@@ -612,8 +649,12 @@ def cmd_verdict(argv):
     p.add_argument("--source", choices=("model", "human"), default="model")
     a = p.parse_args(argv)
     keep = keep_arg(p, a.keep)
-    before = scan_file(a.original, a.lang, {}, model=None)
-    after = scan_file(a.final, before["lang"], {}, model=None)
+    try:
+        before = scan_file(a.original, a.lang, {}, model=None)
+        after = scan_file(a.final, before["lang"], {}, model=None)
+    except InputError as e:
+        print(f"scan.py: {e}", file=sys.stderr)
+        return 2
     with open(a.original, encoding="utf-8", errors="replace") as f1, open(a.final, encoding="utf-8", errors="replace") as f2:
         run = learn.run_id(f1.read(), f2.read())
     if run in learn.recorded(lambda r: r["reason"].rpartition("@")[2]):
@@ -671,7 +712,8 @@ def main():
         p.add_argument("files", nargs="+")
         p.add_argument("--lang", choices=("auto", "en", "it"), default="auto")
         a = p.parse_args(sys.argv[2:])
-        return max(fix(f, a.lang) for f in a.files)
+        _, failed = each_input(a.files, lambda f: fix(f, a.lang))
+        return 2 if failed else 0
     if len(sys.argv) > 1 and sys.argv[1] == "compare":
         p = argparse.ArgumentParser(prog="scan.py compare")
         p.add_argument("original")
@@ -690,13 +732,14 @@ def main():
     a = p.parse_args()
     keep = keep_arg(p, a.keep)
     model = None if a.no_learn else learn.load_model()
-    results = [scan_file(f, a.lang, keep, gates=not a.no_gates, model=model, purpose=a.purpose) for f in a.files]
+    results, failed = each_input(a.files, lambda f: scan_file(f, a.lang, keep, gates=not a.no_gates, model=model,
+                                                              purpose=a.purpose))
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
         dirty = any(r["flags"] or any(not h["kept"] and h["tier"] in "SM" for h in r["hits"]) for r in results)
     else:
         dirty = any([print_report(r) for r in results])
-    return 1 if dirty else 0
+    return 2 if failed else 1 if dirty else 0
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
 """Tests for the verdict learning in skills/ai-slop-prose/scripts/learn.py."""
+import json
 import math
 import os
 import random
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -117,6 +119,90 @@ class Audit(Isolated):
         sample = learn.audit_sample(0.1, seed=1)
         self.assertEqual(len(sample), math.ceil(20 * 0.1))
         self.assertTrue(all(r["label"] == "fp" for r in sample))
+
+
+class Progress(Isolated):
+    def test_a_rule_below_the_minimum_shows_how_far_it_is(self):
+        learn.record([verdict("fp" if i % 4 == 0 else "tell", i=i) for i in range(12)])
+        line = learn.progress(learn.rebuild(), ["marked-word/en"], "scan.py audit")[0]
+        self.assertTrue(line.startswith("marked-word/en: 12/30 verdicts, precision so far 0."), line)
+        self.assertTrue(line.endswith("tier M"), line)
+
+    def test_a_tier_change_on_model_verdicts_alone_asks_for_an_audit(self):
+        learn.record([verdict("fp", i=i) for i in range(20)])
+        line = learn.progress(learn.rebuild(), ["marked-word/en"], "scan.py audit")[0]
+        self.assertIn("run `scan.py audit`", line)
+
+    def test_a_human_verdict_on_the_rule_settles_the_audit(self):
+        learn.record([verdict("fp", i=i) for i in range(20)] + [verdict("fp", i=99, source="human")])
+        line = learn.progress(learn.rebuild(), ["marked-word/en"], "scan.py audit")[0]
+        self.assertNotIn("audit", line)
+
+    def test_a_rule_without_verdicts_is_listed_as_such(self):
+        self.assertEqual(learn.progress(learn.rebuild(), ["marked-word/en"], "scan.py audit"),
+                         ["marked-word/en: 0/30 verdicts"])
+
+
+class Export(Isolated):
+    def test_the_export_carries_counts_per_rule_and_no_content(self):
+        rows = [verdict("fp", match="hunter2", context=f"password hunter2 in client file {i}", i=i) for i in range(3)]
+        rows += [verdict("tell", match="delve", context="private roadmap: we delve", i=9),
+                 verdict("kept", match="delve", context="a quote", i=10)]
+        learn.record(rows)
+        data = learn.export(learn.rebuild())
+        text = json.dumps(data)
+        for secret in ("hunter2", "password", "roadmap", "quote", "delve"):
+            self.assertNotIn(secret, text)
+        self.assertEqual(data["store"], "prose")
+        self.assertEqual(data["rules"], [{"rule": "marked-word", "lang": "en", "base": "M", "tier": "M", "verdicts": 5,
+                                          "tell": 1, "kept": 1, "fp": 3, "human": 0,
+                                          "precision": data["rules"][0]["precision"],
+                                          "lower95": data["rules"][0]["lower95"]}])
+
+
+class ExportCommand(Isolated):
+    def test_scan_py_export_writes_the_file_it_shows(self):
+        learn.record([verdict("fp", i=i) for i in range(3)])
+        out = os.path.join(self.dir, "out.json")
+        scan = os.path.join(ROOT, "skills", "ai-slop-prose", "scripts", "scan.py")
+        run = subprocess.run([sys.executable, scan, "export", "--out", out], capture_output=True, text=True,
+                             encoding="utf-8", env=dict(os.environ, SUPAH_PROSE_HOME=self.dir), timeout=60)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        with open(out, encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(data["rules"][0]["fp"], 3)
+        self.assertIn('"rule": "marked-word"', run.stdout)
+
+
+class Stores(unittest.TestCase):
+    """One learn.py serves the prose, design and code scanners, each with its own store."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        os.environ["SUPAH_DESIGN_HOME"] = self.dir
+
+    def tearDown(self):
+        learn.configure("prose")
+        os.environ.pop("SUPAH_DESIGN_HOME", None)
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def test_each_scanner_keeps_its_own_store(self):
+        learn.configure("design")
+        self.assertEqual(learn.paths(), (os.path.join(self.dir, "verdicts.tsv"), os.path.join(self.dir, "model.json")))
+
+    def test_a_log_with_its_own_columns_and_no_language_is_learned_from(self):
+        learn.configure("design")
+        with open(os.path.join(self.dir, "verdicts.tsv"), "w", encoding="utf-8") as f:
+            f.write("time\trule\tcategory\ttier\tlabel\treason\tsource\tfile\tmatch\tcontext\n")
+            for i in range(40):
+                f.write(f"2026-11-16T12:00:00\tpurple-gradient\tcolour\tM\tfp\tfp\tmodel\tapp.css\tviolet\tline {i}\n")
+        rule = learn.rebuild()["rules"]["purple-gradient/-"]
+        self.assertEqual((rule["n"], rule["base"]), (40, "M"))
+        self.assertIn(rule["tier"], ("W", "off"))
+        learn.record([{"rule": "purple-gradient", "category": "colour", "tier": "M", "label": "reflex",
+                       "reason": "", "source": "model", "file": "b.css", "match": "violet", "context": "x"}])
+        with open(os.path.join(self.dir, "verdicts.tsv"), encoding="utf-8") as f:
+            self.assertTrue(f.read().splitlines()[-1].split("\t")[7] == "b.css")
 
 
 if __name__ == "__main__":

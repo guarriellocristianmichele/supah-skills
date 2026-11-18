@@ -2,7 +2,8 @@
 """Release helper for supah-skills. Stdlib only.
 
   python scripts/release.py --check     run every repository check (CI runs this)
-  python scripts/release.py --sync      copy the prose and code scanners into plugins/slop-guard
+  python scripts/release.py --sync      copy learn.py next to the design and code scanners, and the
+                                        prose and code scanners into plugins/slop-guard
   python scripts/release.py 0.3.0       set the version everywhere, sync, then run the checks
 
 Checks: every skill folder is listed in plugin.json and has its own marketplace entry;
@@ -29,6 +30,9 @@ COPIES = [
     ("skills/ai-slop-prose/scripts", "plugins/slop-guard/scanner"),
     ("skills/ai-slop-audit/scripts", "plugins/slop-guard/codescan"),
 ]
+# one verdict-learning module for the three scanners (ADR 0018); per-skill installs need their own copy
+LEARN = "skills/ai-slop-prose/scripts/learn.py"
+LEARN_COPIES = ["skills/ai-slop-design/scripts/learn.py", "skills/ai-slop-audit/scripts/learn.py"]
 KEEP = os.path.join(ROOT, "docs", "readme-keep.tsv")
 NEXT_STEP = "**Next step.** End every run with the next step of the workflow, worked out from what this run left (the ledger's statuses, failed or blocked units, a question still open, the user's goal): the exact command and its reason in one line, and when two fit, both, the recommended one first; a skill that keeps a `STATUS.md` writes the same command as its next action. Put `/clear` before it (on another agent, a new session) when this run left its state on disk for that command to read; keep the session when the next step answers this run in conversation. When another skill called this one, hand the result back to it instead. When nothing is left, say the workflow is done."
 # ADR 0013: every SKILL.md carries this paragraph word for word
@@ -80,6 +84,9 @@ def scanner_files(top):
 
 
 def sync_scanner():
+    for dst in LEARN_COPIES:  # before the folder copies, so slop-guard's codescan carries it too
+        shutil.copyfile(os.path.join(ROOT, LEARN), os.path.join(ROOT, dst))
+        print(f"copied {LEARN} to {dst}")
     for src, dst in COPIES:
         src, dst = os.path.join(ROOT, src), os.path.join(ROOT, dst)
         shutil.rmtree(dst, ignore_errors=True)
@@ -90,7 +97,9 @@ def sync_scanner():
 
 
 def check_scanner_copy():
-    errors = []
+    errors = [f"{dst} differs from {LEARN}: run release.py --sync" for dst in LEARN_COPIES
+              if not os.path.exists(os.path.join(ROOT, dst))
+              or not filecmp.cmp(os.path.join(ROOT, LEARN), os.path.join(ROOT, dst), shallow=False)]
     for src_rel, dst_rel in COPIES:
         src, dst = os.path.join(ROOT, src_rel), os.path.join(ROOT, dst_rel)
         files = scanner_files(src)

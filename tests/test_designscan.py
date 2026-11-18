@@ -13,7 +13,8 @@ FIX = os.path.join(ROOT, "tests", "fixtures", "design")
 
 
 def run(*args, env=None, cwd=None):
-    base = dict(os.environ, SUPAH_DESIGN_NO_CALIBRATION="1")  # designed tiers; calibration is tested on its own
+    # designed tiers, no learned model; calibration and learning are tested on their own
+    base = dict(os.environ, SUPAH_DESIGN_NO_CALIBRATION="1", SUPAH_DESIGN_NO_LEARN="1")
     base.pop("SUPAH_DESIGN_CALIBRATION", None)
     base.update(env or {})
     return subprocess.run([sys.executable, SCAN, *args], capture_output=True, text=True, encoding="utf-8",
@@ -758,11 +759,11 @@ class SweepBatch(unittest.TestCase):
         completion = sweep.split("**Completion.**", 1)[1]
         self.assertIn("`fixed` in `findings.md`", completion)
 
-    def test_only_sweep_writes_the_verdict_log(self):
+    def test_sweep_and_audit_write_the_verdict_log_and_plan_does_not(self):
         self.assertIn("designscan.py verdict", self.sweep())
         self.assertIn(".slop-design/keep.tsv", self.sweep().split("9. **Record**", 1)[1].split("\n10. ", 1)[0])
-        for name in ("AUDIT.md", "PLAN.md"):
-            self.assertNotIn("designscan.py verdict", doc("skills", "ai-slop-design", name))
+        self.assertIn("designscan.py verdict --judged", doc("skills", "ai-slop-design", "AUDIT.md"))
+        self.assertNotIn("designscan.py verdict", doc("skills", "ai-slop-design", "PLAN.md"))
 
     def test_a_plain_sweep_above_the_threshold_asks_to_audit_first(self):
         scope = self.sweep().split("1. **Scope**", 1)[1].split("\n2. ", 1)[0]
@@ -1020,6 +1021,72 @@ class Verdicts(unittest.TestCase):
         self.assertEqual(got, [("emoji-icon", "fp", "fp"), ("glued-arrow", "reflex", "handoff"),
                                ("purple-gradient", "chosen", "brand"), ("transition-all", "reflex", "")])
         self.assertIn("1 unresolved", out.stdout)
+
+
+FINDINGS = """# Findings
+
+### DS-001 · colour · status: open
+Surface: /pricing
+Hit: purple-gradient · `bg-gradient-to-r from-violet-600 to-indigo-600`
+Where: page.vue:3
+Scanned: a3f8d70
+Fix: use the brand colour.
+
+### DS-002 · copy · status: open
+Hit: copy · Get started
+Where: page.vue:5
+
+### DS-003 · motion · status: rejected:kept
+Hit: transition-all · `transition-all`
+Where: page.vue:9
+"""
+
+
+class Learning(unittest.TestCase):
+    def hit(self, d):
+        path = write(d, "page.css", ".card { transition: all 0.3s ease; }\n")
+        r, _ = scan(path)
+        return path, next(h for h in r["hits"] if h["rule"] == "transition-all")
+
+    def test_a_context_judged_fp_twice_is_kept_by_the_learned_model(self):
+        with tempfile.TemporaryDirectory() as d:
+            path, h = self.hit(d)
+            with open(os.path.join(d, "verdicts.tsv"), "w", encoding="utf-8") as f:
+                f.write("time\trule\tcategory\ttier\tlabel\treason\tsource\tfile\tmatch\tcontext\n")
+                for _ in range(2):
+                    f.write("\t".join(["2026-11-18T10:00:00", h["rule"], h["category"], h["tier"], "fp", "fp",
+                                       "model", "page.css", h["match"], h["context"]]) + "\n")
+            run("learn", env={"SUPAH_DESIGN_HOME": d})
+            learned, _ = scan(path, env={"SUPAH_DESIGN_HOME": d, "SUPAH_DESIGN_NO_LEARN": ""})
+            ignored, _ = scan(path, "--no-learn", env={"SUPAH_DESIGN_HOME": d, "SUPAH_DESIGN_NO_LEARN": ""})
+        self.assertEqual(next(x for x in learned["hits"] if x["rule"] == "transition-all")["kept"], "learned:context")
+        self.assertIsNone(next(x for x in ignored["hits"] if x["rule"] == "transition-all")["kept"])
+
+    def test_an_audit_records_its_judgments_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            findings = write(d, "findings.md", FINDINGS)
+            keep = write(d, "keep.tsv", "emoji-icon\t\U0001F525 New\tfp\npure-black-white\t#000\tbrand\n")
+            env = {"SUPAH_DESIGN_HOME": d}
+            first = run("verdict", "--judged", findings, "--keep", keep, env=env)
+            second = run("verdict", "--judged", findings, "--keep", keep, env=env)
+            with open(os.path.join(d, "verdicts.tsv"), encoding="utf-8") as f:
+                rows = [line.rstrip("\n").split("\t") for line in f][1:]
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(sorted((r[1], r[4]) for r in rows),
+                         [("emoji-icon", "fp"), ("pure-black-white", "chosen"), ("purple-gradient", "reflex")])
+        self.assertIn("recorded 0 verdicts", second.stdout)
+        self.assertIn("purple-gradient/-: 1/30 verdicts", first.stdout)
+
+    def test_export_holds_counts_and_no_matches(self):
+        with tempfile.TemporaryDirectory() as d:
+            findings = write(d, "findings.md", FINDINGS)
+            run("verdict", "--judged", findings, env={"SUPAH_DESIGN_HOME": d})
+            out = os.path.join(d, "export.json")
+            run("export", "--out", out, env={"SUPAH_DESIGN_HOME": d})
+            with open(out, encoding="utf-8") as f:
+                text = f.read()
+        self.assertIn('"store": "design"', text)
+        self.assertNotIn("violet", text)
 
 
 class Calibration(unittest.TestCase):

@@ -49,6 +49,8 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import learn  # noqa: E402  (a copy of ai-slop-prose's learn.py, kept equal by release.py --sync)
 EXTS = {".html", ".htm", ".css", ".scss", ".less", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".vue", ".svelte", ".astro"}
 STYLE_EXTS = {".css", ".scss", ".less"}
 MARKUP_EXTS = {".html", ".htm", ".vue", ".svelte", ".astro"}
@@ -900,8 +902,9 @@ def run_hits(sources):
 
 # --- scanning -----------------------------------------------------------------------------
 
-def scan_many(files, keep=None):
-    """Scan (text, path) pairs as one run: per-file rules, then duplication across every file of the run."""
+def scan_many(files, keep=None, model=None):
+    """Scan (text, path) pairs as one run: per-file rules, then duplication across every file of the run.
+    With a learned model, a rule's tier and context suppressions come from the user's verdicts."""
     keep = keep or {}
     results, sources, raw = [], [], {}
     for text, path in files:
@@ -925,8 +928,12 @@ def scan_many(files, keep=None):
             if (rule, line, match) in seen:
                 continue
             seen.add((rule, line, match))
-            result["hits"].append({"line": line, "rule": rule, "category": RULES[rule][0], "tier": tier_of(rule),
-                                   "match": match, "context": src.context(line), "kept": keep.get((rule, match))})
+            hit = {"line": line, "rule": rule, "category": RULES[rule][0], "tier": tier_of(rule),
+                   "match": match, "context": src.context(line), "kept": keep.get((rule, match))}
+            if model:
+                hit["tier"], learned = learn.apply(model, hit, learn.NO_LANG)
+                hit["kept"] = hit["kept"] or learned
+            result["hits"].append(hit)
     return results
 
 
@@ -1511,19 +1518,12 @@ def cmd_reconcile(argv):
 
 
 # --- verdicts -----------------------------------------------------------------------------
-# The log is evidence for the maintainer (ADR 0011): it never changes a tier at scan time.
+# Every judged hit becomes a verdict in the user's log; learn.py turns the log into the model
+# a file scan applies (ADR 0018). Inventory scans and reconcile keep the calibrated tiers.
 
 LOG_FIELDS = ["time", "rule", "category", "tier", "label", "reason", "source", "file", "match", "context"]
-
-
-def store_dir():
-    if os.environ.get("SUPAH_DESIGN_HOME"):
-        return os.environ["SUPAH_DESIGN_HOME"]
-    if sys.platform == "win32" and os.environ.get("APPDATA"):
-        base = os.environ["APPDATA"]
-    else:
-        base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
-    return os.path.join(base, "supah-skills", "design")
+HIT_LINE = re.compile(r"^Hit: (\S+) · (.+?)\s*$", re.M)
+WHERE_LINE = re.compile(r"^Where: (\S+?)(?::\d+)?\s*$", re.M)
 
 
 def judge(before, after, keep):
@@ -1543,44 +1543,79 @@ def judge(before, after, keep):
             yield h, None, ""
 
 
+def judged(findings_path, keep):
+    """An audit's judgments as verdicts: each scanner finding not rejected is a reflex, each keep line
+    `fp` or chosen. The reason names the finding or the keep line, so a re-run records nothing twice."""
+    rows = []
+    text = read(findings_path)
+    heads = list(FINDING.finditer(text))
+    for i, m in enumerate(heads):
+        block = text[m.end():heads[i + 1].start() if i + 1 < len(heads) else len(text)]
+        hit, where = HIT_LINE.search(block), WHERE_LINE.search(block)
+        if not hit or hit.group(1) not in RULES or m.group(3).startswith("rejected"):
+            continue
+        rows.append({"rule": hit.group(1), "label": "reflex", "reason": "judged:" + m.group(1),
+                     "file": where.group(1) if where else "", "match": hit.group(2).strip("`")})
+    for (rule, match), reason in keep.items():
+        if rule in RULES:
+            rows.append({"rule": rule, "label": "fp" if reason == "fp" else "chosen",
+                         "reason": "judged:keep " + reason, "file": "", "match": match})
+    for r in rows:
+        r.update(category=RULES[r["rule"]][0], tier=tier_of(r["rule"]), source="model", context="")
+    return rows
+
+
 def cmd_verdict(argv):
-    p = argparse.ArgumentParser(prog="designscan.py verdict", description="ORIG FILE pairs, all files of one sweep")
-    p.add_argument("pairs", nargs="+", metavar="ORIG FILE")
+    p = argparse.ArgumentParser(prog="designscan.py verdict",
+                                description="ORIG FILE pairs, all files of one sweep; or --judged FINDINGS")
+    p.add_argument("pairs", nargs="*", metavar="ORIG FILE")
+    p.add_argument("--judged", metavar="FINDINGS", help="an audit's findings.md: record its judgments once")
     p.add_argument("--keep")
     p.add_argument("--source", default="model", choices=["model", "human"])
     a = p.parse_args(argv)
-    if len(a.pairs) % 2:
-        p.error("give ORIG FILE pairs")
-    origs, files = a.pairs[0::2], a.pairs[1::2]
     keep = load_keep(a.keep)
-    # scanned as one run each, so duplication is judged across the files as the sweep saw them
-    befores = scan_many([(read(o), f) for o, f in zip(origs, files)])
-    afters = scan_many([(read(f), f) for f in files])
-    rows, unresolved = [], 0
-    for before, after in zip(befores, afters):
-        for h, label, reason in judge(before, after, keep):
-            if label is None:
-                unresolved += 1
-                continue
-            rows.append([time.strftime("%Y-%m-%dT%H:%M:%S"), h["rule"], h["category"], h["tier"], label, reason,
-                         a.source, before["file"], h["match"], h["context"]])
-    os.makedirs(store_dir(), exist_ok=True)
-    log = os.path.join(store_dir(), "verdicts.tsv")
-    new = not os.path.exists(log)
-    with open(log, "a", encoding="utf-8", newline="\n") as f:
-        if new:
-            f.write("\t".join(LOG_FIELDS) + "\n")
-        for row in rows:
-            f.write("\t".join(str(c).replace("\t", " ") for c in row) + "\n")
+    rows, unresolved, skipped = [], 0, 0
+    if a.judged:
+        if a.pairs:
+            p.error("give ORIG FILE pairs or --judged FINDINGS, not both")
+        seen = {(r["rule"], learn.clean(r["match"]), r["reason"]) for r in learn.read_log()
+                if r["reason"].startswith("judged:")}
+        for r in judged(a.judged, keep):
+            if (r["rule"], learn.clean(r["match"]), r["reason"]) in seen:
+                skipped += 1
+            else:
+                rows.append(r)
+    else:
+        if not a.pairs or len(a.pairs) % 2:
+            p.error("give ORIG FILE pairs")
+        origs, files = a.pairs[0::2], a.pairs[1::2]
+        # scanned as one run each, so duplication is judged across the files as the sweep saw them
+        befores = scan_many([(read(o), f) for o, f in zip(origs, files)])
+        afters = scan_many([(read(f), f) for f in files])
+        for before, after in zip(befores, afters):
+            for h, label, reason in judge(before, after, keep):
+                if label is None:
+                    unresolved += 1
+                    continue
+                rows.append({"rule": h["rule"], "category": h["category"], "tier": h["tier"], "label": label,
+                             "reason": reason, "source": a.source, "file": before["file"], "match": h["match"],
+                             "context": h["context"]})
+    learn.record(rows, fields=LOG_FIELDS)
     counts = {}
     for row in rows:
-        counts[row[4]] = counts.get(row[4], 0) + 1
-    print("recorded %d verdicts (%s), %d unresolved, in %s" % (
-        len(rows), ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "none", unresolved, log))
+        counts[row["label"]] = counts.get(row["label"], 0) + 1
+    detail = ", ".join("%s %d" % kv for kv in sorted(counts.items())) or "none"
+    tail = "%d already recorded" % skipped if a.judged else "%d unresolved" % unresolved
+    print("recorded %d verdicts (%s), %s, in %s" % (len(rows), detail, tail, learn.paths()[0]))
+    model = learn.rebuild()
+    for line in learn.progress(model, sorted({"%s/%s" % (r["rule"], learn.NO_LANG) for r in rows}),
+                               "designscan.py audit"):
+        print("  " + line)
     return 0
 
 
 def main():
+    learn.configure("design")
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
@@ -1591,6 +1626,8 @@ def main():
         return 0
     if sys.argv[1:2] == ["verdict"]:
         return cmd_verdict(sys.argv[2:])
+    if sys.argv[1:2] and sys.argv[1] in learn.COMMANDS:
+        return learn.COMMANDS[sys.argv[1]](sys.argv[2:], "designscan.py")
     if sys.argv[1:2] == ["surfaces"]:
         return cmd_surfaces(sys.argv[2:])
     if sys.argv[1:2] == ["hits"]:
@@ -1603,13 +1640,15 @@ def main():
     p.add_argument("--keep")
     p.add_argument("--surfaces", metavar="INVENTORY", help="scan every file of an inventory written by `surfaces`")
     p.add_argument("--out", metavar="HITS", help="with --surfaces: write the hits grouped by unit, print a summary")
+    p.add_argument("--no-learn", action="store_true", help="ignore the learned model (tiers, suppressions)")
     a = p.parse_args()
+    model = None if a.no_learn or os.environ.get("SUPAH_DESIGN_NO_LEARN") else learn.load_model()
     keep = load_keep(a.keep)
     if bool(a.surfaces) != bool(a.out) or bool(a.surfaces) == bool(a.files):
         p.error("give FILE... or --surfaces INVENTORY --out HITS")
     if a.surfaces:
         return scan_inventory(a.surfaces, keep, a.out)
-    results = scan_many([(read(path), path) for path in a.files], keep)
+    results = scan_many([(read(path), path) for path in a.files], keep, model)
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
     else:

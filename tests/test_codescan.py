@@ -11,14 +11,15 @@ SCAN = os.path.join(ROOT, "skills", "ai-slop-audit", "scripts", "codescan.py")
 FIX = os.path.join(ROOT, "tests", "fixtures", "code")
 
 
-def run(*args):
-    env = dict(os.environ, SUPAH_CODE_NO_CALIBRATION="1")  # designed tiers; calibration is tested on its own
+def run(*args, env=None):
+    # designed tiers, no learned model; calibration and learning are tested on their own
+    env = dict(dict(os.environ, SUPAH_CODE_NO_CALIBRATION="1", SUPAH_CODE_NO_LEARN="1"), **(env or {}))
     return subprocess.run([sys.executable, SCAN, *args], capture_output=True, text=True, encoding="utf-8",
                           env=env, timeout=60)
 
 
-def scan(path, *extra):
-    out = run("--json", *extra, path)
+def scan(path, *extra, env=None):
+    out = run("--json", *extra, path, env=env)
     return json.loads(out.stdout)[0], out.returncode
 
 
@@ -82,6 +83,53 @@ class Directories(unittest.TestCase):
         self.assertEqual(out.stderr, "")
         files = {os.path.basename(r["file"]) for r in json.loads(out.stdout)}
         self.assertTrue({"slop.py", "human.py", "slop.ts"} <= files, files)
+
+
+WRAPPER = "def get_json(url):\n    return fetch_json(url)\n"
+
+
+class Learning(unittest.TestCase):
+    def test_every_hit_carries_its_source_line_as_context(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "client.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(WRAPPER)
+            r, _ = scan(path)
+        self.assertEqual(r["hits"][0]["context"], "def get_json(url):")
+
+    def test_an_audit_records_its_judgments_once_and_the_model_learns_from_them(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "client.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(WRAPPER)
+            judged = os.path.join(d, "judged.tsv")
+            with open(judged, "w", encoding="utf-8") as f:
+                f.write("# label<TAB>file<TAB>line<TAB>rule\nfp\t%s\t1\tforwarding-wrapper\n" % path)
+            env = {"SUPAH_CODE_HOME": d}
+            first = run("verdict", "--judged", judged, env=env)
+            second = run("verdict", "--judged", judged, env=env)
+            with open(os.path.join(d, "verdicts.tsv"), encoding="utf-8") as f:
+                rows = [line.rstrip("\n").split("\t") for line in f][1:]
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual([(r[1], r[2], r[5]) for r in rows], [("py", "forwarding-wrapper", "fp")])
+        self.assertIn("recorded 0 verdicts", second.stdout)
+        self.assertIn("forwarding-wrapper/py: 1/30 verdicts", first.stdout)
+
+    def test_a_context_judged_fp_twice_is_kept_by_the_learned_model(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "client.py")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(WRAPPER)
+            h = scan(path)[0]["hits"][0]
+            with open(os.path.join(d, "verdicts.tsv"), "w", encoding="utf-8") as f:
+                f.write("\t".join(["time", "lang", "rule", "category", "tier", "label", "reason", "source", "match",
+                                   "context"]) + "\n")
+                for _ in range(2):
+                    f.write("\t".join(["2026-11-18T10:00:00", "py", h["rule"], h["category"], h["tier"], "fp", "fp",
+                                       "model", h["match"], h["context"]]) + "\n")
+            run("learn", env={"SUPAH_CODE_HOME": d})
+            learned, _ = scan(path, env={"SUPAH_CODE_HOME": d, "SUPAH_CODE_NO_LEARN": ""})
+        self.assertEqual(learned["hits"][0]["kept"], "learned:context")
 
 
 class Calibration(unittest.TestCase):

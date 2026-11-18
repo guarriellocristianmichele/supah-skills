@@ -19,6 +19,7 @@
   scan.py learn              rebuild the model and print each rule's measured precision
   scan.py audit [--fraction F]   sample the model's fp verdicts as TSV for a human to confirm
   scan.py label FILE         record the confirmed audit file as human verdicts
+  scan.py export [--out FILE]  write per-rule counts and tiers (no text) to attach to an issue
 
 Context gates resolve hits inside quotes and blockquotes, vocabulary in headings,
 capitalised names and Italian dialogue dashes (kept as auto:*); --no-gates shows them.
@@ -591,57 +592,13 @@ def cmd_verdict(argv):
     print(f"Recorded {len(rows)} verdicts (tell {counts['tell']}, kept {counts['kept']}, fp {counts['fp']}) "
           f"in {learn.paths()[0]}")
     print("Tier changes: " + (", ".join(changed) if changed else "none"))
+    touched = sorted({f"{r['rule']}/{r['lang']}" for r in rows})
+    for line in learn.progress(model, touched, "scan.py audit"):
+        print("  " + line)
     return 0
 
 
-def cmd_learn(argv):
-    """Rebuild the model from the verdict log and print per-rule precision."""
-    argparse.ArgumentParser(prog="scan.py learn").parse_args(argv)
-    model = learn.rebuild()
-    print(f"{model['verdicts']} verdicts · {len(model['suppress'])} suppressed contexts · "
-          f"{len(model['nb'])} trained context classifiers · {learn.paths()[1]}\n")
-    print("| rule/lang | verdicts | precision (mean) | 95% lower bound | tier |\n|---|---|---|---|---|")
-    for key, r in sorted(model["rules"].items(), key=lambda kv: kv[1]["lower95"]):
-        tier = r["tier"] if r["tier"] == r["base"] else f"{r['base']} -> {r['tier']}"
-        print(f"| {key} | {r['n']} | {r['mean']:.2f} | {r['lower95']:.2f} | {tier} |")
-    return 0
-
-
-def cmd_audit(argv):
-    """Print a random sample of the model's fp verdicts as TSV for a human to confirm."""
-    p = argparse.ArgumentParser(prog="scan.py audit")
-    p.add_argument("--fraction", type=float, default=0.1)
-    a = p.parse_args(argv)
-    sample = learn.audit_sample(a.fraction)
-    print("# Set label to fp (not a tell), kept, or tell, then: scan.py label <this file>")
-    print("label\tlang\trule\tcategory\ttier\tmatch\tcontext")
-    for r in sample:
-        print("\t".join([r["label"], r["lang"], r["rule"], r["category"], r["tier"], r["match"], r["context"]]))
-    return 0
-
-
-def cmd_label(argv):
-    """Record human verdicts from an edited audit file; they override model verdicts."""
-    p = argparse.ArgumentParser(prog="scan.py label")
-    p.add_argument("file")
-    a = p.parse_args(argv)
-    rows = []
-    with open(a.file, encoding="utf-8") as f:
-        for line in f:
-            parts = line.rstrip("\n").split("\t")
-            if line.startswith("#") or parts[0] == "label" or len(parts) < 7:
-                continue
-            label, lang, rule, cat, tier, match, context = parts[:7]
-            if label in ("fp", "kept", "tell"):
-                rows.append({"lang": lang, "rule": rule, "category": cat, "tier": tier, "label": label,
-                             "reason": "audit", "source": "human", "match": match, "context": context})
-    learn.record(rows)
-    learn.rebuild()
-    print(f"Recorded {len(rows)} human verdicts.")
-    return 0
-
-
-LEARN_COMMANDS = {"verdict": cmd_verdict, "learn": cmd_learn, "audit": cmd_audit, "label": cmd_label}
+LEARN_COMMANDS = {"verdict": cmd_verdict}
 
 
 def main():
@@ -649,6 +606,8 @@ def main():
         sys.stdout.reconfigure(encoding="utf-8")
     if len(sys.argv) > 1 and sys.argv[1] in LEARN_COMMANDS:
         return LEARN_COMMANDS[sys.argv[1]](sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] in learn.COMMANDS:
+        return learn.COMMANDS[sys.argv[1]](sys.argv[2:], "scan.py")
     if len(sys.argv) > 1 and sys.argv[1] == "rules":
         return list_rules()
     if len(sys.argv) > 1 and sys.argv[1] == "fix":

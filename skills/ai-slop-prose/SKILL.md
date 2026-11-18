@@ -41,7 +41,7 @@ When another writing skill builds the article block by block and preserves the u
    Act on the tier each hit reports (TELLS.md, top): W, `auto:` and `learned:` hits leave the rescan clean, so rewrite one when it is in fact a tell. Then read the whole text once for the category's tells the scanner cannot see.
 6. **Facts**: `scan.py compare <orig> <file>` must list nothing missing; restore every lost number, name, link, code span or quote.
 7. **Rescan**: `scan.py --keep <keep file> <file>` exits 0. A new hit means a rewrite brought in another tell: fix it and rescan.
-8. **Learn**: `scan.py verdict <orig> <file> --keep <keep file>` records every verdict.
-9. **Report** one line per TELLS.md category (hits, rewritten, kept with reasons, fp, model-only finds; zeros included), the metrics before and after, the diff against the snapshot, and the `fp` verdicts. When there are `fp` verdicts, offer the user `scan.py audit`: a model reviewer tends to excuse text that sounds like its own, so a human check keeps the learning honest.
+8. **Learn**: `scan.py verdict <orig> <file> --keep <keep file>` records every verdict and prints one progress line per rule it touched: its verdicts toward the 30 that let them move its tier, the precision so far, the tier.
+9. **Report** one line per TELLS.md category (hits, rewritten, kept with reasons, fp, model-only finds; zeros included), the metrics before and after, the diff against the snapshot, the `fp` verdicts and the progress lines. When there are `fp` verdicts, or a progress line asks for it, offer the user `scan.py audit`: a model reviewer tends to excuse text that sounds like its own, so a human check keeps the learning honest.
 
 **Completion.** The rescan exits 0, compare reports nothing missing, the verdicts are recorded, and the report has all eleven category lines. A clean report is a claim about the text, never about who wrote it.

@@ -28,6 +28,8 @@ make test
 make release
 export APP_TOKEN=abc
 export LEGACY_MODE=1
+cd docs && set -e
+source .venv/bin/activate
 ```
 
 Set `APP_TOKEN` or `OLD_SECRET`. The config lives in `config/app.toml`, the cache in `cache/state.json`.
@@ -85,6 +87,10 @@ class Check(unittest.TestCase):
         self.assertIn(("env-unread", "OLD_SECRET"), self.found)
         self.assertNotIn(("env-unread", "APP_TOKEN"), self.found)
 
+    def test_shell_builtins_are_not_commands(self):
+        for builtin in ("export", "cd", "set", "source"):
+            self.assertNotIn(("not-installed", builtin), self.found)
+
     def test_paths(self):
         self.assertIn(("path-missing", "cache/state.json"), self.found)
         self.assertNotIn(("path-missing", "config/app.toml"), self.found)
@@ -98,6 +104,37 @@ class Check(unittest.TestCase):
         out = subprocess.run([sys.executable, DOCTRUTH, "--root", self.root, "--keep", keep,
                               os.path.join(self.root, "README.md")], capture_output=True, text=True)
         self.assertEqual(out.returncode, 0, out.stdout)
+
+
+class RepositoryKeepFile(unittest.TestCase):
+    def test_claims_kept_in_the_repository_stay_kept_without_flags(self):
+        root = tempfile.mkdtemp()
+        put(root, "README.md", "# Demo\n\nSee [the log](logs/run.log).\n")
+        put(root, ".doc-truth-keep.tsv", "# kind\tclaim\treason\nlink-missing\tlogs/run.log\tcreated by the program\n")
+        out = subprocess.run([sys.executable, DOCTRUTH, "--root", root, "--json", os.path.join(root, "README.md")],
+                             capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(out.returncode, 0, out.stdout)
+        [finding] = json.loads(out.stdout)[0]["findings"]
+        self.assertEqual(finding["kept"], "created by the program")
+
+
+def doc(*parts):
+    with open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
+        return f.read()
+
+
+class Docs(unittest.TestCase):
+    def test_judging_points_at_the_history_command_that_finds_a_deleted_file(self):
+        step = doc("skills", "doc-truth", "SKILL.md").split("3. **Judge each finding**", 1)[1].split("\n4. ", 1)[0]
+        self.assertIn("git log --diff-filter=D -- <path>", step)
+
+    def test_kept_claims_go_to_the_repository_keep_file(self):
+        step = doc("skills", "doc-truth", "SKILL.md").split("3. **Judge each finding**", 1)[1].split("\n4. ", 1)[0]
+        self.assertIn("`.doc-truth-keep.tsv` at the repository root", step)
+        self.assertNotIn("scratchpad", step)
+        english, italian = doc("skills", "doc-truth", "README.md").split("## Italiano", 1)
+        self.assertIn(".doc-truth-keep.tsv", english)
+        self.assertIn(".doc-truth-keep.tsv", italian)
 
 
 if __name__ == "__main__":

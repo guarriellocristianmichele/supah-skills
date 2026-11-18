@@ -46,7 +46,7 @@ The skill is model-invoked: the agent loads it when a task fans out over many un
 /orchestrate docs-sweep
 ```
 
-A job is defined by six fields. The skill asks for any that are missing.
+A job is defined by six fields. The skill asks for any that are missing, and saves them in the job's `job.md`, so running the same job again, even after `/clear`, does not ask twice.
 
 | Field | Meaning |
 |---|---|
@@ -59,13 +59,13 @@ A job is defined by six fields. The skill asks for any that are missing.
 
 ## How it works
 
-1. **Resume.** If the job's state already exists, interrupted work is recovered. Workers still marked `running` from an earlier session are treated as stopped; units with a checkpoint whose result meets the done criterion count as done.
-2. **Size.** `mem.py status` measures free RAM and computes the slots: (free RAM − reserve) ÷ RAM per agent, capped at 6. With one slot or fewer, or three units or fewer left, the skill works inline.
+1. **Resume.** If the job's state already exists, interrupted work is recovered. Workers still marked `running` from an earlier session are treated as stopped; units with a checkpoint whose result meets the done criterion count as done. A stopped worker's units without a checkpoint go back to the queue; the ones it finished stay done.
+2. **Size.** `mem.py status` measures free RAM and computes the slots: (free RAM − reserve) ÷ RAM per agent, capped at 6. With one slot or fewer, or three units or fewer left, the skill works inline, as a worker named `inline` that writes its checkpoints to `work/inline.md`.
 3. **Dispatch.** Workers start in the background, then a watchdog starts, also in the background, and checks memory every 10 seconds. The watchdog spends no tokens: its exit is what wakes the orchestrator.
-4. **React.** When a worker finishes, the units it left without a checkpoint go back to the queue (a unit that comes back twice is marked `failed`) and free slots are refilled. When the watchdog reports pressure, the most recently started workers are stopped.
+4. **React.** When a worker finishes, the units it left without a checkpoint go back to the queue (a unit that comes back twice is marked `failed`) and free slots are refilled. When the watchdog reports pressure, the most recently started workers are stopped. When it cannot read `state.json`, the orchestrator writes the file again and restarts it; a second failure stops new dispatches, and the job ends partial once the running workers finish.
 5. **Merge.** Results are joined in unit order, and the measured RAM per agent is saved for the next run.
 
-The job is complete when every unit is `done` or `failed`, every stopped worker has been resumed, and no worker is running. Otherwise the skill reports `PARTIAL: k/N units`, and invoking the same job again continues from there.
+The job is complete when every unit is `done` or `failed`, every stopped worker has been resumed or had nothing left to resume, and no worker is running. Otherwise the skill reports `PARTIAL: k/N units`, and invoking the same job again continues from there.
 
 ## Graph jobs
 
@@ -93,7 +93,7 @@ Checkpoint: work/w3.md
 Status: open
 ```
 
-On resume, a new worker gets the same brief over the remaining units, and the block becomes `Status: resumed as w7`.
+On resume, a new worker gets the same brief over the remaining units that still have no checkpoint, and the block becomes `Status: resumed as w7`. A block with no such unit left becomes `Status: closed`.
 
 ## State on disk
 
@@ -101,6 +101,7 @@ The directory is `<caller state dir>/orchestrator/<job>/`, or `.orchestrator/<jo
 
 | File | Contents |
 |---|---|
+| `job.md` | the job's brief, done criterion, profile and allowed writes, read again on every resume |
 | `state.json` | session, profile, RAM per agent, reserve, free RAM at the first dispatch and the most workers run at once (the inputs of the calibration), the list of workers and their status |
 | `units.md` | status of every unit: `pending`, `assigned:<worker>`, `done`, `failed:<reason>` |
 | `briefs/<worker>.md` | the exact prompt each worker received, reused on resume |
@@ -128,6 +129,7 @@ python scripts/mem.py watch --state DIR [--interval S] [--grace S]
 | Exit code | Event | Printed JSON |
 |---|---|---|
 | 0 | no worker is running | `{"event": "idle", "min_avail_mb": …}` |
+| 1 | `state.json` missing, half-written or not a job state, after a few reads 0.2 seconds apart | `{"event": "error", "error": …}` |
 | 3 | memory below the reserve; stop flags written | `{"event": "pressure", "stop": [ids], "avail_mb": …, "reserve_mb": …}` |
 | 4 | flagged workers still running after `--grace` seconds, pressure persisting | `{"event": "hard-stop", "workers": [ids], "avail_mb": …}` |
 
@@ -162,8 +164,8 @@ Skill di Claude Code per lavori che si dividono in tante unità indipendenti (mo
 
 ### Come funziona
 
-1. Ripresa: recupera il lavoro interrotto; gli agenti rimasti `running` da una sessione precedente contano come fermati, e un'unità conta come fatta solo se il suo checkpoint rispetta il criterio di completamento.
-2. Dimensionamento: `mem.py status` calcola gli slot come (RAM libera − riserva) ÷ RAM per agente, al massimo 6. Con uno slot o meno, oppure con tre unità o meno, lavora inline.
+1. Ripresa: recupera il lavoro interrotto; gli agenti rimasti `running` da una sessione precedente contano come fermati, e un'unità conta come fatta solo se il suo checkpoint rispetta il criterio di completamento. Brief, criterio, profilo e scritture permesse stanno in `job.md`, quindi dopo `/clear` non li richiede.
+2. Dimensionamento: `mem.py status` calcola gli slot come (RAM libera − riserva) ÷ RAM per agente, al massimo 6. Con uno slot o meno, oppure con tre unità o meno, lavora inline, come worker `inline` con i checkpoint in `work/inline.md`.
 3. Avvio: lancia i worker e un watchdog in background, che controlla la memoria ogni 10 secondi.
 4. Reazione: rimette in coda le unità che un worker ha lasciato senza checkpoint (alla seconda volta diventano `failed`) e riempie gli slot liberati; quando la memoria scende sotto la riserva ferma i worker avviati per ultimi.
 5. Unione: unisce i risultati e salva la RAM misurata per agente per la volta successiva.
@@ -174,11 +176,11 @@ Alcuni lavori cambiano il codice in un ordine preciso: i lotti di un piano di `/
 
 ### Memoria piena
 
-Il watchdog crea `stop/<worker>`: il worker termina dopo aver salvato l'ultima unità completata. Se dopo 3 minuti è ancora attivo, l'orchestratore lo chiude con TaskStop e rimette in coda solo l'unità in corso. Ogni worker fermato lascia un blocco in `STOPPED_AGENTS_WORK.md` con lavoro fatto, unità rimanenti e checkpoint; alla ripresa un nuovo worker riparte da lì.
+Il watchdog crea `stop/<worker>`: il worker termina dopo aver salvato l'ultima unità completata. Se dopo 3 minuti è ancora attivo, l'orchestratore lo chiude con TaskStop e rimette in coda solo l'unità in corso. Ogni worker fermato lascia un blocco in `STOPPED_AGENTS_WORK.md` con lavoro fatto, unità rimanenti e checkpoint; alla ripresa un nuovo worker riparte dalle unità rimanenti ancora senza checkpoint, e un blocco senza più nulla da fare diventa `Status: closed`.
 
 ### Codici di uscita di `mem.py watch`
 
-`0` nessun worker attivo; `3` memoria sotto la riserva, flag di stop scritti; `4` worker segnalati ancora attivi dopo il periodo di grazia.
+`0` nessun worker attivo; `1` `state.json` mancante, scritto a metà o non valido (l'orchestratore lo riscrive e riavvia il watchdog); `3` memoria sotto la riserva, flag di stop scritti; `4` worker segnalati ancora attivi dopo il periodo di grazia.
 
 ### Limiti
 

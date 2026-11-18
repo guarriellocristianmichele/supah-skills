@@ -40,7 +40,7 @@ Read the mode's file in `${CLAUDE_SKILL_DIR}/` and follow it to its completion c
 | `fix <B<n>…\|#map\|all>` | `FIX.md` (Several batches) | an integration branch, ledger |
 | `verify` | `VERIFY.md` | ledger |
 
-Code changes happen in `fix` only, for the IDs given; tracker writes in `publish` only, plus the pull request a several-batch `fix` offers at its end. Any other mode: show the argument-hint and `STATUS.md`, then stop.
+Code changes happen in `fix` only, for the IDs given; tracker writes in `publish` only, plus the pull request a several-batch `fix` offers at its end and, on the local route, the `State: done` line `fix` writes in a fixed batch's issue file. Any other mode: show the argument-hint and `STATUS.md`, then stop.
 
 ## Ledger
 
@@ -49,7 +49,8 @@ Code changes happen in `fix` only, for the IDs given; tracker writes in `publish
 - `STATUS.md`: at most 15 lines: last mode and HEAD, coverage `k/N modules scanned`, finding counts by status, next action.
 - `inventory.md`: `| module | paths | entrypoints | status |`, status `pending`, `scanned@<sha>` or `skipped:<reason>`.
 - `findings.md`: one block per finding, schema below. IDs `SLOP-001` upward, never reused.
-- `plan.md`: batches `B1` upward, each with `issue: #<n>` once published.
+- `plan.md`: batches `B1` upward, each with `issue: #<n>` once published (the issue file's path on the local route).
+- `issues/`: on the local route, one `B<n>.md` per published batch and `map.md`; their local forms of `#<n>`, `Closes`, `Refs` and permalinks are in PUBLISH.md, Local issues.
 - `checks.md`: verification commands, baseline commit, baseline results.
 
 Finding status: `open` → `planned` → `fixed`; `stale`, `rejected:<reason>` or `handoff:<skill>` from any state.
@@ -60,7 +61,7 @@ The skill runs **standalone**, or **integrated** with the mattpocock engineering
 
 | Need | Integrated | Standalone |
 |---|---|---|
-| issue tracker | the operations in `docs/agents/issue-tracker.md`, labels from `docs/agents/triage-labels.md` | `gh` when `origin` is on GitHub and `gh auth status` passes; otherwise files in `.slop-audit/issues/` |
+| issue tracker | the operations in `docs/agents/issue-tracker.md`, labels from `docs/agents/triage-labels.md` | `gh` when `origin` is on GitHub and `gh auth status` passes; otherwise the local route, files in `.slop-audit/issues/` (PUBLISH.md, Local issues) |
 | vocabulary and decisions | `GLOSSARY.md` and `docs/adr/` when present | the same files when present |
 | several batches at once | the `orchestrate` skill, as a graph job (FIX.md, Several batches) | the same; without orchestrate, one batch after another on the integration branch |
 | a fix that needs a new interface instead of a deletion | `handoff:improve-codebase-architecture` | `handoff:design`, listed for the human |

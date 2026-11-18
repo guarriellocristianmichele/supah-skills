@@ -103,6 +103,24 @@ class ContextSuppression(Isolated):
         self.assertEqual(model["suppress"], [])
         self.assertEqual(model["verdicts"], 1)
 
+    def test_a_model_verdict_that_agrees_with_the_human_label_still_counts(self):
+        ctx = "the [Delve] library parses"
+        learn.record([verdict("fp", match="Delve", context=ctx, source="human"),
+                      verdict("fp", match="Delve", context=ctx)])
+        model = learn.rebuild()
+        self.assertEqual(model["verdicts"], 2)
+        hit = {"rule": "marked-word", "category": "vocabulary", "tier": "M", "match": "Delve",
+               "context": ctx, "line": 3}
+        self.assertEqual(learn.apply(model, hit, "en")[1], "learned:context")
+
+    def test_a_later_model_verdict_that_disagrees_with_the_human_label_is_dropped(self):
+        ctx = "the [Delve] library parses"
+        learn.record([verdict("fp", match="Delve", context=ctx, source="human"),
+                      verdict("tell", match="Delve", context=ctx)])
+        model = learn.rebuild()
+        self.assertEqual(model["verdicts"], 1)
+        self.assertEqual(model["rules"]["marked-word/en"]["counts"]["fp"], 1)
+
 
 class NaiveBayesGate(Isolated):
     def test_untrained_below_minimum(self):
@@ -127,6 +145,12 @@ class Audit(Isolated):
         sample = learn.audit_sample(0.1, seed=1)
         self.assertEqual(len(sample), math.ceil(20 * 0.1))
         self.assertTrue(all(r["label"] == "fp" for r in sample))
+
+    def test_a_context_a_human_already_labelled_is_not_sampled_again(self):
+        ctx = "the [Delve] library parses"
+        learn.record([verdict("fp", match="Delve", context=ctx, source="human"),
+                      verdict("fp", match="Delve", context=ctx)])
+        self.assertEqual(learn.audit_sample(1.0, seed=1), [])
 
 
 class Progress(Isolated):

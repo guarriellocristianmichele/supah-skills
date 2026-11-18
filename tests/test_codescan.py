@@ -208,3 +208,40 @@ class Rules(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def audit_doc(name):
+    with open(os.path.join(ROOT, "skills", "ai-slop-audit", name), encoding="utf-8") as f:
+        return f.read()
+
+
+class AuditProcedure(unittest.TestCase):
+    """The procedure gaps the simulated-user runs found (#49), held in the mode files."""
+
+    def test_rows_scanned_at_an_older_commit_are_refreshed_so_the_audit_can_complete(self):
+        scan_step = audit_doc("AUDIT.md").split("3. **Scan.**", 1)[1].split("\n4. ", 1)[0]
+        self.assertIn("git diff --quiet <sha> HEAD -- <paths>", scan_step)
+        self.assertIn("becomes `scanned@<HEAD>` without a rescan", scan_step)
+        self.assertIn("goes back to `pending`", scan_step)
+
+    def test_a_tautological_test_is_judged_alone_not_with_its_file(self):
+        category = audit_doc("AUDIT.md").split("- **tautological-test**", 1)[1].split("\n- **", 1)[0]
+        self.assertNotIn("with that test file alone", category)
+        self.assertIn("selects that one test", category)
+        self.assertIn("::", category)
+        self.assertIn("-k", category)
+        self.assertIn("-t", category)
+
+    def test_the_local_route_names_an_equivalent_for_every_github_form(self):
+        local = audit_doc("PUBLISH.md").split("## Local issues", 1)[1].split("\n## ", 1)[0]
+        for form in ("`#<n>`", "`Part of #<map>`", "`Blocked by: #<n>`", "`Closes #<n>`", "`Refs #<n>`",
+                     "`fix #<n>`", "`fix #<map>`", "permalink", "closed"):
+            self.assertIn(form, local)
+        for local_form in (".slop-audit/issues/B<n>.md", ".slop-audit/issues/map.md", "`State: open`",
+                           "`State: done`", "`State: wontfix`", "<path>:<start>-<end> @ <sha>"):
+            self.assertIn(local_form, local)
+
+    def test_fix_and_its_job_point_to_the_local_equivalents(self):
+        fix = audit_doc("FIX.md")
+        self.assertIn("PUBLISH.md, Local issues", fix)
+        self.assertIn("`fix .slop-audit/issues/map.md`", fix)

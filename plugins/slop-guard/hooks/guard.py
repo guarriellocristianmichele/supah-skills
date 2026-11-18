@@ -29,11 +29,15 @@ def session():
 
 
 def written(tool_input):
+    """The text the tool wrote; a field of the wrong type writes nothing."""
     if "content" in tool_input:
-        return [tool_input["content"]]
-    if "edits" in tool_input:
-        return [e.get("new_string", "") for e in tool_input["edits"]]
-    return [tool_input.get("new_string", "")]
+        texts = [tool_input["content"]]
+    elif "edits" in tool_input:
+        edits = tool_input["edits"] if isinstance(tool_input["edits"], list) else []
+        texts = [e.get("new_string") for e in edits if isinstance(e, dict)]
+    else:
+        texts = [tool_input.get("new_string")]
+    return [t for t in texts if isinstance(t, str)]
 
 
 def for_agents(path):
@@ -86,13 +90,18 @@ def code_items(path, texts):
 
 
 def post():
-    event = json.load(sys.stdin)
-    tool_input = event.get("tool_input") or {}
-    path = tool_input.get("file_path") or ""
-    texts = [t for t in written(tool_input) if t.strip()]
-    lower = path.lower()
-    if not texts or for_agents(path):
+    try:
+        event = json.load(sys.stdin)
+    except ValueError:
         return 0
+    tool_input = event.get("tool_input") if isinstance(event, dict) else None
+    if not isinstance(tool_input, dict):
+        return 0
+    path = tool_input.get("file_path")
+    texts = [t for t in written(tool_input) if t.strip()]
+    if not isinstance(path, str) or not texts or for_agents(path):
+        return 0
+    lower = path.lower()
     if lower.endswith(PROSE):
         hits, flags = prose_items(path, texts)
     elif lower.endswith(CODE) and os.path.isfile(path):

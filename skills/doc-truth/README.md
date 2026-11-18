@@ -37,6 +37,8 @@ With no arguments it checks every tracked Markdown file. It is user-invoked, so 
 
 The script reads files and runs nothing. The agent then reads each finding next to the code: when the code changed on purpose the doc is fixed, when the doc still describes what users need the lost behaviour is reported, and paths that belong to the user's project are kept with a reason. It also reads the prose for claims no pattern can check, such as defaults and output formats.
 
+A claim kept on purpose goes in `.doc-truth-keep.tsv` at the repository root, one line per claim: kind, claim and reason, separated by tabs. The script always reads that file, so once you commit it the next run does not report those claims again.
+
 This repository runs it on its own docs in `python scripts/release.py --check`.
 
 ## Italiano
@@ -48,3 +50,4 @@ Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s 
 - Controlla link e ancore, script e flag nei blocchi shell, script npm e target make, variabili d'ambiente.
 - Lo script legge i file e non esegue niente; l'agente decide caso per caso se va corretto il documento o segnalato il codice.
 - Legge anche il testo per le affermazioni che nessun controllo automatico vede, come valori predefiniti e formati di output.
+- Le eccezioni volute vanno in `.doc-truth-keep.tsv` nella radice del repository (tipo, affermazione e motivo separati da tab): lo script lo legge sempre, quindi una volta committato le esecuzioni successive non le segnalano più.

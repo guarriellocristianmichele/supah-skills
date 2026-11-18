@@ -7,7 +7,7 @@ allowed-tools: Bash(python *mem.py*) Bash(python *graph.py*) Bash(git worktree *
 
 # Orchestrate
 
-The caller (a skill or the user) supplies a **job**: a name, the **units** (no unit needs another's output, except a graph job's blockers), the task brief for one unit, its done criterion, a **profile** (`light`: reads and searches; `build`: runs tests, typecheck or builds), and where workers may write besides their work file. Ask for whatever is missing. A job whose units change code and must land in an order is a **graph job** (Graph job, below).
+The caller (a skill or the user) supplies a **job**: a name, the **units** (no unit needs another's output, except a graph job's blockers), the task brief for one unit, its done criterion, a **profile** (`light`: reads and searches; `build`: runs tests, typecheck or builds), and where workers may write besides their work file. Ask for whatever is missing and not saved in the job's `job.md` (State). A job whose units change code and must land in an order is a **graph job** (Graph job, below).
 
 A workflow that already runs its own subagents (the mattpocock `implement-spec` and `research`, for instance) keeps managing them; wrap only work that would otherwise run one unit at a time.
 
@@ -25,6 +25,7 @@ Written for Claude Code, which fills in `${CLAUDE_SKILL_DIR}` (this skill's fold
 
 `<caller state dir>/orchestrator/<job>/`, or `.orchestrator/<job>/` at the repo root, listed in `.git/info/exclude`.
 
+- `job.md`: the job as the caller gave it: the task brief for one unit, its done criterion, the profile, the writes allowed besides work files, and for a graph job the setup, checks and record step. Written on the first run, read on every resume; a field the caller passes again replaces the saved one.
 - `state.json`: `session` (`${CLAUDE_SESSION_ID}`), `profile`, `per_agent_mb`, `reserve_mb`, `dispatch_avail_mb`, `peak_workers`, `workers: [{id, units, status: running|done|stopped, started, task}]`. The watchdog reads it.
 - `units.md`: `| unit | status |`, status `pending`, `assigned:<worker>`, `done` or `failed:<reason>`.
 - `briefs/<worker>.md`: the exact prompt each worker got.
@@ -34,17 +35,18 @@ Written for Claude Code, which fills in `${CLAUDE_SKILL_DIR}` (this skill's fold
 
 ## Steps
 
-1. **Resume.** When the state dir exists: workers `running` under another session are orphans; mark them `stopped` and give each a STOPPED block with reason `orphan: session <id> ended`. Units with a checkpoint are `done`. Units of `open` STOPPED blocks go back to `pending`.
-2. **Size.** Run `python "${CLAUDE_SKILL_DIR}/scripts/mem.py" status --profile <profile>`, adding `--per-agent <state per_agent_mb>` when state holds a calibrated value. Go **inline** when `slots` ≤ 1 or at most 3 units are pending: run the units yourself, in order, writing the same checkpoints. Otherwise plan `min(slots, pending batches)` workers, each batch small enough for one fresh context.
+1. **Resume.** When the state dir does not exist, create it and write `job.md`. When it exists: take the brief, done criterion, profile and writes from `job.md`, asking only for what it lacks. Workers `running` under another session are orphans; mark them `stopped` and give each a STOPPED block with reason `orphan: session <id> ended`. Units with a checkpoint are `done`. Of each `open` STOPPED block, the `Remaining` units without a checkpoint go back to `pending`; its `Done` units stay `done`, and a block left with no such unit gets `Status: closed`.
+2. **Size.** Run `python "${CLAUDE_SKILL_DIR}/scripts/mem.py" status --profile <profile>`, adding `--per-agent <state per_agent_mb>` when state holds a calibrated value. Go **inline** when `slots` ≤ 1 or at most 3 units are pending: register worker `inline` in `state.json` (`running`, task `inline`), mark its units `assigned:inline`, and run them yourself, in order, appending each result with its checkpoint to `work/inline.md`; set `inline` to `done` after the last unit. Otherwise plan `min(slots, pending batches)` workers, each batch small enough for one fresh context.
 3. **Dispatch.** On the first dispatch, store `status`'s `avail_mb` as `dispatch_avail_mb`. Per worker: write its brief, register it `running` in `state.json`, launch it with the Agent tool in the background, and record the task handle; keep `peak_workers` at the most workers ever running at once. Then start the **watchdog** with Bash in the background: `python "${CLAUDE_SKILL_DIR}/scripts/mem.py" watch --state <dir>`. One watchdog at a time.
 4. **React** to each notification; between them, end your turn, since every worker and the watchdog wake you when they finish:
    - **Worker done**: set its status, mark its checkpointed units `done` and return the rest of its units to `pending` (a unit returned twice becomes `failed:<reason>`), re-run `status`, and fill free slots from `pending`, starting with `open` STOPPED blocks.
    - **Watchdog exit 3** (pressure): write a STOPPED block for each worker in `stop`, then restart the watchdog. Flagged workers finish their current unit and exit.
    - **Watchdog exit 4** (hard stop): stop the listed workers with TaskStop (load it with ToolSearch). Their checkpointed units stay `done`; the unit in flight returns to `pending`. Restart the watchdog.
    - **Watchdog exit 0** (idle): fill free slots, or move to step 5.
+   - **Watchdog exit 1** (`{"event": "error", ...}`: `state.json` missing, half-written or not a job state), or any code not listed here: write `state.json` again, whole, from what you know (session, profile, sizes, every worker launched and its status), and restart the watchdog. When it fails again, dispatch no more workers: wait for the running ones, then report `PARTIAL` with the watchdog's error.
 5. **Merge** the work files in unit order into the caller's output. Calibrate: from the idle output's `min_avail_mb`, set `per_agent_mb` = (`dispatch_avail_mb` − `min_avail_mb`) ÷ `peak_workers`, never below the profile default. Inline runs skip calibration.
 
-**Completion.** Every unit is `done`, `failed:<reason>` or `blocked:<unit>`, every STOPPED block is `resumed as <id>`, and no worker is `running`. Otherwise report `PARTIAL: k/N units`; `STOPPED_AGENTS_WORK.md` is the resume point, and invoking the same job again continues from it.
+**Completion.** Every unit is `done`, `failed:<reason>` or `blocked:<unit>`, every STOPPED block is `resumed as <id>` or `closed`, and no worker is `running`. Otherwise report `PARTIAL: k/N units`; `STOPPED_AGENTS_WORK.md` is the resume point, and invoking the same job again continues from it.
 
 ## Worker brief
 
@@ -62,14 +64,14 @@ Write only to that file<, plus the caller's allowed paths>. Reply with the units
 
 ```
 ## <worker> · stopped <ISO time> · <reason, e.g. memory: 1.9 GB free < 2.4 GB reserve>
-Brief: briefs/<worker>.md
+Brief: briefs/<worker>.md (job.md for inline)
 Done: <unit ids>
 Remaining: <unit ids>
 Checkpoint: work/<worker>.md
 Status: open
 ```
 
-Resuming dispatches a new worker with the same brief over `Remaining`, and sets `Status: resumed as <new id>`.
+Resuming dispatches a new worker with the same brief over the `Remaining` units still without a checkpoint, and sets `Status: resumed as <new id>`. A block with no such unit (all checkpointed, or none left) gets `Status: closed` instead: nothing is left to resume.
 
 ## Graph job
 

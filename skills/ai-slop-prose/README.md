@@ -30,7 +30,7 @@ python "$S" fix post.md                      # 1. apply safe punctuation fixes
 python "$S" post.md                          # 2. list every remaining tell
 # ...rewrite the hits (or ask Claude: "/ai-slop-prose sweep post.md")
 python "$S" compare post.orig.md post.md     # 3. check that no fact was lost
-python "$S" --keep keep.tsv post.md          # 4. exit 0 means done
+python "$S" post.md                          # 4. exit 0 means done
 ```
 
 ## Install
@@ -70,14 +70,14 @@ Every step has a command or a check, so a run can be audited afterwards.
 
 | # | Step | Command | Done when |
 |---|---|---|---|
-| 1 | Snapshot | copy `<file>` to `<scratch>/<name>.orig` | the copy exists |
+| 1 | Snapshot | copy `<file>` to `<scratch>/<stem>.orig<ext>` (`Signup.orig.tsx`), keeping the extension the scanner reads it by | the copy exists |
 | 2 | Fix | `scan.py fix <file>` | it prints `Fixed: N` |
 | 3 | Scan | `scan.py <file>` | the hit table is in hand |
 | 4 | Voice | read the passages with no hits | person, sentence length, contractions, humour and punctuation habits are noted |
-| 5 | Sweep | work through `TELLS.md` one category at a time | each hit is rewritten or written to the keep file with a reason |
+| 5 | Sweep | work through `TELLS.md` one category at a time | each hit is rewritten or written to `.slop-prose-keep.tsv` with a reason |
 | 6 | Facts | `scan.py compare <orig> <file>` | `Missing: 0` |
-| 7 | Rescan | `scan.py --keep <keep> <file>` | exit code 0 |
-| 8 | Learn | `scan.py verdict <orig> <file> --keep <keep>` | it prints the recorded verdicts, any tier changes and each touched rule's progress toward 30 verdicts |
+| 7 | Rescan | `scan.py <file>` | exit code 0 |
+| 8 | Learn | `scan.py verdict <orig> <file>` | it prints the recorded verdicts, any tier changes and each touched rule's progress toward 30 verdicts |
 | 9 | Report | one line per category, metrics before and after, diff, `fp` verdicts | all eleven categories are listed, zeros included |
 
 A rewrite that swaps one pattern for another (a contrast turned into a rhetorical question, say) shows up again at step 7, so the loop closes only when the text is clean.
@@ -93,7 +93,7 @@ Scans each file and prints a report.
 | Option | Default | Meaning |
 |---|---|---|
 | `--lang auto\|en\|it` | `auto` | Language of the rules. `auto` counts common function words of each language and picks the larger count. |
-| `--keep FILE` | none | Keep file (see below). Matching hits and metrics count as resolved. |
+| `--keep FILE` | none | A keep file read on top of the repository's `.slop-prose-keep.tsv` (see below); an error when it does not exist. Matching hits and metrics count as resolved. |
 | `--json` | off | Print a JSON array instead of Markdown: `file`, `lang`, `hits[]` (`line`, `col`, `tier`, `category`, `rule`, `match`, `context`, `kept`, `isolated`), `metrics`, `flags`, `kept_flags`. |
 | `--no-gates` | off | Also report hits inside quotes and blockquotes, vocabulary in headings, capitalised names and Italian dialogue dashes, which are otherwise kept as `auto:*`. |
 | `--no-learn` | off | Ignore the learned model (tiers and suppressions learned from verdicts). |
@@ -129,7 +129,7 @@ Code fences, inline code, URLs, front matter and HTML comments are never touched
 
 ### `scan.py compare ORIGINAL REWRITE`
 
-Lists what the rewrite dropped: numbers, URLs, inline code, quoted strings, and capitalised names that appear mid-sentence. Exit 0 means nothing is missing. Run it after every rewrite; a missing token is restored, or the report explains why it was meant to go.
+Lists what the rewrite dropped: numbers, URLs, inline code, quoted strings, and capitalised names that appear mid-sentence. A Title Case run ("The Power Of Your Data", or a line where every word is capitalised) is a style, not a name, so fixing it loses nothing. A source file is compared on the text its users read, so a rewritten UI string is not a lost quote. Exit 0 means nothing is missing. Run it after every rewrite; a missing token is restored, or the report explains why it was meant to go.
 
 ### `scan.py verdict ORIGINAL FINAL [--keep FILE] [--source model|human]`
 
@@ -145,7 +145,7 @@ Prints every rule id with its category, tier and language, the metric thresholds
 
 ### Keep file
 
-A tab-separated file, one entry per line. Lines starting with `#` are ignored.
+`.slop-prose-keep.tsv` at the repository root (the git top level of the folder you run from) is always read, so a hit kept on purpose stays kept in the next session; commit it with the rewrite. `--keep FILE` adds another, for text outside any repository. It is a tab-separated file, one entry per line, saved as UTF-8 with or without a BOM. Lines starting with `#` are ignored.
 
 ```tsv
 # rule	matched text (as printed in the hit table)	reason
@@ -154,7 +154,7 @@ em-dash	—	dialogue
 metric	dash_per_1k	voice
 ```
 
-Matching ignores case. Valid reasons are `fp` (not a tell: the pattern matched, the text is doing something else), `quote` (quoted material), `voice` (a habit the author shows consistently), `literal` (the word used in its plain sense, such as the `_` character), `term` (a domain term) and `dialogue`. Keep the file in a scratch directory, outside the document's repository.
+Matching ignores case. Valid reasons are `fp` (not a tell: the pattern matched, the text is doing something else), `quote` (quoted material), `voice` (a habit the author shows consistently), `literal` (the word used in its plain sense, such as the `_` character), `term` (a domain term) and `dialogue`.
 
 ## Tiers, categories and metrics
 
@@ -299,17 +299,17 @@ La skill si attiva da sola quando Claude scrive o rivede testi destinati a perso
 | `scan.py audit`, poi `scan.py label FILE` | ti fa confermare un campione dei falsi positivi decisi dal modello | 0 |
 | `scan.py export [--out FILE]` | scrive per ogni regola conteggi, tier e precisione stimata, senza testo dei tuoi file, da allegare a una issue se vuoi | 0 |
 
-Opzioni di `scan.py`: `--lang auto|en|it` (lingua, rilevata in automatico), `--keep FILE` (eccezioni motivate), `--json` (output per programmi).
+Opzioni di `scan.py`: `--lang auto|en|it` (lingua, rilevata in automatico), `--keep FILE` (altre eccezioni motivate, oltre a `.slop-prose-keep.tsv`), `--json` (output per programmi).
 
 ### Flusso di revisione
 
-1. Copia di sicurezza del file.
+1. Copia di sicurezza del file come `<nome>.orig<estensione>` (`Signup.orig.tsx`): lo scanner sceglie come leggerlo dall'estensione.
 2. `scan.py fix` per le correzioni meccaniche.
 3. `scan.py` per l'elenco degli schemi.
 4. Lettura delle parti senza segnalazioni per fissare la voce dell'autore.
-5. Revisione categoria per categoria, nell'ordine di `TELLS.md`: ogni segnalazione viene riscritta oppure registrata nel keep file con un motivo.
+5. Revisione categoria per categoria, nell'ordine di `TELLS.md`: ogni segnalazione viene riscritta oppure registrata in `.slop-prose-keep.tsv` con un motivo.
 6. `scan.py compare` per controllare che nessun dato sia sparito.
-7. `scan.py --keep` finché l'exit code è 0.
+7. `scan.py` finché l'exit code è 0.
 8. Resoconto con una riga per ciascuna delle undici categorie, anche quelle a zero.
 
 ### File sorgente e scopo dei testi
@@ -322,7 +322,7 @@ Livelli e soglie sono calibrati su circa 5.200 testi umani (scritti prima di Cha
 
 ### Keep file
 
-File TSV con tre colonne: regola, testo trovato, motivo. I motivi ammessi sono `fp` (non è un segnale AI), `quote`, `voice`, `literal`, `term` e `dialogue`. Per mantenere una metrica: `metric`, nome della metrica, motivo.
+`.slop-prose-keep.tsv` nella radice del repository viene letto sempre, così una segnalazione mantenuta di proposito resta tale anche nella sessione dopo: va committato insieme alla riscrittura. `--keep FILE` ne aggiunge un altro, per i testi fuori da un repository. È un file TSV con tre colonne: regola, testo trovato, motivo. I motivi ammessi sono `fp` (non è un segnale AI), `quote`, `voice`, `literal`, `term` e `dialogue`. Per mantenere una metrica: `metric`, nome della metrica, motivo.
 
 ### Trattini e punteggiatura
 

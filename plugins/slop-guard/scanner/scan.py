@@ -33,6 +33,8 @@ supah-skills/prose); --no-learn ignores it.
 Tiers: S = one hit is enough to rewrite; M = rewrite unless there is a keep reason;
 W = acted on only when its density metric is flagged.
 Keep file: TSV lines `rule<TAB>matched text<TAB>reason`; matching hits count as resolved.
+`.slop-prose-keep.tsv` at the repository root is always read, so a hit kept on purpose stays kept
+in the next session; `--keep FILE` adds more.
 Reasons: quote, voice, literal, term, dialogue (a real tell kept) or fp (not a tell).
 A flagged metric is kept with `metric<TAB><metric name><TAB>reason`.
 Per-1k densities need at least 300 words; shorter texts show n/a.
@@ -43,6 +45,7 @@ import json
 import os
 import re
 import statistics
+import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -58,10 +61,10 @@ RULES = [
     # residue: chat leftovers, placeholders, leaked tokens
     ("chat-residue", "residue", "S", "en", r"\b(I hope (this|that|it) helps|Certainly!|Of course!|Great question|Absolutely!|Would you like me to|Let me know (?:if|whether)\b|Feel free to (ask|reach out)|Happy to help|I'd be happy to|I hope you found)", I),
     ("ai-disclaimer", "residue", "S", "en", r"\b(as of my (last|latest) (knowledge|training)|my knowledge cutoff|as an AI( language model)?\b|I (don't|do not|cannot|can't) browse)", I),
-    ("chat-residue", "residue", "S", "it", r"(\bCerto!|\bCertamente!|\bEcco (a te|qui|una versione|il testo|la versione)\b|\bSpero (che )?(questo|ti) (sia|possa essere) (utile|d'aiuto)|\bSe vuoi,? posso\b|\bVuoi che (ti|io)\b|\bFammi sapere se\b|\bSarei felice di\b|\bSono qui per aiutarti\b|\bHai (pienamente |perfettamente |assolutamente )?ragione\b|\bOttima domanda\b)", I),
+    ("chat-residue", "residue", "S", "it", r"(\bCerto!|\bCertamente!|\bEcco (a te|qui|una versione|il testo|la versione)\b|\bSpero (?:che )?(?:quest[oa](?: \w+)?|ti|vi)(?: ti| vi)? (?:sia|siano|possa(?:no)? essere) (?:utile|utili|d['’]aiuto|di aiuto)|\bSe vuoi,? posso\b|\bVuoi che (ti|io)\b|\bFammi sapere se\b|\bSarei felice di\b|\bSono qui per aiutarti\b|\bHai (pienamente |perfettamente |assolutamente )?ragione\b|\bOttima domanda\b)", I),
     # mined 2026-11 from WildChat-1M and Claude Italian answers against 1,145 human documents (0 human hits each)
     ("chat-residue", "residue", "S", "it", r"(\b(?:posso|possa|potrei|per) aiutart[ie]\b|\baiutarvi\b|\bnon esit(?:are|ate) a\b|\A\s*(?:Certo|Perfetto|Ottimo|Assolutamente|Certamente|Volentieri)\b[!,.])", I),
-    ("ecco-opener", "residue", "M", "it", r"^\s*(?:[#*>-]+\s*)?(?:(?:Certo|Perfetto|Ottimo|Assolutamente|Certamente|Volentieri)[!,.]\s+)?Ecco (?:un|una|uno|il|lo|la|i|gli|le|alcuni|alcune|come|cosa|perché|qui|a te)\b", M),
+    ("ecco-opener", "residue", "M", "it", r"^[ \t]*(?:[#*>-]+[ \t]*)?(?:(?:Certo|Perfetto|Ottimo|Assolutamente|Certamente|Volentieri)[!,.]\s+)?Ecco (?:un|una|uno|il|lo|la|i|gli|le|alcuni|alcune|come|cosa|perché|qui|a te)\b", M),
     ("ai-disclaimer", "residue", "S", "it", r"\b(Come (modello linguistico|intelligenza artificiale)|in base alle mie (ultime )?conoscenze|al mio ultimo aggiornamento)\b", I),
     ("placeholder", "residue", "S", "any", r"(\[(Your|Insert|Add|Describe|Company|Name|Tuo|Tua|Inserisci|Nome|Azienda|Data)\b[^\]\n]{0,40}\]|\b20\d\d-(xx|XX)-(xx|XX)\b|\bINSERT_[A-Z_]+\b|example\.com/source\d)", 0),
     ("citation-leak", "residue", "S", "any", r"(contentReference\[oaicite:\d+\]|oai_citation|utm_source=chatgpt\.com|\bturn\d+(search|view|news|fetch)\d+\b)", 0),
@@ -73,7 +76,7 @@ RULES = [
     # "not only X but also Y" is the standard correlative, not the trope
     ("not-just-x", "contrast", "S", "en", r"\bnot (?:just|only|merely|simply) [^.?!\n]{1,80}?[,;—–-]\s*(?:but(?! also\b)|it's|it is|they're|they are)\b", I),
     # removed 2026-11: a generic "not X, but Y" hit human concessions as often as AI text (119 vs 101 documents)
-    ("not-x-but-y", "contrast", "S", "en", r"\b(?:it|this|that)(?:'s| is| was) not (?:about |just |only )?[^.?!\n]{1,60}\.\s+(?:it|this|that)(?:'s| is| was)\b", I),
+    ("not-x-but-y", "contrast", "S", "en", r"\b(?:(?:it|this|that)(?:['’]s not| is not| was not| isn['’]t| wasn['’]t)|(?:they|these|those)(?: are not| were not| aren['’]t| weren['’]t)) (?:about |just |only )?[^.?!\n]{1,60}\.\s+(?:(?:it|this|that)(?:['’]s| is| was)|(?:they|these|those)(?:['’]re| are| were))\b", I),
     ("not-x-but-y", "contrast", "S", "en", r"\bnot because [^.?!\n]{1,60}, but because\b", I),
     ("rather-than-merely", "contrast", "M", "en", r"\brather than (merely|simply|just)\b|\bless (like )?an? \w+ (and|than) more (like )?an?\b", I),
     ("countdown", "contrast", "M", "any", r"\b(Not|Non) (an? |the |un |una |il |la )?\w+\.\s+(Not|Non) (an? |the |un |una |il |la )?\w+\.", 0),
@@ -333,7 +336,7 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>", purpos
     marked = load_words(f"{lang}-marked.txt") - demoted  # words common in human text count as density only
     style = load_words(f"{lang}-style.txt") | demoted
     words = list(re.finditer(r"[^\W\d_]+(?:['’][^\W\d_]+)?", text))
-    n_words = max(1, len(words))
+    n_words = max(1, len(words))  # a divisor; the report counts the words themselves
     style_count = 0
     marked_hits = [w for w in words if w.group(0).lower() in marked]
     # calibrated: a single marked word is ordinary human writing; the tell is several distinct ones
@@ -381,7 +384,7 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>", purpos
         return round(count * 1000 / n_words, 1) if n_words >= MIN_WORDS else None
 
     metrics = {
-        "words": n_words,
+        "words": len(words),
         "style_words_per_1k": per_1k(style_count),
         "dash_per_1k": per_1k(em),
         "connective_sentence_share": round(conn / len(sents), 2) if len(sents) >= 10 else None,
@@ -417,15 +420,37 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>", purpos
             "hits": hits, "metrics": metrics, "flags": flags, "kept_flags": kept_flags}
 
 
-def load_keep(path):
+REPO_KEEP = ".slop-prose-keep.tsv"
+
+
+def repo_keep():
+    """The keep file at the repository root (the git top level of the current folder, else the folder)."""
+    try:
+        out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+        root = out.stdout.strip() if out.returncode == 0 else os.getcwd()
+    except OSError:  # no git on PATH
+        root = os.getcwd()
+    return os.path.join(root, REPO_KEEP)
+
+
+def load_keep(*paths):
     keep = {}
-    if path:
-        with open(path, encoding="utf-8") as f:
+    for path in paths:
+        if not path or not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8-sig") as f:
             for line in f:
                 parts = line.rstrip("\n").split("\t")
                 if len(parts) >= 3 and not line.startswith("#"):
                     keep[(parts[0], parts[1].strip().lower())] = parts[2]
     return keep
+
+
+def keep_arg(parser, path):
+    """The repository keep file, plus the one --keep names (an error when it does not exist)."""
+    if path and not os.path.isfile(path):
+        parser.error(f"keep file not found: {path}")
+    return load_keep(repo_keep(), path)
 
 
 def print_report(result):
@@ -463,12 +488,35 @@ FACT_PATTERNS = [
 ]
 
 
+FUNCTION_WORDS = MINOR_EN | set("your our my their its his her this that these those".split())
+
+
+def title_case(token, line):
+    """True for a Title Case run ("The Power Of Your Data") or a Title Case line: a style, not a name."""
+    if any(w.lower() in FUNCTION_WORDS for w in token.split()[1:]):
+        return True
+    words = re.findall(r"[^\W\d_][\w'’-]*", line)[1:]
+    content = [w for w in words if w.lower() not in FUNCTION_WORDS]
+    return len(content) >= 2 and all(w[0].isupper() for w in content)
+
+
+def fact_text(path):
+    """Prose as written (code spans and URLs are facts), a source file as the text its users read."""
+    with open(path, encoding="utf-8") as f:
+        raw = f.read()
+    text = extract.view(raw, path)[0]
+    return raw if text is None else text
+
+
 def compare(original, rewrite):
-    a = open(original, encoding="utf-8").read()
-    b = open(rewrite, encoding="utf-8").read()
+    a, b = fact_text(original), fact_text(rewrite)
     missing = []
     for kind, pattern in FACT_PATTERNS:
-        for token in sorted(set(re.findall(pattern, a))):
+        found = re.finditer(pattern, a)
+        if kind == "name":  # a Title Case run fixed by a rewrite is not a lost name
+            found = (m for m in found if not title_case(m.group(0), a[a.rfind("\n", 0, m.start()) + 1:
+                                                                       (a + "\n").find("\n", m.end())]))
+        for token in sorted({m.group(0) for m in found}):
             # a name survives a case fix (Title Case heading, capital after a colon) when its words remain
             kept = (re.search(rf"(?<!\w){re.escape(token)}(?!\w)", b, re.IGNORECASE) if kind == "name"
                     else token in b)
@@ -560,7 +608,7 @@ def cmd_verdict(argv):
     p.add_argument("--lang", choices=("auto", "en", "it"), default="auto")
     p.add_argument("--source", choices=("model", "human"), default="model")
     a = p.parse_args(argv)
-    keep = load_keep(a.keep)
+    keep = keep_arg(p, a.keep)
     before = scan_file(a.original, a.lang, {}, model=None)
     after = scan_file(a.final, before["lang"], {}, model=None)
     with open(a.original, encoding="utf-8", errors="replace") as f1, open(a.final, encoding="utf-8", errors="replace") as f2:
@@ -637,7 +685,7 @@ def main():
     p.add_argument("--purpose", help="what the text is for (landing page, onboarding email, error messages...): "
                                      "reported with every hit that has no purpose of its own")
     a = p.parse_args()
-    keep = load_keep(a.keep)
+    keep = keep_arg(p, a.keep)
     model = None if a.no_learn else learn.load_model()
     results = [scan_file(f, a.lang, keep, gates=not a.no_gates, model=model, purpose=a.purpose) for f in a.files]
     if a.json:

@@ -1,5 +1,5 @@
 {
- "built": "2026-11-16",
+ "built": "2026-11-18",
  "alpha": 0.005,
  "documents": 5702,
  "buckets": [
@@ -183,10 +183,10 @@
   "not-x-but-y/en": {
    "designed": "S",
    "tier": "W",
-   "human_rate": 0.0043,
-   "human_upper95": 0.0093,
-   "ai_rate": 0.0141,
-   "lr": 3.18,
+   "human_rate": 0.0057,
+   "human_upper95": 0.0112,
+   "ai_rate": 0.0164,
+   "lr": 2.82,
    "admitted": "W"
   },
   "not-x-its-y/en": {
@@ -383,8 +383,8 @@
    "tier": "S",
    "human_rate": 0.0009,
    "human_upper95": 0.0049,
-   "ai_rate": 0.0765,
-   "lr": 59.36,
+   "ai_rate": 0.0793,
+   "lr": 61.52,
    "admitted": "S"
   },
   "colon-capital/it": {

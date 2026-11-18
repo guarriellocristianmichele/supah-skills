@@ -64,7 +64,7 @@ One pass over a text, category by category, that resolves every scanner hit and 
 _Avoid_: scan (the scanner's step within a sweep), lint, check
 
 **Keep file**:
-A TSV of hits and metrics deliberately left in the text, each with a reason (`quote`, `voice`, `literal`, `term`, `dialogue`).
+A TSV of hits and metrics deliberately left in the text, each with a reason (`quote`, `voice`, `literal`, `term`, `dialogue`, or `fp` for a hit that is not a tell). The prose scanner and doc-truth each read one at the repository root on every run, named after the skill (`.slop-prose-keep.tsv`, `.doc-truth-keep.tsv`) and committed with the fixes, so an exception judged once is not judged again; `--keep FILE` adds another, for text outside a repository.
 _Avoid_: allowlist, ignore file
 
 ### Design

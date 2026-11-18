@@ -1085,8 +1085,8 @@ class Learning(unittest.TestCase):
             run("verdict", "--judged", findings, env={"SUPAH_DESIGN_HOME": d})
             with open(os.path.join(d, "verdicts.tsv"), encoding="utf-8") as f:
                 rows = [line.rstrip("\n").split("\t") for line in f][1:]
-        self.assertEqual(sorted((r[1], r[5]) for r in rows),
-                         [("purple-gradient", "judged:DS-001"), ("transition-all", "judged:DS-004")])
+        self.assertEqual(sorted((r[1], r[5].rpartition(":")[2]) for r in rows),
+                         [("purple-gradient", "DS-001"), ("transition-all", "DS-004")])
 
     def test_a_handoff_keep_line_is_a_reflex_as_in_a_sweep(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1111,6 +1111,26 @@ class Learning(unittest.TestCase):
         self.assertEqual(first.returncode, 0, first.stderr)
         self.assertEqual(rules.count("purple-gradient"), 1)
         self.assertIn("recorded 0 verdicts", again.stdout)
+
+    def test_an_audit_in_one_project_does_not_hide_a_sweep_in_another(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = {"SUPAH_DESIGN_HOME": os.path.join(d, "store")}
+            for project in ("a", "b"):
+                os.makedirs(os.path.join(d, project, ".git"))
+            run("verdict", "--judged", write(os.path.join(d, "a"), "findings.md", FINDINGS), env=env)
+            with open(os.path.join(FIX, "slop.vue"), encoding="utf-8") as f:
+                orig = write(os.path.join(d, "b"), "orig.vue", f.read())
+            fixed = write(os.path.join(d, "b"), "page.vue", "<template>\n  <p>Plain</p>\n</template>\n")
+            out = run("verdict", orig, fixed, env=env)
+            with open(os.path.join(d, "store", "verdicts.tsv"), encoding="utf-8") as f:
+                rules = [line.split("\t")[1] for line in f][1:]
+        self.assertEqual(rules.count("purple-gradient"), 2, out.stdout)
+
+    def test_a_missing_findings_file_is_an_input_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = run("verdict", "--judged", os.path.join(d, "nope.md"), env={"SUPAH_DESIGN_HOME": d})
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("Traceback", out.stderr)
 
     def test_export_holds_counts_and_no_matches(self):
         with tempfile.TemporaryDirectory() as d:

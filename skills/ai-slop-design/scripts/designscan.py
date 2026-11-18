@@ -1546,8 +1546,9 @@ def judge(before, after, keep):
 
 def judged(findings_path, keep):
     """An audit's judgments as verdicts: each scanner finding not rejected is a reflex, each keep line
-    `fp` or chosen. The reason names the finding or the keep line, so a re-run records nothing twice."""
-    rows = []
+    `fp`, a reflex (handoff) or chosen. The reason names the project and the finding or keep line, so a
+    re-run records nothing twice and another project's judgments stay its own."""
+    rows, repo = [], learn.repo_id(findings_path)
     text = read(findings_path)
     heads = list(FINDING.finditer(text))
     for i, m in enumerate(heads):
@@ -1555,13 +1556,13 @@ def judged(findings_path, keep):
         hit, where = HIT_LINE.search(block), WHERE_LINE.search(block)
         if not hit or hit.group(1) not in RULES or m.group(3).startswith("rejected"):
             continue
-        rows.append({"rule": hit.group(1), "label": "reflex", "reason": "judged:" + m.group(1),
+        rows.append({"rule": hit.group(1), "label": "reflex", "reason": "judged:%s:%s" % (repo, m.group(1)),
                      "file": where.group(1) if where else "", "match": hit.group(2).strip("`")})
     for (rule, match), reason in keep.items():
         if rule in RULES:
             # a handoff is a reflex handed to craft, as judge() records it after a sweep
             rows.append({"rule": rule, "label": "fp" if reason == "fp" else "reflex" if reason == "handoff" else "chosen",
-                         "reason": "judged:keep " + reason, "file": "", "match": match})
+                         "reason": "judged:%s:keep %s" % (repo, reason), "file": "", "match": match})
     for r in rows:
         r.update(category=RULES[r["rule"]][0], tier=tier_of(r["rule"]), source="model", context="")
     return rows
@@ -1580,8 +1581,10 @@ def cmd_verdict(argv):
     if a.judged:
         if a.pairs:
             p.error("give ORIG FILE pairs or --judged FINDINGS, not both")
-        seen = {(r["rule"], learn.clean(r["match"]), r["reason"]) for r in learn.read_log()
-                if r["reason"].startswith("judged:")}
+        if not os.path.isfile(a.judged):
+            print("designscan.py verdict: no findings file at %s" % a.judged, file=sys.stderr)
+            return 2
+        seen = learn.recorded(lambda r: (r["rule"], learn.clean(r["match"]), r["reason"]))
         for r in judged(a.judged, keep):
             if (r["rule"], learn.clean(r["match"]), r["reason"]) in seen:
                 skipped += 1
@@ -1596,8 +1599,10 @@ def cmd_verdict(argv):
         if any(r["reason"].endswith("@" + run) for r in log):
             print("recorded 0 verdicts: this sweep (%s) is already in %s" % (run, learn.paths()[0]))
             return 0
-        # an audit's verdict --judged already counted these hits: the sweep that fixes them adds nothing
-        judged_hits = {(r["rule"], learn.clean(r["match"])) for r in log if r["reason"].startswith("judged:")}
+        # this project's audit (verdict --judged) already counted these hits: the sweep that fixes them adds nothing
+        repo = learn.repo_id(files[0])
+        judged_hits = {(r["rule"], learn.clean(r["match"])) for r in log
+                       if r["reason"].startswith("judged:%s:" % repo)}
         # scanned as one run each, so duplication is judged across the files as the sweep saw them
         befores = scan_many([(read(o), f) for o, f in zip(origs, files)])
         afters = scan_many([(read(f), f) for f in files])
@@ -1655,7 +1660,7 @@ def main():
     p.add_argument("--out", metavar="HITS", help="with --surfaces: write the hits grouped by unit, print a summary")
     p.add_argument("--no-learn", action="store_true", help="ignore the learned model (tiers, suppressions)")
     a = p.parse_args()
-    model = None if a.no_learn or os.environ.get("SUPAH_DESIGN_NO_LEARN") else learn.load_model()
+    model = learn.model_for(a.no_learn)
     keep = load_keep(a.keep)
     if bool(a.surfaces) != bool(a.out) or bool(a.surfaces) == bool(a.files):
         p.error("give FILE... or --surfaces INVENTORY --out HITS")

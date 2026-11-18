@@ -87,6 +87,14 @@ class ContextSuppression(Isolated):
         learn.record([verdict(l, match="Delve", context=ctx) for l in ("fp", "fp", "tell")])
         self.assertEqual(learn.rebuild()["suppress"], [])
 
+    def test_the_latest_human_verdict_on_a_context_is_the_one_that_counts(self):
+        ctx = "we [delve] into"
+        learn.record([verdict("fp", match="delve", context=ctx, source="human"),
+                      verdict("tell", match="delve", context=ctx, source="human")])
+        model = learn.rebuild()
+        self.assertEqual(model["verdicts"], 1)
+        self.assertEqual(model["rules"]["marked-word/en"]["counts"]["tell"], 1)
+
     def test_human_verdict_overrides_model(self):
         ctx = "we [delve] into"
         learn.record([verdict("fp", match="delve", context=ctx), verdict("fp", match="delve", context=ctx),
@@ -131,7 +139,19 @@ class Progress(Isolated):
     def test_a_tier_change_on_model_verdicts_alone_asks_for_an_audit(self):
         learn.record([verdict("fp", i=i) for i in range(20)])
         line = learn.progress(learn.rebuild(), ["marked-word/en"], "scan.py audit")[0]
-        self.assertIn("run `scan.py audit`", line)
+        self.assertIn("run `scan.py audit --rule marked-word`", line)
+
+    def test_a_few_model_verdicts_do_not_ask_for_an_audit_yet(self):
+        learn.record([verdict("fp", i=i) for i in range(3)])
+        line = learn.progress(learn.rebuild(), ["marked-word/en"], "scan.py audit")[0]
+        self.assertNotIn("audit", line)
+
+    def test_the_audit_it_asks_for_samples_that_rule(self):
+        learn.record([verdict("fp", i=i) for i in range(20)])
+        line = learn.progress(learn.rebuild(), ["marked-word/en"], "scan.py audit")[0]
+        self.assertIn("run `scan.py audit --rule marked-word`", line)
+        learn.record([verdict("fp", rule="other-rule", i=100 + i) for i in range(20)])
+        self.assertEqual({r["rule"] for r in learn.audit_sample(1.0, rule="marked-word")}, {"marked-word"})
 
     def test_a_human_verdict_on_the_rule_settles_the_audit(self):
         learn.record([verdict("fp", i=i) for i in range(20)] + [verdict("fp", i=99, source="human")])

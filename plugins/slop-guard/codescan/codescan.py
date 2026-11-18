@@ -295,15 +295,12 @@ def scan_text(source, path, keep=None, model=None):
     return result
 
 
-def repo_relative(path):
-    """The path from the root of the git repository holding it, with forward slashes, so the same
-    file named relatively or absolutely is one file."""
-    full = os.path.abspath(path)
-    top = os.path.dirname(full)
-    while top and not os.path.exists(os.path.join(top, ".git")):
-        parent = os.path.dirname(top)
-        top = None if parent == top else parent
-    return (os.path.relpath(full, top) if top else full).replace("\\", "/")
+def judged_place(path, line):
+    """`<repo id>:<path from the repo root>:<line>`, so the same file named relatively or absolutely
+    is one place, and the same path in another project is another."""
+    full, top = os.path.abspath(path), learn.repo_root(path)
+    rel = (os.path.relpath(full, top) if top else full).replace("\\", "/")
+    return "%s:%s:%s" % (learn.repo_id(path), rel, line)
 
 
 def cmd_verdict(argv):
@@ -312,7 +309,9 @@ def cmd_verdict(argv):
     p.add_argument("--judged", required=True, metavar="FILE", help="TSV: label, file, line, rule")
     p.add_argument("--source", choices=("model", "human"), default="model")
     a = p.parse_args(argv)
-    key = lambda rule, reason, lang, match, context: (rule, reason, learn.context_key(rule, lang, match, context))
+    def key(rule, reason, lang, match, context):
+        return rule, reason, learn.context_key(rule, lang, match, context)
+
     seen = learn.recorded(lambda r: key(r["rule"], r["reason"], r["lang"], r["match"], r["context"]))
     scans, rows, touched, skipped = {}, [], set(), 0
     with open(a.judged, encoding="utf-8") as f:
@@ -336,7 +335,7 @@ def cmd_verdict(argv):
                 continue
             lang = scans[path]["lang"]
             touched.add("%s/%s" % (rule, lang))
-            reason = "judged:%s:%s" % (repo_relative(path), line)
+            reason = "judged:" + judged_place(path, line)
             k = key(rule, reason, lang, hit["match"], hit["context"])
             if k in seen:
                 skipped += 1
@@ -410,7 +409,7 @@ def main():
     p.add_argument("--no-learn", action="store_true", help="ignore the learned model (tiers, suppressions)")
     a = p.parse_args()
     keep = load_keep(a.keep)
-    model = None if a.no_learn or os.environ.get("SUPAH_CODE_NO_LEARN") else learn.load_model()
+    model = learn.model_for(a.no_learn)
     results = []
     for path in expand(a.files):
         with open(path, encoding="utf-8", errors="replace") as f:

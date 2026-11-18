@@ -150,6 +150,20 @@ class JudgedOnce(unittest.TestCase):
         self.assertIn("1 already recorded", second.stdout)
         self.assertIn("forwarding-wrapper/py: 1/30 verdicts", second.stdout)
 
+    def test_the_same_place_in_another_project_is_its_own_verdict(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = {"SUPAH_CODE_HOME": os.path.join(d, "store")}
+            for project in ("p1", "p2"):
+                os.makedirs(os.path.join(d, project, ".git"))
+                path = os.path.join(d, project, "client.py")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(WRAPPER)
+                judged = os.path.join(d, project, "judged.tsv")
+                with open(judged, "w", encoding="utf-8") as f:
+                    f.write("fp\t%s\t1\tforwarding-wrapper\n" % path)
+                out = run("verdict", "--judged", judged, env=env)
+                self.assertIn("recorded 1 verdicts", out.stdout, project)
+
     def test_a_missing_file_is_skipped_and_the_rest_recorded(self):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "client.py")

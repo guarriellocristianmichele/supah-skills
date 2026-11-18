@@ -46,6 +46,31 @@ def configure(name):
     STORE["name"] = name
 
 
+def model_for(no_learn=False):
+    """The learned model, or None with --no-learn or SUPAH_<NAME>_NO_LEARN set (the shipped tiers)."""
+    if no_learn or os.environ.get("SUPAH_%s_NO_LEARN" % STORE["name"].upper()):
+        return None
+    return load_model()
+
+
+def repo_root(path):
+    """The root of the git repository holding path, or None."""
+    top = os.path.abspath(path if os.path.isdir(path) else os.path.dirname(os.path.abspath(path)))
+    while not os.path.exists(os.path.join(top, ".git")):
+        parent = os.path.dirname(top)
+        if parent == top:
+            return None
+        top = parent
+    return top
+
+
+def repo_id(path):
+    """A short id of the repository holding path, so judged locations of two projects stay apart.
+    Only the log keeps it; export never does."""
+    root = repo_root(path)
+    return hashlib.sha1(os.path.normcase(root).encode("utf-8")).hexdigest()[:8] if root else "-"
+
+
 def store_dir():
     env = "SUPAH_%s_HOME" % STORE["name"].upper()
     if os.environ.get(env):
@@ -182,15 +207,16 @@ def recorded(key):
 
 
 def effective_verdicts(rows):
-    """Human verdicts override model verdicts for the same context, whatever their order."""
-    human = {}
-    for r in rows:
+    """Human verdicts override model verdicts for the same context, whatever their order, and the
+    latest human verdict on a context replaces the earlier ones."""
+    latest = {}
+    for i, r in enumerate(rows):
         if r["source"] == "human":
-            human[context_key(r["rule"], r["lang"], r["match"], r["context"])] = r["label"]
+            latest[context_key(r["rule"], r["lang"], r["match"], r["context"])] = i
     out = []
-    for r in rows:
+    for i, r in enumerate(rows):
         k = context_key(r["rule"], r["lang"], r["match"], r["context"])
-        if r["source"] != "human" and k in human:
+        if k in latest and latest[k] != i:
             continue
         out.append(r)
     return out
@@ -198,7 +224,7 @@ def effective_verdicts(rows):
 
 # --- model ---
 
-def kind(label):
+def label_class(label):
     """tell, kept or fp, whatever a scanner calls its labels (design: reflex, chosen, fp)."""
     if label == "fp":
         return "fp"
@@ -237,7 +263,7 @@ def rebuild():
         s["fp"] = GAMMA * s["fp"] + (not good)
         s["n"] += 1
         s["human"] += r["source"] == "human"
-        s["counts"][kind(r["label"])] += 1
+        s["counts"][label_class(r["label"])] += 1
     by_tier = {}
     for s in stats.values():
         if s["n"] >= 10:
@@ -292,8 +318,11 @@ def progress(model, keys, audit_command):
         count = f"{r['n']}/{MIN_VERDICTS}" if r["n"] < MIN_VERDICTS else str(r["n"])
         tier = r["tier"] if r["tier"] == r["base"] else f"{r['tier']} (was {r['base']})"
         line = f"{key}: {count} verdicts, precision so far {r['mean']:.2f}, tier {tier}"
-        if not r.get("human") and r.get("leaning", r["base"]) != r["base"]:
-            line += f"; it leans to {r['leaning']} on model verdicts alone: run `{audit_command}` to check a sample"
+        near = r["n"] >= MIN_VERDICTS - 10  # within ten verdicts of the minimum, or past it
+        if not r.get("human") and near and r.get("leaning", r["base"]) != r["base"]:
+            rule = key.rpartition("/")[0]
+            line += (f"; it leans to {r['leaning']} on model verdicts alone: run `{audit_command} --rule {rule}` "
+                     f"to check a sample")
         lines.append(line)
     return lines
 
@@ -356,8 +385,9 @@ def apply(model, hit, lang):
     return r["tier"], None
 
 
-def audit_sample(fraction=0.1, seed=None):
-    rows = [r for r in effective_verdicts(read_log()) if r["label"] == "fp" and r["source"] != "human"]
+def audit_sample(fraction=0.1, seed=None, rule=None):
+    rows = [r for r in effective_verdicts(read_log()) if r["label"] == "fp" and r["source"] != "human"
+            and (rule is None or r["rule"] == rule)]
     rng = random.Random(seed)
     k = max(1, math.ceil(len(rows) * fraction)) if rows else 0
     return rng.sample(rows, k)
@@ -384,10 +414,11 @@ def cmd_audit(argv, prog):
     import argparse
     p = argparse.ArgumentParser(prog=f"{prog} audit")
     p.add_argument("--fraction", type=float, default=0.1)
+    p.add_argument("--rule", help="sample only this rule's verdicts")
     a = p.parse_args(argv)
     print(f"# Set label to fp (not what the rule names), kept, or tell, then: {prog} label <this file>")
     print("label\tlang\trule\tcategory\ttier\tmatch\tcontext")
-    for r in audit_sample(a.fraction):
+    for r in audit_sample(a.fraction, rule=a.rule):
         print("\t".join([r["label"], r["lang"], r["rule"], r["category"], r["tier"], r["match"], r["context"]]))
     return 0
 

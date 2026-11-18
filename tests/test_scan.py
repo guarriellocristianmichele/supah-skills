@@ -327,6 +327,12 @@ class SweepDoc(unittest.TestCase):
         self.assertIn("the coordinator appends them to `.slop-prose-keep.tsv`", step)
         self.assertIn("then rescans", step)
 
+    def test_tells_explains_the_isolated_mark(self):
+        # the report prints `isolated` in its kept column (#43): TELLS.md says what it means
+        tells = read(os.path.join(ROOT, "skills", "ai-slop-prose", "TELLS.md"))
+        self.assertIn("A hit marked `isolated` is an M hit shown at W", tells)
+        self.assertIn("one rule alone is not enough evidence", tells)
+
 
 class BadInput(unittest.TestCase):
     """A missing path, a directory or a file that is not UTF-8: one line on stderr, the other files go on, exit 2."""

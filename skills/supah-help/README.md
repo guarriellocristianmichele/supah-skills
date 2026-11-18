@@ -22,13 +22,13 @@ Every route and scope is in the [repository README](../../README.md#installation
 /supah-help the scanner keeps flagging a word that is fine in our domain
 ```
 
-With no arguments it shows the situations and asks which one is yours. It is user-invoked (`disable-model-invocation: true`), so it costs nothing in sessions where you don't call it.
+With no arguments it asks which of four groups your situation is in (code, docs and tests; what people see; a business idea; your setup), then shows that group's situations. When no skill covers what you describe, it says so and points to the boundary or the outside skill that does. It is user-invoked (`disable-model-invocation: true`), so it costs nothing in sessions where you don't call it.
 
 ## What it recommends
 
 | Situation | Flow |
 |---|---|
-| a codebase built fast with AI that feels bloated | `/ai-slop-audit audit` → `/clear` → `plan` → `/clear` → `fix all` (or `fix B1` → `verify`) |
+| a codebase built fast with AI that feels bloated | `/ai-slop-audit audit` → `/clear` → `plan` → `/clear` → `fix all` (or `fix B1` → `/clear` → `verify`) |
 | sharing the cleanup with a team or agents | `/ai-slop-audit publish` → `/clear` → `fix #<map>`, or `fix #<n>` or `/implement #<n>` one at a time |
 | a plan with many batches, too slow one by one | `/ai-slop-audit fix all`, `/ai-slop-design sweep all` |
 | a new site or page that must not look generated | `/ai-slop-design craft <brief>` |
@@ -37,10 +37,11 @@ With no arguments it shows the situations and asks which one is yours. It is use
 | a whole platform that looks generated, before fixing anything | `/ai-slop-design audit [path]` → `/clear` → `/ai-slop-design plan` → `/clear` → `/ai-slop-design publish` (to share the batches) → `/clear` → `/ai-slop-design sweep all` (or `/ai-slop-design sweep B<n>`, one batch at a time, `B1` first) or `/ai-slop-design craft <surface>` for a handoff, `audit` again after fixes to reconcile |
 | sharing a design cleanup with a team or agents | `/ai-slop-design publish` after `plan`, then `/clear` and `sweep #<map>` or the command on each issue's Work line |
 | is my idea worth building? | `/buyer-panel <idea>`, then the real test it names |
-| what would remove the top objection? | `/buyer-panel fix [reason]` after a first panel |
+| what would remove the top objection? | after a first panel: `/clear` → `/buyer-panel fix [reason]` |
 | which of two offers or names, or what if a competitor cuts its price | `/buyer-panel compare A B`, `/buyer-panel competitor` |
-| which price, how to pitch it | `/buyer-panel <idea>`, then `/buyer-panel price` and `/buyer-panel pitch` |
+| which price, how to pitch it | `/buyer-panel <idea>` → `/clear` → `/buyer-panel price` → `/clear` → `/buyer-panel pitch` |
 | testing the idea on real people | `/buyer-panel test`: interview script, landing brief, go and stop thresholds |
+| real results back from that test | `/buyer-panel ground`: how far the panel was off, and a corrected share in every later report |
 | the text users see in an app | `/ai-slop-prose sweep src/**/*.tsx locales/*.json` |
 | a page, post, email or README | `/ai-slop-prose sweep <file>` plus what it is for |
 | a big context before you type, or instructions that fight | `/context-audit` |
@@ -49,6 +50,7 @@ With no arguments it shows the situations and asks which one is yours. It is use
 | docs that may have drifted from the code | `/doc-truth` |
 | tests you don't trust | `/mutation-check <file> <test command>` |
 | fine text flagged as slop | keep with reason `fp`, `scan.py verdict`, now and then `scan.py audit` |
+| skills that learn from you and remember your corrections | nothing: each skill keeps lessons in `.supah/LESSONS.md`, each scanner moves a rule's tier after 30 of your verdicts |
 | many files, or a slow machine | `orchestrate` runs on its own; `/orchestrate` for your own jobs |
 | an interrupted session | run the same command again |
 | also using mattpocock/skills | `/setup-matt-pocock-skills` once |
@@ -57,7 +59,7 @@ Between commands that keep their state on disk it writes `/clear`, so each step 
 
 ## Italiano
 
-Un router sulle skill supah. Descrivi cosa vuoi fare e ti consiglia il percorso adatto, i comandi in ordine e il motivo di ogni passo, compreso come si combina con le skill di mattpocock. Senza argomenti mostra le situazioni e ti chiede qual è la tua. Si avvia solo a mano, quindi non occupa contesto nelle altre sessioni.
+Un router sulle skill supah. Descrivi cosa vuoi fare e ti consiglia il percorso adatto, i comandi in ordine e il motivo di ogni passo, compreso come si combina con le skill di mattpocock. Senza argomenti ti chiede in quale di quattro gruppi rientra la tua situazione (codice, documenti e test; ciò che le persone vedono; un'idea di business; il tuo ambiente), poi ti mostra le situazioni di quel gruppo. Se nessuna skill copre quello che descrivi, te lo dice e ti indica il limite o la skill esterna che lo copre. Ricorda le tue correzioni in `.supah/LESSONS.md`, e dopo un test reale `/buyer-panel ground` confronta il panel con i risultati veri. Si avvia solo a mano, quindi non occupa contesto nelle altre sessioni.
 
 ```text
 /supah-help la mia app è stata fatta con l'AI e il codice è pieno di roba inutile

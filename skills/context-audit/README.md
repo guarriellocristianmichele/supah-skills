@@ -32,12 +32,12 @@ session 4723ce1f: first request 76560 tokens (measured), 9 prompts
     6912 est  deferred tool names      claude_ai_Adobe_for_creativity 1565, claude_ai_META 1264, ...
     4170 est  MCP server instructions  claude.ai Supermetrics Marketing Analytics 1039, ...
     1218 est  agent listing            (built-in or user) 1127, code-simplifier 57, stripe 34
-     851 est  hook x1    SessionStart: <EXTREMELY_IMPORTANT>
-     333 est  hook x11   UserPromptSubmit: CAVEMAN MODE ACTIVE (full). ...
+     851 est  hook x1    SessionStart: <EXTREMELY_IMPORTANT> (superpowers, 851 est per fire)
+     333 est  hook x11   UserPromptSubmit: CAVEMAN MODE ACTIVE (full). ... (caveman, 30 est per fire)
    55451      system prompt and tool schemas (not in the transcript)
 ```
 
-Estimated parts (`est`) are characters divided by four. A hook on `UserPromptSubmit` is paid on every prompt, so its row shows how many times it ran.
+Estimated parts (`est`) are characters divided by four. A hook row adds up every time the hook ran and names the plugin that runs it. Hooks also run on messages between sessions, so a `UserPromptSubmit` hook can run more times than there were prompts.
 
 ## What it checks
 
@@ -60,6 +60,7 @@ Transcripts contain your conversations. The script reads listings, usage records
 - The system prompt and the tool schemas are not in the transcript, so they show up as one remainder.
 - Transcript fields are not a documented format. The script skips what it does not recognise instead of failing, and a Claude Code update can empty a category until the parser catches up.
 - `measure` and `sources` know Claude Code only; `check` also reads `AGENTS.md` for other agents.
+- With no transcripts for the project, or a `--project` or `--home` folder that does not exist, the script prints one line and exits with status 2.
 
 ## Italiano
 
@@ -68,7 +69,7 @@ Ogni sessione di Claude Code parte con molto testo che non hai scritto tu: istru
 Installazione: `npx skills@latest add guarriellocristianmichele/supah-skills -s context-audit`, oppure come plugin di Claude Code con `claude plugin install context-audit --marketplace guarriellocristianmichele/supah-skills --scope user`. Si avvia solo a mano (`/context-audit`), quindi non occupa contesto nelle altre sessioni.
 
 - I token della prima richiesta sono misurati dall'API; il resto è diviso per categoria e per plugin, con una stima a quattro caratteri per token.
-- Gli hook su `UserPromptSubmit` si pagano a ogni prompt, e il report lo conta.
+- Ogni hook ha una riga con il plugin che lo esegue, quante volte è partito e il costo di ogni esecuzione; gli hook partono anche sui messaggi tra sessioni, quindi le esecuzioni possono superare i prompt.
 - Il controllo cerca contraddizioni, skill duplicate, riferimenti rotti, memorie che ripetono il repo e regole che bloccano lo sviluppo; ogni candidato riceve un verdetto.
 - Memorie e file del repo vengono modificati dopo la tua approvazione; impostazioni e plugin restano tuoi, ricevi il comando esatto.
-- Lo script non stampa mai i tuoi prompt.
+- Lo script non stampa mai i tuoi prompt. Senza transcript per il progetto, o con una cartella `--project` o `--home` che non esiste, stampa una riga ed esce con stato 2.

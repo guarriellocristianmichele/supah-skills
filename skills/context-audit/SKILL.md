@@ -22,12 +22,12 @@ The script is `python "${CLAUDE_SKILL_DIR}/scripts/ctx.py"`, run with `--project
 
 ## Steps
 
-1. **Measure**: `ctx.py measure`. Done when you have, for the last three sessions (all of them when there are fewer), the first request's measured tokens, the breakdown by category and owner, and each hook's cost; a `UserPromptSubmit` hook costs its tokens × prompts.
+1. **Measure**: `ctx.py measure`. Done when you have, for the last three sessions (all of them when there are fewer), the first request's measured tokens, the breakdown by category and owner, and each hook's cost and owner. A hook row's tokens already add up all its fires (`times`); hooks also fire on messages between sessions, so take the cost from the row, never by multiplying by the prompt count. When `measure` exits 2 with one line (no transcripts, or no such `--project` or `--home`), report that line and go on with `sources` and `check`.
 2. **Sources**: `ctx.py sources` lists the instruction files (with `@imports`), the memory index and the plugins whose hooks run on every session or prompt.
 3. **Candidates**: `ctx.py check --json`.
 4. **Judge** every candidate and every rule line, one verdict each, using the kinds below. Read both sides before calling a pair: the skill descriptions in the listing, the full memory file, the instruction in its section.
 5. **Report**, in this order, every section present even when empty:
-   - cost: first-request tokens, then the ten largest owners with tokens, then per-prompt hook cost;
+   - cost: first-request tokens, then the ten largest owners with tokens, then each hook with its owner, fires and tokens per fire;
    - contradictions: both quotes, both sources, which one the agent obeyed in the transcript when that is visible;
    - duplicate triggers: the group, and which skill to keep;
    - stale references and sediment: each candidate with its verdict and reason;
@@ -46,4 +46,4 @@ The script is `python "${CLAUDE_SKILL_DIR}/scripts/ctx.py"`, run with `--project
 
 ## Fixes
 
-Memories and repo files are fixed in place once the user approves the list: ask with options (apply all, apply some by number, change one first); for each contradiction, the options are its two quoted sides plus a merged wording. Settings, plugins and hooks belong to the user: give the exact change (`claude plugin disable <name>`, the `settings.json` key) and let them apply it. Rerun `measure` in a new session after changes; the new first-request number is the result.
+Memories and repo files are fixed in place once the user approves the list: ask with options (apply all, apply some by number, change one first, apply none); for each contradiction, the options are its two quoted sides plus a merged wording. Settings, plugins and hooks belong to the user: give the exact change (`claude plugin disable <name>`, the `settings.json` key) and let them apply it. Rerun `measure` in a new session after changes; the new first-request number is the result.

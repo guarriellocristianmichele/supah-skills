@@ -124,6 +124,35 @@ class Check(Fixture):
         self.assertNotIn("Plain line.", [r["text"] for r in rules])
 
 
+class Topics(unittest.TestCase):
+    """Overlap topics match whole words; a pattern must not hold control characters (a literal \\x08 for \\b)."""
+
+    @classmethod
+    def setUpClass(cls):
+        sys.path.insert(0, os.path.dirname(CTX))
+        import ctx
+        cls.ctx = ctx
+
+    def topics(self, *entries):
+        return {g["topic"] for g in self.ctx.overlaps([{"name": n, "description": d} for n, d in entries])}
+
+    def test_patterns_hold_no_control_characters(self):
+        for topic, pattern in self.ctx.TOPICS:
+            self.assertFalse(re.search(r"[\x00-\x1f]", pattern), topic)
+
+    def test_word_topics_match(self):
+        self.assertEqual(self.topics(("a:tdd", "Tests first."), ("b:tdd", "Tests first.")),
+                         {"test-driven development"})
+        self.assertEqual(self.topics(("a:debug", "Find bugs."), ("b:fix", "Debug a crash."))
+                         , {"debugging"})
+        self.assertEqual(self.topics(("a:web", "Drive Chrome."), ("b:tabs", "Automate the browser.")),
+                         {"browser automation"})
+        self.assertEqual(self.topics(("a:p", "Use plan mode."), ("b:q", "Enter plan mode first.")), {"planning"})
+
+    def test_words_inside_other_words_do_not_match(self):
+        self.assertEqual(self.topics(("a:x", "Uses chromed metal."), ("b:y", "A chromed finish.")), set())
+
+
 class Sandbox(unittest.TestCase):
     """A fresh home and project per test, for cases the shared fixture cannot hold."""
 

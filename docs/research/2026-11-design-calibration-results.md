@@ -13,7 +13,7 @@ The shipped tier comes from judged precision (ADR 0011): S needs 90% of at least
 | cream-clay | colour | W | 0/136 (0.0%) | 0/59 (0.0%) | no label | none judged | W |
 | pure-black-white | colour | W | 105/136 (77.2%) | 37/59 (62.7%) | no label | none judged | W |
 | near-black | colour | W | 26/136 (19.1%) | 15/59 (25.4%) | no label | none judged | W |
-| low-contrast | colour | M | 62/136 (45.6%) | 13/59 (22.0%) | no label | 17/18 | S |
+| low-contrast | colour | M | 62/136 (45.6%) | 12/59 (20.3%) | no label | 26/27 | S |
 | reflex-font | type | W | 43/136 (31.6%) | 27/59 (45.8%) | slop_fonts: present 8/12 (66.7%), absent 1/1 (100.0%) | none judged | W |
 | accent-word-heading | type | W | 8/136 (5.9%) | 9/59 (15.3%) | no label | none judged | W |
 | eyebrow | type | W | 0/136 (0.0%) | 10/59 (16.9%) | hero_eyebrow_pill: present 5/12 (41.7%), absent n/a; all_caps_headings: present 2/6 (33.3%), absent 2/2 (100.0%) | 7/8 | M |

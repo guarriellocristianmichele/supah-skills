@@ -240,7 +240,16 @@ class Regressions(unittest.TestCase):
         # ratios worked out with the WCAG 2 formula, not with the scanner
         self.assertEqual([(h["line"], h["match"]) for h in r["hits"] if h["rule"] == "low-contrast"],
                          [(4, "text-[#d97757] on bg-[#f4f1ea] 2.8:1"), (6, "text-gray-400 on bg-[#ffffff] 2.5:1"),
-                          (7, "text-[#ffffff]/40 on bg-[#111827] 3.8:1")])
+                          (7, "text-[#ffffff]/40 on bg-[#111827] 3.8:1"),
+                          (9, "text-[#ffffff66] on bg-[#111827] 3.8:1"), (11, "text-[#fff6] on bg-[#111827] 3.8:1")])
+
+    def test_contrast_reads_the_alpha_of_a_hex_colour(self):
+        # text alpha blends over the background; a translucent background hides what is behind it, so no verdict
+        got = self.hits("a.css", ".a { color: #ffffff66; background: #111827; }\n"
+                                 ".b { color: #1f2937; background: #11182780; }\n"
+                                 ".c { color: rgba(255, 255, 255, 0.4); background: #111827; }\n")
+        self.assertEqual([m for r, m in got if r == "low-contrast"],
+                         [".a { #ffffff66 on #111827 3.8:1 }", ".c { rgba(255, 255, 255, 0.4) on #111827 3.8:1 }"])
 
     def test_chromatic_hex_is_not_black_or_white(self):
         self.assertEqual(self.hits("a.css", ".a { color: #000fff; border-color: #fff000; }\n"), [])

@@ -301,6 +301,18 @@ def rgb_of(colour):
     return None
 
 
+def alpha_of(colour):
+    """Opacity of a 4- or 8-digit hex or an rgba()/rgb(... / a) colour, 1.0 for any other colour."""
+    colour = colour.strip().lower()
+    m = re.match(r"rgba?\(\s*\d+[\s,]+\d+[\s,]+\d+\s*[,/]\s*(\d*\.?\d+)(%?)", colour)
+    if m:
+        return min(float(m.group(1)) / (100 if m.group(2) else 1), 1.0)
+    h = colour.lstrip("#")
+    if re.fullmatch(r"[0-9a-f]{4}|[0-9a-f]{8}", h):
+        return int(h[3] * 2 if len(h) == 4 else h[6:], 16) / 255
+    return 1.0
+
+
 def luminance(rgb):
     def channel(c):
         c /= 255
@@ -333,7 +345,7 @@ def pairs(value):
         m = re.match(r"^((?:dark:)?)(text|bg)-([a-z]+(?:-\d{2,3})?|\[#[0-9a-fA-F]{3,8}\])(?:/(\d{1,3}))?$", t)
         colour = m and (palette().get(m.group(3)) or (m.group(3)[1:-1] if m.group(3).startswith("[") else None))
         if colour and rgb_of(colour):
-            alpha = int(m.group(4)) / 100 if m.group(4) else 1.0
+            alpha = (int(m.group(4)) / 100 if m.group(4) else 1.0) * alpha_of(colour)
             groups.setdefault(m.group(1), {})[m.group(2)] = (rgb_of(colour), alpha, t)
     for g in groups.values():
         if "text" in g and "bg" in g and g["bg"][1] == 1.0:
@@ -356,11 +368,13 @@ def r_low_contrast(src):
             continue
         fg = re.search(r"(?<![\w-])color\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\))", body)
         bg = re.search(r"background(?:-color)?\s*:\s*(#[0-9a-fA-F]{3,8}|rgb\([^)]*\))\s*(?:;|}|$)", body)
-        if fg and bg and rgb_of(fg.group(1)) and rgb_of(bg.group(1)):
+        # a translucent background hides what shows through it, so there is nothing to measure
+        if fg and bg and rgb_of(fg.group(1)) and rgb_of(bg.group(1)) and alpha_of(bg.group(1)) == 1.0:
             size = re.search(r"font-size\s*:\s*(\d+(?:\.\d+)?)px", body)
             bold = re.search(r"font-weight\s*:\s*(?:bold|[6-9]00)", body)
             large = size and (float(size.group(1)) >= 24 or (float(size.group(1)) >= 18.66 and bold))
-            ratio = contrast(rgb_of(fg.group(1)), rgb_of(bg.group(1)))
+            back = rgb_of(bg.group(1))
+            ratio = contrast(blend(rgb_of(fg.group(1)), back, alpha_of(fg.group(1))), back)
             if ratio < (3.0 if large else 4.5):
                 yield pos, "%s { %s on %s %.1f:1 }" % (selector, fg.group(1), bg.group(1), ratio)
 

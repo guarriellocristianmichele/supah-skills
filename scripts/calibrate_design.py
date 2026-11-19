@@ -262,9 +262,15 @@ def cmd_sample(args):
 # - low-contrast now reads Tailwind arbitrary values (`text-[#0D9488] bg-[#CCFBF1]`). The run added 2 hits,
 #   both judged real (12px teal on mint 3.3:1, 15px white on teal 3.7:1); a fresh default sample (seed 1)
 #   judged 7 of 8 real, the fp a styled-components chip whose `color` equals its background (no text).
+#
+# 2026-11-19, judged by the model that changed the rule (0.15.1):
+# - low-contrast reads the alpha of a hex or rgba() colour: text alpha blends over the background, and a
+#   translucent background is not measured. The run dropped 12 hits, all text on a translucent tint of its own
+#   colour (`#22c55e on #22c55e1f`), and added 1, `rgba(0,0,0,.5)` on `#ba903b` in a loading button, judged
+#   real (chosen). A fresh sample (seed 3) judged 8 of 8 real.
 PRECISION = {
     "purple-gradient": (7, 8), "gradient-text": (8, 8), "accent-stripe": (8, 8), "faux-chrome": (8, 8),
-    "emoji-icon": (8, 8), "transition-all": (8, 8), "low-contrast": (17, 18), "dead-link": (8, 8),
+    "emoji-icon": (8, 8), "transition-all": (8, 8), "low-contrast": (26, 27), "dead-link": (8, 8),
     "missing-viewport": (8, 8), "placeholder-name": (4, 4), "placeholder-phone": (1, 1),
     "eyebrow": (7, 8), "middot-meta": (8, 8), "glued-arrow": (8, 8),
 }

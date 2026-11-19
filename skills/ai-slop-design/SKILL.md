@@ -37,6 +37,8 @@ Read the mode's file and follow it to its completion criterion. Every mode start
 | `sweep <B<n>…\|#map\|all>` | `${CLAUDE_SKILL_DIR}/SWEEP.md` (Several batches) | an integration branch; the batches' statuses in `.slop-design/` |
 | `publish [B<n>…]` | `${CLAUDE_SKILL_DIR}/PUBLISH.md` | the issue tracker or `.slop-design/issues/`, and `.slop-design/`; never a source file |
 
+Tracker writes happen in `publish` only, plus the pull request a several-batch `sweep` offers at its end and, on the local route, the `State: done` line `sweep B<n>` and `craft <surface>` write in a closed batch's issue file.
+
 No mode given: show this table and ask which one.
 
 ## Verdicts
@@ -73,7 +75,7 @@ Scanned: a3f8d70
 Fix: one line from the rule's fix direction in REFLEXES.md.
 ```
 
-`Hit:` carries the rule and the match exactly as the scanner printed it; a judgment-only find has `Hit: judgment · <what was seen>`, a copy reflex `Hit: copy · <the string>`, a surface that sits in a lane `Hit: lane · <the lane as REFLEXES.md names it>`, a duplication group names every file in `Where:`. `Scanned: <sha>-dirty` marks a finding read in a file with uncommitted changes at that commit, so no permalink is pinned to it.
+`Hit:` carries the rule and the match exactly as the scanner printed it; a judgment-only find has `Hit: judgment · <what was seen>`, a copy reflex `Hit: copy · <the string>`, a surface that sits in a lane `Hit: lane · <the lane as REFLEXES.md names it>`, a duplication group names every file in `Where:`. `Scanned: <sha>-dirty` marks a finding read in a file with uncommitted changes at that commit, so no permalink is pinned to it; a duplication group with only some of its files uncommitted names them, `Scanned: <sha>-dirty (<file>, …)`, and its other files keep their permalinks.
 
 ## Companions
 

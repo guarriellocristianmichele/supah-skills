@@ -22,7 +22,7 @@ One card per option, the same shape for each, nothing styled to win:
 <how you get it: sign-up, download, sales call>
 ```
 
-The offer's card uses the product's name and the words of `round.json`'s `offer`; its company is named as the seller, never as the person asking. Alternatives use the facts in `research.md`. The `nothing` card reads: `None of these: pay for no option above and carry on as now (<the buyer's current_solution>).` A buyer who already pays for an option on the cards and keeps it chooses that option, so a competitor's share counts the buyers who stay with it.
+The offer's card uses the product's name and the words of `round.json`'s `offer`; its company is named as the seller, never as the person asking. Alternatives use the facts in `research.md`, each at its price in its own `currency` and `period` from `brief.json` (the brief's when it states none). The `nothing` card reads: `None of these: pay for no option above and carry on as now (<the buyer's current_solution>).` A buyer who already pays for an option on the cards and keeps it chooses that option, so a competitor's share counts the buyers who stay with it.
 
 The choice is taken on the card's own terms: when the offer starts with a free trial, choosing it means starting the trial meaning to pay once it ends, and the give-up is what they stop paying for then. Asking only what they would pay for this month turns every trial into `nothing`.
 

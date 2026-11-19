@@ -3,7 +3,9 @@
 
   designscan.py [--json] [--keep FILE] FILE...
       List every catalogued reflex with line, rule, category, tier and context.
-      Exit 0 when nothing is left to resolve (no open S or M hit), else 1.
+      Exit 0 when nothing is left to resolve (no open S or M hit), else 1. A FILE that does not
+      exist, is a directory or cannot be read is one line on stderr, the others are still scanned
+      and reported, and the exit is 2, which wins over 1 (look at the report for hits).
   designscan.py rules
       Print every rule with category and tier.
   designscan.py surfaces [ROOT] [--out FILE]
@@ -14,7 +16,8 @@
       one line is printed: surfaces, shared units, frontend files and the framework.
   designscan.py --surfaces INVENTORY --out HITS [--keep FILE]
       Scan every file of the inventory in one run, write the results grouped by unit to HITS
-      and print a summary per unit plus the duplication groups. Exit codes as for a scan.
+      and print a summary per unit plus the duplication groups. Exit codes as for a scan: a file
+      of the inventory deleted since is one line on stderr, left out of HITS, and the exit is 2.
       HITS records the commit and, as dirty, the scanned files with uncommitted changes.
   designscan.py hits HITS [UNIT]
       The summary again, or one unit's results as JSON without its duplication hits. A route
@@ -25,14 +28,24 @@
       fixed (its hit is gone), open (still there) or resolved (kept since), with the status it
       takes; hits no finding or keep line covers are new. Exit 1 while any is open or new.
       --write rewrites FINDINGS in place: each status, the line of a single-file Where:, and
-      Scanned: set to the fresh commit (<sha>-dirty for a finding in an uncommitted file).
+      Scanned: set to the fresh commit (<sha>-dirty for a finding in an uncommitted file; a
+      duplication group over several files names the uncommitted ones: <sha>-dirty (a.tsx)).
   designscan.py verdict ORIG FILE [ORIG FILE...] [--keep FILE]
       Record a verdict for every hit in ORIG: fixed in FILE = reflex, kept = chosen
       (or reflex for reason `handoff`), kept with reason `fp` = fp. Appends to the verdict log.
+  designscan.py verdict --judged FINDINGS [--keep FILE]
+      Record an audit's judgments once: each scanner finding not rejected = reflex, each keep
+      line = fp, reflex (handoff) or chosen. Prints each rule's progress toward 30 verdicts.
+  designscan.py learn | audit [--fraction F] [--rule RULE] | label FILE | export [--out FILE]
+      Rebuild the learned model and print each rule's precision; sample the model's fp verdicts
+      for a human to confirm; record that confirmed file; write per-rule counts (no matches) to
+      attach to an issue. The model lives in SUPAH_DESIGN_HOME (default: the user config folder,
+      supah-skills/design); --no-learn ignores it in a file scan (ADR 0018).
 
 A reflex is a design choice that appears whatever the subject. The scanner reads HTML, CSS,
 SCSS, JSX/TSX, Vue, Svelte and Astro source: class strings (class, className, :class, cn,
 clsx, twMerge, cva), CSS declarations and style objects, and visible text. It never renders.
+A file that is not UTF-8 is read as cp1252 (or Latin-1), and the scan names it with the encoding.
 
 Tiers: S = one hit is enough; M = fix unless there is a keep reason; W = review only.
 Keep file: TSV lines `rule<TAB>matched text<TAB>reason`; matching hits count as resolved.
@@ -316,10 +329,12 @@ def pairs(value):
     """(text colour, alpha, background colour) per variant group ('' and 'dark:') of one class string."""
     groups = {}
     for t in value.split():
-        m = re.match(r"^((?:dark:)?)(text|bg)-([a-z]+(?:-\d{2,3})?)(?:/(\d{1,3}))?$", t)
-        if m and m.group(3) in palette():
+        # a palette name (text-gray-400) or an arbitrary hex value (text-[#d97757]), with an optional /alpha
+        m = re.match(r"^((?:dark:)?)(text|bg)-([a-z]+(?:-\d{2,3})?|\[#[0-9a-fA-F]{3,8}\])(?:/(\d{1,3}))?$", t)
+        colour = m and (palette().get(m.group(3)) or (m.group(3)[1:-1] if m.group(3).startswith("[") else None))
+        if colour and rgb_of(colour):
             alpha = int(m.group(4)) / 100 if m.group(4) else 1.0
-            groups.setdefault(m.group(1), {})[m.group(2)] = (rgb_of(palette()[m.group(3)]), alpha, t)
+            groups.setdefault(m.group(1), {})[m.group(2)] = (rgb_of(colour), alpha, t)
     for g in groups.values():
         if "text" in g and "bg" in g and g["bg"][1] == 1.0:
             yield g["text"], g["bg"]
@@ -909,6 +924,8 @@ def scan_many(files, keep=None, model=None):
     results, sources, raw = [], [], {}
     for text, path in files:
         result = {"file": path, "skipped": None, "hits": []}
+        if path in READ_AS:
+            result["read_as"] = READ_AS[path]
         results.append(result)
         if os.path.splitext(path)[1].lower() not in EXTS:
             result["skipped"] = "not a frontend source file"
@@ -956,9 +973,43 @@ def open_hits(result):
     return [h for h in result["hits"] if not h["kept"] and h["tier"] in ("S", "M")]
 
 
+READ_AS = {}  # path -> the encoding a file that is not UTF-8 was read with
+
+
 def read(path):
-    with open(path, encoding="utf-8", errors="replace") as f:
-        return f.read()
+    """A file's text: UTF-8, else cp1252 (Windows Latin-1), else Latin-1, which decodes any byte.
+    A fallback is recorded in READ_AS, so a scan reports it instead of matching replacement characters."""
+    with open(path, "rb") as f:
+        data = f.read()
+    for encoding in ("utf-8", "cp1252", "latin-1"):
+        try:
+            text = data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+        if encoding != "utf-8":
+            READ_AS[path] = encoding
+        return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+
+def read_inputs(paths):
+    """(text, path) for every path that can be read, and whether any could not: a missing path, a directory
+    or an unreadable file is one line on stderr and the rest go on. A file that is not UTF-8 is read (read())."""
+    pairs, failed = [], False
+    for path in paths:
+        if os.path.isdir(path):
+            reason = "a directory, not a file"
+        else:
+            try:
+                pairs.append((read(path), path))
+                continue
+            except FileNotFoundError:
+                reason = "no such file"
+            except OSError as e:
+                reason = "cannot be read (%s)" % (e.strerror or e)
+        print("designscan.py: %s: %s" % (path, reason), file=sys.stderr, flush=True)
+        failed = True
+    return pairs, failed
 
 
 # --- surfaces -----------------------------------------------------------------------------
@@ -976,10 +1027,30 @@ ALIASES = (("~~/", ("",)), ("@@/", ("",)), ("@/", ("src/", "")), ("~/", ("src/",
            ("$lib/", ("src/lib/",)))
 
 
+def find_exe(name):
+    """The full path of name on PATH, searching absolute entries only. On Windows, CreateProcess and
+    shutil.which (Python 3.10) look in the current folder first, where a scanned repository could plant
+    a git.exe; a relative entry, an empty one or the current folder itself is skipped for the same
+    reason. FileNotFoundError when name is on no such entry."""
+    here = os.path.normcase(os.path.abspath(os.getcwd()))
+    exts = [""]
+    if os.name == "nt":
+        exts = [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep) if e]
+    for folder in os.environ.get("PATH", "").split(os.pathsep):
+        folder = folder.strip().strip('"')
+        if not folder or not os.path.isabs(folder) or os.path.normcase(os.path.abspath(folder)) == here:
+            continue
+        for ext in exts:
+            candidate = os.path.join(folder, name + ext)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+    raise FileNotFoundError("%s: not found on PATH" % name)
+
+
 def list_files(root):
     """Frontend files under root, relative and with forward slashes, plus the ones left out and why."""
     try:
-        out = subprocess.run(["git", "-C", root, "ls-files", "-co", "--exclude-standard", "-z"],
+        out = subprocess.run([find_exe("git"), "-C", root, "ls-files", "-co", "--exclude-standard", "-z"],
                              capture_output=True, timeout=120)
         names = out.stdout.decode("utf-8", "replace").split("\0") if out.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
@@ -1010,7 +1081,7 @@ def git_dirty(root):
     names = set()
     for args in (["diff", "--name-only", "--relative", "-z", "HEAD"], ["ls-files", "-o", "--exclude-standard", "-z"]):
         try:
-            out = subprocess.run(["git", "-C", root] + args, capture_output=True, timeout=120)
+            out = subprocess.run([find_exe("git"), "-C", root] + args, capture_output=True, timeout=120)
         except (OSError, subprocess.SubprocessError):
             return set()
         if out.returncode:
@@ -1270,21 +1341,23 @@ def scan_inventory(inventory_path, keep, out):
     with open(inventory_path, encoding="utf-8") as f:
         inv = json.load(f)
     files = [f for u in inv["units"] for f in u["files"]]
-    results = iter(scan_many([(read(f), f) for f in files], keep))
+    pairs, failed = read_inputs(files)
+    readable = {path for _, path in pairs}
+    results = iter(scan_many(pairs, keep))
     try:
-        commit = subprocess.run(["git", "-C", inv["root"], "rev-parse", "--short", "HEAD"], capture_output=True,
+        commit = subprocess.run([find_exe("git"), "-C", inv["root"], "rev-parse", "--short", "HEAD"], capture_output=True,
                                 text=True, timeout=30).stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
         commit = None
     dirty = {root_path(inv["root"], f) for f in git_dirty(inv["root"])} if commit else set()
     data = {"root": inv["root"], "framework": inv["framework"], "commit": commit,
             "dirty": [f for f in files if f in dirty],
-            "units": [{"unit": u["unit"], "kind": u["kind"], "files": [next(results) for _ in u["files"]]}
-                      for u in inv["units"]]}
+            "units": [{"unit": u["unit"], "kind": u["kind"],
+                       "files": [next(results) for f in u["files"] if f in readable]} for u in inv["units"]]}
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
     print(hits_summary(data, out))
-    return 1 if any(open_hits(r) for u in data["units"] for r in u["files"]) else 0
+    return 2 if failed else 1 if any(open_hits(r) for u in data["units"] for r in u["files"]) else 0
 
 
 def hits_summary(data, path):
@@ -1308,6 +1381,12 @@ def hits_summary(data, path):
         lines.append("uncommitted changes in %d scanned file%s, not pinned to %s: %s%s" % (
             len(dirty), "" if len(dirty) == 1 else "s", data.get("commit"), ", ".join(dirty[:10]),
             ", and %d more" % (len(dirty) - 10) if len(dirty) > 10 else ""))
+    read_as = {}
+    for u in data["units"]:
+        for r in u["files"]:
+            if r.get("read_as"):
+                read_as.setdefault(r["read_as"], []).append(r["file"])
+    lines += ["not UTF-8, read as %s: %s" % (enc, ", ".join(files)) for enc, files in sorted(read_as.items())]
     if dup:
         lines.append("duplication across units (%d groups):" % len(dup))
         lines += ["  %s  %d files  %s" % (rule, len(files), match[:80]) for (rule, match), files in sorted(dup.items())]
@@ -1442,7 +1521,11 @@ def reconcile(findings, data, keep):
             else:
                 entry["state"] = "fixed"
         entry["status"] = next_status(f["was"], entry["state"])
-        entry["dirty"] = any(p in dirty for p in {path for path, _ in f["where"]} | set(entry.get("files", ())))
+        files = {path for path, _ in f["where"]} | set(entry.get("files", ()))
+        # a group over several files names the uncommitted ones, so the others keep their permalinks
+        entry["dirty_files"] = sorted(p for p in files if p in dirty)
+        entry["dirty"] = bool(entry["dirty_files"])
+        entry["all_dirty"] = entry["dirty"] and len(entry["dirty_files"]) == len(files)
         out.append(entry)
     new, resolved = [], []
     for i, (unit, path, h) in enumerate(fresh):
@@ -1471,7 +1554,9 @@ def write_findings(text, result):
         parts += [text[at:m.start()], m.group(0).replace("status: " + m.group(3), "status: " + f["status"])]
         if f["state"] != "unchecked" and result["commit"]:
             commit = result["commit"] + ("-dirty" if f["dirty"] else "")
-            body = re.sub(r"^(Scanned:[ \t]*)\S*", lambda s: s.group(1) + commit, body, count=1, flags=re.M)
+            if f["dirty"] and not f["all_dirty"]:
+                commit += " (%s)" % ", ".join(f["dirty_files"])
+            body = re.sub(r"^(Scanned:[ \t]*).*?[ \t]*$", lambda s: s.group(1) + commit, body, count=1, flags=re.M)
         if f["line"] is not None:
             body = re.sub(r"^(Where:[ \t]*[^,\n]+:)\d+[ \t]*$", lambda s: "%s%d" % (s.group(1), f["line"]), body,
                           count=1, flags=re.M)
@@ -1661,22 +1746,27 @@ def main():
     p.add_argument("--no-learn", action="store_true", help="ignore the learned model (tiers, suppressions)")
     a = p.parse_args()
     model = learn.model_for(a.no_learn)
+    if a.keep and not os.path.isfile(a.keep):
+        p.error("keep file not found: %s" % a.keep)
     keep = load_keep(a.keep)
     if bool(a.surfaces) != bool(a.out) or bool(a.surfaces) == bool(a.files):
         p.error("give FILE... or --surfaces INVENTORY --out HITS")
     if a.surfaces:
         return scan_inventory(a.surfaces, keep, a.out)
-    results = scan_many([(read(path), path) for path in a.files], keep, model)
+    pairs, failed = read_inputs(a.files)
+    results = scan_many(pairs, keep, model)
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
     else:
         for r in results:
             if r["skipped"]:
                 print("%s: skipped, %s" % (r["file"], r["skipped"]))
+            if r.get("read_as"):
+                print("%s: not UTF-8, read as %s" % (r["file"], r["read_as"]))
             for h in r["hits"]:
                 print("%s:%d  %s %-22s %s%s" % (r["file"], h["line"], h["tier"], h["rule"], h["match"],
                                                "  [kept: %s]" % h["kept"] if h["kept"] else ""))
-    return 1 if any(open_hits(r) for r in results) else 0
+    return 2 if failed else 1 if any(open_hits(r) for r in results) else 0
 
 
 if __name__ == "__main__":

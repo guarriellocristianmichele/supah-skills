@@ -56,6 +56,52 @@ class Watch(unittest.TestCase):
             self.assertEqual(out.returncode, 4)
             self.assertIn("w2", json.loads(out.stdout)["workers"])
 
+    def assert_clean_error(self, out, reason):
+        self.assertEqual(out.returncode, 1)
+        self.assertNotIn("Traceback", out.stderr)
+        event = json.loads(out.stdout)
+        self.assertEqual(event["event"], "error")
+        self.assertIn(reason, event["error"])
+
+    def test_a_missing_state_file_is_a_clean_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assert_clean_error(run("watch", "--state", d, "--interval", "0.05"), "state.json")
+            self.assertFalse(os.path.exists(os.path.join(d, "stop")))
+
+    def test_a_missing_state_dir_is_a_clean_error_and_is_not_created(self):
+        with tempfile.TemporaryDirectory() as d:
+            gone = os.path.join(d, "no-such-job")
+            self.assert_clean_error(run("watch", "--state", gone, "--interval", "0.05"), "state.json")
+            self.assertFalse(os.path.exists(gone))
+
+    def test_a_half_written_state_file_is_a_clean_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "state.json"), "w", encoding="utf-8") as f:
+                f.write('{"session": "s1", "workers": [{"id": "w1", "status": "runn')
+            self.assert_clean_error(run("watch", "--state", d, "--interval", "0.05"), "unreadable")
+
+    def test_a_state_json_that_is_a_directory_or_not_utf8_is_a_clean_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "state.json"))
+            self.assert_clean_error(run("watch", "--state", d, "--interval", "0.05"), "state.json")
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "state.json"), "wb") as f:
+                f.write('{"session": "caffè", "workers": []}'.encode("cp1252"))
+            self.assert_clean_error(run("watch", "--state", d, "--interval", "0.05"), "unreadable")
+
+    def test_a_state_dir_that_is_a_file_is_a_clean_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "state.json")
+            state(d, workers=[])
+            self.assert_clean_error(run("watch", "--state", path, "--interval", "0.05"), "state.json")
+
+    def test_a_state_file_that_is_not_a_job_state_is_a_clean_error(self):
+        for body in ("[]", '{"workers": {"w1": "running"}}', '{"workers": ["w1"]}'):
+            with self.subTest(body=body), tempfile.TemporaryDirectory() as d:
+                with open(os.path.join(d, "state.json"), "w", encoding="utf-8") as f:
+                    f.write(body)
+                self.assert_clean_error(run("watch", "--state", d, "--interval", "0.05"), "not a job state")
+
 
 if __name__ == "__main__":
     unittest.main()

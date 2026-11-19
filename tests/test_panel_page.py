@@ -1,12 +1,13 @@
 """Tests for skills/buyer-panel/scripts/panel.py page. Run: python -m unittest discover -s tests"""
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 
-from test_panel import ROOT, copy_round, run_json
+from test_panel import ROOT, copy_round, jsonl, lines, run_json, write
 
 DESIGNSCAN = os.path.join(ROOT, "skills", "ai-slop-design", "scripts", "designscan.py")
 
@@ -84,6 +85,16 @@ class PageHtml(unittest.TestCase):
         self.assertIn('<meta name="viewport"', html)
         self.assertIn("prefers-color-scheme: dark", html)
 
+    def test_the_card_price_names_its_period(self):
+        with tempfile.TemporaryDirectory() as d:
+            r1 = copy_round(d)
+            with open(os.path.join(r1, "round.json"), encoding="utf-8") as f:
+                meta = json.load(f)
+            write(r1, "round.json", json.dumps(dict(meta, period="month")))
+            _, _, data, html = page(r1)
+        self.assertEqual(data["round"]["period"], "month")
+        self.assertIn("Round r1 at 9 EUR per month.", html)
+
     def test_buyer_text_is_escaped(self):
         with tempfile.TemporaryDirectory() as d:
             r1 = copy_round(d)
@@ -129,6 +140,69 @@ class PageChecks(unittest.TestCase):
         self.assertEqual((code, data["checks"]), (0, None))
 
 
+CHECKS_FIXTURE = os.path.join(ROOT, "tests", "fixtures", "buyer-panel", "checks")
+
+
+def checked_page(d, label, *check_args):
+    """A copy of the checks fixture's round `label` with `checks --out checks.json` run on it, then its page;
+    returns (page data, page html)."""
+    panel = os.path.join(d, "panel")
+    shutil.copytree(CHECKS_FIXTURE, panel)
+    rnd = os.path.join(panel, "rounds", label)
+    run_json("checks", rnd, *check_args, "--out", os.path.join(rnd, "checks.json"))
+    _, _, data, html = page(rnd)
+    return data, html
+
+
+class PageVerdict(unittest.TestCase):
+    """The page says what the report says under its checks: the verdict line, the advisory warnings and that
+    buyer types are descriptive."""
+
+    def test_a_failed_round_says_do_not_trust_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            data, html = checked_page(d, "uniform")
+        line = "Do not trust this round: intent spread, reason similarity failed."
+        self.assertEqual(data["verdict"]["line"], line)
+        self.assertIn(line, html)
+        self.assertLess(html.index(line), html.index('<ul class="checks">'))
+
+    def test_a_passed_round_has_no_verdict_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            r1 = copy_round(d)
+            run_json("checks", r1, "--out", os.path.join(r1, "checks.json"))
+            _, _, data, html = page(r1)
+        self.assertIsNone(data["verdict"]["line"])
+        self.assertNotIn("Do not trust", html)
+
+    def test_buyer_types_are_marked_descriptive_on_the_page(self):
+        with tempfile.TemporaryDirectory() as d:
+            _, html = checked_page(d, "uniform")
+        self.assertIn("Buyer types are descriptive, not findings", html)
+
+    def test_an_advisory_check_shows_as_a_warning_not_a_failure(self):
+        # the normal round, with every reaction pasting the buyer's own written objection: persona copying
+        with tempfile.TemporaryDirectory() as d:
+            r1 = copy_round(d)
+            buyers = {b["id"]: b for b in lines(os.path.join(r1, os.pardir, os.pardir, "buyers.jsonl"))}
+            answers = lines(os.path.join(r1, "answers.jsonl"))
+            for a in answers:
+                a["reaction"] = buyers[a["buyer_id"]]["objection"] + " " + a["reaction"]
+            write(r1, "answers.jsonl", jsonl(answers))
+            run_json("checks", r1, "--out", os.path.join(r1, "checks.json"))
+            _, _, data, html = page(r1)
+        self.assertEqual((data["verdict"]["line"], data["verdict"]["warned"]), (None, ["persona copying"]))
+        self.assertIn('<strong>persona</strong> <span class="warned">warn</span>', html)
+        self.assertNotIn('<strong>persona</strong> <span class="failed">', html)
+        self.assertIn("Advisory, not part of the verdict: persona copying.", html)
+
+    def test_a_screening_round_shows_its_advisory_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            data, html = checked_page(d, "uniform", "--advisory")
+        self.assertTrue(data["verdict"]["advisory"])
+        self.assertIn("Advisory, on 7 buyers of a screening or try-out round", html)
+        self.assertNotIn("Do not trust", html)
+
+
 class PageDesign(unittest.TestCase):
     """The page passes ai-slop-design's scanner with no open S or M hit, with and without its calibration."""
 
@@ -137,11 +211,14 @@ class PageDesign(unittest.TestCase):
         env.pop("SUPAH_DESIGN_NO_CALIBRATION", None)
         if no_calibration:
             env["SUPAH_DESIGN_NO_CALIBRATION"] = "1"
-        checks = [{"name": "intent-spread", "passed": False, "value": 1.2}]
+        checks = [{"name": "spread", "passed": False, "value": 0.2},
+                  {"name": "persona", "passed": False, "advisory": True, "value": 1}]
         with tempfile.TemporaryDirectory() as d:
             r1 = copy_round(d)
             with open(os.path.join(r1, "summary.json"), "w", encoding="utf-8") as f:
-                json.dump({"checks": checks}, f)
+                json.dump({"checks": checks, "verdict_line": "Do not trust this round: intent spread failed.",
+                           "warned": ["persona"], "segments": {"why": "Buyer types are descriptive, not findings."}},
+                          f)
             page(r1)
             out = subprocess.run([sys.executable, DESIGNSCAN, "--json", os.path.join(r1, "page.html")],
                                  capture_output=True, text=True, encoding="utf-8", env=env, timeout=60)

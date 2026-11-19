@@ -17,4 +17,4 @@ This changes what a unit is: it may now need the merged output of its blockers, 
 - A batch worker runs every fan-out inside its batch inline: the parallelism is between batches, never nested.
 - A batch whose own checks fail is `failed`, and its declared dependents, direct and transitive, are `blocked`; a batch it only shares files with goes ahead. A merge conflict or red checks after the merge earn one retry from the new tip.
 - Handoff batches, and design batches holding a judgment, copy, lane or dirty finding, stay out of the job, and so do the batches that depend on them: they need a person's choice first.
-- The job ends with the skill's verify step on the integration branch and asks before opening one pull request that closes the done batches' issues; nothing else is written to the tracker.
+- The job ends with the skill's verify step on the integration branch and asks before opening one pull request that closes the done batches' issues; nothing else is written to the tracker, except on the local route, where each done batch's issue file gets `State: done` in place of `Closes #<n>`.

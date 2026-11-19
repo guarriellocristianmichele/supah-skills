@@ -85,6 +85,37 @@ class Directories(unittest.TestCase):
         self.assertTrue({"slop.py", "human.py", "slop.ts"} <= files, files)
 
 
+class BadInput(unittest.TestCase):
+    def test_a_missing_path_is_one_line_and_the_rest_is_scanned(self):
+        with tempfile.TemporaryDirectory() as d:
+            gone = os.path.join(d, "gone.py")
+            good = os.path.join(FIX, "slop.py")
+            out = run("--json", gone, good)
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("Traceback", out.stderr)
+        self.assertEqual(len(out.stderr.strip().splitlines()), 1, out.stderr)
+        self.assertIn(gone, out.stderr)
+        results = json.loads(out.stdout)
+        self.assertEqual([r["file"] for r in results], [good])
+        self.assertEqual(rules(results[0]), rules(scan(good)[0]))  # the readable file's hits are unchanged
+
+    def test_a_missing_keep_file_is_a_usage_error(self):
+        out = run("--keep", os.path.join(FIX, "no-such-keep.tsv"), os.path.join(FIX, "slop.py"))
+        self.assertEqual(out.returncode, 2)
+        self.assertNotIn("Traceback", out.stderr)
+        self.assertIn("no-such-keep.tsv", out.stderr)
+
+    def test_a_file_that_is_not_utf8_is_still_scanned(self):
+        # source code is read with replacement characters: its rules look at code, not at accented text
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "latin.py")
+            with open(path, "wb") as f:
+                f.write("# caffè\ndef f(x):\n    return x\n".encode("cp1252"))
+            out = run("--json", path)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(json.loads(out.stdout)[0]["file"], path)
+
+
 WRAPPER = "def get_json(url):\n    return fetch_json(url)\n"
 
 
@@ -208,3 +239,40 @@ class Rules(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def audit_doc(name):
+    with open(os.path.join(ROOT, "skills", "ai-slop-audit", name), encoding="utf-8") as f:
+        return f.read()
+
+
+class AuditProcedure(unittest.TestCase):
+    """The procedure gaps the simulated-user runs found (#49), held in the mode files."""
+
+    def test_rows_scanned_at_an_older_commit_are_refreshed_so_the_audit_can_complete(self):
+        scan_step = audit_doc("AUDIT.md").split("3. **Scan.**", 1)[1].split("\n4. ", 1)[0]
+        self.assertIn("git diff --quiet <sha> HEAD -- <paths>", scan_step)
+        self.assertIn("becomes `scanned@<HEAD>` without a rescan", scan_step)
+        self.assertIn("goes back to `pending`", scan_step)
+
+    def test_a_tautological_test_is_judged_alone_not_with_its_file(self):
+        category = audit_doc("AUDIT.md").split("- **tautological-test**", 1)[1].split("\n- **", 1)[0]
+        self.assertNotIn("with that test file alone", category)
+        self.assertIn("selects that one test", category)
+        self.assertIn("::", category)
+        self.assertIn("-k", category)
+        self.assertIn("-t", category)
+
+    def test_the_local_route_names_an_equivalent_for_every_github_form(self):
+        local = audit_doc("PUBLISH.md").split("## Local issues", 1)[1].split("\n## ", 1)[0]
+        for form in ("`#<n>`", "`Part of #<map>`", "`Blocked by: #<n>`", "`Closes #<n>`", "`Refs #<n>`",
+                     "`fix #<n>`", "`fix #<map>`", "permalink", "closed"):
+            self.assertIn(form, local)
+        for local_form in (".slop-audit/issues/B<n>.md", ".slop-audit/issues/map.md", "`State: open`",
+                           "`State: done`", "`State: wontfix`", "<path>:<start>-<end> @ <sha>"):
+            self.assertIn(local_form, local)
+
+    def test_fix_and_its_job_point_to_the_local_equivalents(self):
+        fix = audit_doc("FIX.md")
+        self.assertIn("PUBLISH.md, Local issues", fix)
+        self.assertIn("`fix .slop-audit/issues/map.md`", fix)

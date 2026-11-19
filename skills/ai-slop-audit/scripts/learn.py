@@ -16,7 +16,8 @@ and `rebuild()` turns the log into model.json:
 - a multinomial naive Bayes suppressor per category, trained only once a category has
   NB_MIN labelled hits with at least NB_MIN_CLASS per class. It can only suppress.
 
-Human verdicts (source `human`) override model verdicts for the same context.
+Human verdicts (source `human`) override model verdicts for the same context; a model verdict
+that agrees with the human one still counts.
 """
 import hashlib
 import json
@@ -208,7 +209,9 @@ def recorded(key):
 
 def effective_verdicts(rows):
     """Human verdicts override model verdicts for the same context, whatever their order, and the
-    latest human verdict on a context replaces the earlier ones."""
+    latest human verdict on a context replaces the earlier ones. A model verdict that agrees with
+    that human verdict (both fp, or both not fp) still counts, so one human fp and one model fp
+    on a context are enough to suppress it."""
     latest = {}
     for i, r in enumerate(rows):
         if r["source"] == "human":
@@ -217,7 +220,9 @@ def effective_verdicts(rows):
     for i, r in enumerate(rows):
         k = context_key(r["rule"], r["lang"], r["match"], r["context"])
         if k in latest and latest[k] != i:
-            continue
+            human = rows[latest[k]]
+            if r["source"] == "human" or (r["label"] == "fp") != (human["label"] == "fp"):
+                continue
         out.append(r)
     return out
 
@@ -386,7 +391,11 @@ def apply(model, hit, lang):
 
 
 def audit_sample(fraction=0.1, seed=None, rule=None):
-    rows = [r for r in effective_verdicts(read_log()) if r["label"] == "fp" and r["source"] != "human"
+    """Model fp verdicts for a human to confirm, leaving out contexts a human already labelled."""
+    rows = effective_verdicts(read_log())
+    human = {context_key(r["rule"], r["lang"], r["match"], r["context"]) for r in rows if r["source"] == "human"}
+    rows = [r for r in rows if r["label"] == "fp" and r["source"] != "human"
+            and context_key(r["rule"], r["lang"], r["match"], r["context"]) not in human
             and (rule is None or r["rule"] == rule)]
     rng = random.Random(seed)
     k = max(1, math.ceil(len(rows) * fraction)) if rows else 0

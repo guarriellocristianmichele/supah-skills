@@ -31,7 +31,7 @@ def ground(path, panel, weights):
     grounding = {
         "panel": os.path.basename(os.path.normpath(os.path.abspath(panel))), "label": rec["label"],
         "test": rec["test"], "round": rec["round"], "date": rec["date"], "source": rec["source"],
-        "offer": meta["offer"], "price": meta["price"], "currency": meta["currency"],
+        "offer": meta["offer"], "price": meta["price"], "currency": meta["currency"], "period": meta.get("period"),
         "real": {"reached": reached, "acted": acted, "rate": round(acted / reached, 4), "measure": measure},
         "predicted": {"buyers": s["buyers"], "buy": s["buy"], "raw": s["raw"], "discounted": s["discounted"],
                       "weights": weights},
@@ -64,9 +64,10 @@ def latest_grounding(round_dir):
     return latest
 
 
-def corrected_figure(round_dir, rows, weights):
-    """The latest grounding applied to these rows, or None without one."""
-    latest = latest_grounding(round_dir)
+def corrected_figure(rnd, rows, weights):
+    """The latest grounding applied to these rows of the round, or None without one. A ratio measured on a round
+    priced per one period (a month) says nothing of buyers paying per another (a booking): no figure then."""
+    latest = latest_grounding(rnd.dir)
     if latest is None:
         return None
     m = latest["real"]
@@ -74,9 +75,16 @@ def corrected_figure(round_dir, rows, weights):
            "test": latest["test"], "round": latest["round"], "date": latest["date"], "reached": m["reached"],
            "acted": m["acted"], "measure": m["measure"]}
     grounded_on = latest["predicted"]["weights"]
+    period = rnd.meta.get("period")
     if grounded_on["by_intent"] != weights["by_intent"]:
         out["problem"] = (f"the ratio was computed on {grounded_on.get('scheme', 'other weights')}, "
                           f"this round uses {weights['scheme']}")
+    elif latest.get("period") != period:
+        def per(p):
+            return f"priced per {p}" if p else "priced with no period stated"
+
+        out["problem"] = (f"the ratio was measured on a round {per(latest.get('period'))}, "
+                          f"this round is {per(period)}")
     elif rows:
         out["figure"] = round(latest["ratio"] * discounted_count(rows, weights) / len(rows), 4)
     return out

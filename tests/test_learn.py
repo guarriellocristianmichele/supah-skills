@@ -103,6 +103,24 @@ class ContextSuppression(Isolated):
         self.assertEqual(model["suppress"], [])
         self.assertEqual(model["verdicts"], 1)
 
+    def test_a_model_verdict_that_agrees_with_the_human_label_still_counts(self):
+        ctx = "the [Delve] library parses"
+        learn.record([verdict("fp", match="Delve", context=ctx, source="human"),
+                      verdict("fp", match="Delve", context=ctx)])
+        model = learn.rebuild()
+        self.assertEqual(model["verdicts"], 2)
+        hit = {"rule": "marked-word", "category": "vocabulary", "tier": "M", "match": "Delve",
+               "context": ctx, "line": 3}
+        self.assertEqual(learn.apply(model, hit, "en")[1], "learned:context")
+
+    def test_a_later_model_verdict_that_disagrees_with_the_human_label_is_dropped(self):
+        ctx = "the [Delve] library parses"
+        learn.record([verdict("fp", match="Delve", context=ctx, source="human"),
+                      verdict("tell", match="Delve", context=ctx)])
+        model = learn.rebuild()
+        self.assertEqual(model["verdicts"], 1)
+        self.assertEqual(model["rules"]["marked-word/en"]["counts"]["fp"], 1)
+
 
 class NaiveBayesGate(Isolated):
     def test_untrained_below_minimum(self):
@@ -127,6 +145,12 @@ class Audit(Isolated):
         sample = learn.audit_sample(0.1, seed=1)
         self.assertEqual(len(sample), math.ceil(20 * 0.1))
         self.assertTrue(all(r["label"] == "fp" for r in sample))
+
+    def test_a_context_a_human_already_labelled_is_not_sampled_again(self):
+        ctx = "the [Delve] library parses"
+        learn.record([verdict("fp", match="Delve", context=ctx, source="human"),
+                      verdict("fp", match="Delve", context=ctx)])
+        self.assertEqual(learn.audit_sample(1.0, seed=1), [])
 
 
 class Progress(Isolated):
@@ -213,6 +237,48 @@ class Once(Isolated):
         self.assertEqual(first.returncode, 0, first.stderr)
         self.assertNotIn("Recorded 0 verdicts", first.stdout)
         self.assertIn("Recorded 0 verdicts", second.stdout)
+
+    def repo_with_keep(self, line):
+        repo = os.path.join(self.dir, "repo")
+        os.makedirs(repo)
+        with open(os.path.join(repo, ".git"), "w") as f:
+            f.write("gitdir: elsewhere\n")
+        with open(os.path.join(repo, ".slop-prose-keep.tsv"), "w", encoding="utf-8") as f:
+            f.write(line)
+        return repo
+
+    def test_a_keep_entry_seen_by_two_sweeps_is_one_judgment(self):
+        # ADR 0018: each judgment once. The repository keep file is read on every sweep, so its entry
+        # must not pile up verdicts (and two fp verdicts in one context would suppress it).
+        repo = self.repo_with_keep("marked-word\tdelve\tfp\n")
+        orig = os.path.join(self.dir, "doc.orig.md")
+        final = os.path.join(repo, "doc.md")
+        with open(orig, "w", encoding="utf-8") as f:
+            f.write("We delve into the rich tapestry of options.\n")
+        for text in ("We delve into the options.\n", "We delve into the set of options.\n"):
+            with open(final, "w", encoding="utf-8") as f:
+                f.write(text)
+            out = self.run_scan("verdict", orig, final)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertNotIn("Recorded 0 verdicts", out.stdout)
+        model = learn.rebuild()
+        rule = model["rules"]["marked-word/en"]
+        self.assertEqual(rule["counts"]["fp"], 1, rule)
+        self.assertEqual(rule["tier"], rule["base"])
+        self.assertEqual(model["suppress"], [])
+
+    def test_a_rewritten_hit_is_a_tell_even_when_a_keep_line_matches_it(self):
+        repo = self.repo_with_keep("marked-word\tdelve\tfp\n")
+        orig = os.path.join(self.dir, "doc.orig.md")
+        final = os.path.join(repo, "doc.md")
+        with open(orig, "w", encoding="utf-8") as f:
+            f.write("We delve into the options.\n")
+        with open(final, "w", encoding="utf-8") as f:
+            f.write("We look at the options.\n")
+        out = self.run_scan("verdict", orig, final)
+        self.assertIn("fp 0", out.stdout)
+        rows = [r for r in learn.read_log() if r["match"] == "delve"]
+        self.assertEqual([r["label"] for r in rows], ["tell"])
 
     def test_an_audit_file_labelled_twice_counts_once(self):
         path = os.path.join(self.dir, "audit.tsv")

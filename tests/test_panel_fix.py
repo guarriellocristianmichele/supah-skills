@@ -180,6 +180,62 @@ class CompetitorAdded(unittest.TestCase):
         self.assertIn({"buyer_id": "b06", "from": "Harvest", "to": "Clockify"}, result["switches"])
 
 
+def set_round(round_dir, **fields):
+    """Rewrite round.json with fields replaced (None removes one)."""
+    with open(os.path.join(round_dir, "round.json"), encoding="utf-8") as f:
+        meta = json.load(f)
+    meta.update(fields)
+    write(round_dir, "round.json", json.dumps({k: v for k, v in meta.items() if v is not None}))
+
+
+class PricePeriod(unittest.TestCase):
+    """A change from per month to per booking moves the card's unit, not just its number: prices in two units
+    are never subtracted."""
+
+    def test_a_period_must_be_text(self):
+        with tempfile.TemporaryDirectory() as d:
+            r1, _ = two_rounds(d)
+            set_round(r1, period=1)
+            result, code = run_json("validate", os.path.join(r1, "round.json"))
+        self.assertEqual((code, [e["field"] for e in result[0]["errors"]]), (3, ["period"]))
+
+    def test_rounds_in_the_same_period_compare_prices(self):
+        with tempfile.TemporaryDirectory() as d:
+            r1, r2 = two_rounds(d)
+            set_round(r1, period="month")
+            set_round(r2, period="month", price=12)
+            result, _ = run_json("diff", r1, r2)
+            text = run("diff", r1, r2).stdout
+        price = result["price"]
+        self.assertEqual((price["card"]["change"], price["mixed"]), (3, None))
+        self.assertEqual((result["before"]["period"], result["after"]["period"]), ("month", "month"))
+        self.assertIn("Card price 9 -> 12 EUR per month;", text)
+
+    def test_prices_in_another_period_are_not_compared(self):
+        with tempfile.TemporaryDirectory() as d:
+            r1, r2 = two_rounds(d)
+            set_round(r1, period="month")
+            set_round(r2, period="booking", price=1.5)
+            result, code = run_json("diff", r1, r2)
+            text = run("diff", r1, r2).stdout
+        self.assertEqual(code, 0, result)
+        price = result["price"]
+        self.assertEqual(price["mixed"], "r1 is priced in EUR per month, r2 in EUR per booking")
+        self.assertEqual((price["card"]["change"], price["range_change"], price["optimal_change"],
+                          price["indifference_change"]), (None, None, None, None))
+        self.assertEqual(result["flips"], {"pass_to_buy": ["b03"], "buy_to_pass": ["b02"]})   # buyers still compared
+        self.assertNotIn("9 -> 1.5", text)
+        self.assertIn("Prices not compared: r1 is priced in EUR per month, r2 in EUR per booking", text)
+
+    def test_a_period_stated_on_one_round_only_is_mixed(self):
+        with tempfile.TemporaryDirectory() as d:
+            r1, r2 = two_rounds(d)
+            set_round(r2, period="booking")
+            result, _ = run_json("diff", r1, r2)
+        self.assertEqual(result["price"]["mixed"], "r1 is priced in EUR with no period stated, r2 in EUR per booking")
+        self.assertIsNone(result["price"]["card"]["change"])
+
+
 class Refused(unittest.TestCase):
     def test_rounds_of_two_panels_are_not_compared(self):
         with tempfile.TemporaryDirectory() as d:
@@ -199,6 +255,54 @@ class Refused(unittest.TestCase):
         self.assertEqual(code, 3)
         self.assertEqual([(e["line"], e["field"]) for e in result["errors"]], [(3, "intent")])
         self.assertTrue(result["errors"][0]["file"].endswith("scores.jsonl"))
+
+SKILL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "skills", "buyer-panel")
+
+
+def doc(name):
+    with open(os.path.join(SKILL_DIR, name), encoding="utf-8") as f:
+        return f.read()
+
+
+def step(text, n):
+    """The text of numbered step n, up to the next step or the Completion paragraph."""
+    body = text.split(f"\n{n}. **", 1)[1]
+    return body.split(f"\n{n + 1}. ", 1)[0].split("\n**Completion.**", 1)[0]
+
+
+class Docs(unittest.TestCase):
+    """The doc fixes of #46: removing a competitor, the live-page check, rules over lessons, the fix page."""
+
+    def test_competitor_offers_to_remove_one_that_stopped_trading(self):
+        text = doc("COMPETITOR.md")
+        self.assertIn("**remove one** (an alternative of the base round that stopped trading", step(text, 2))
+        self.assertIn("A removal drops the alternative from `options`", step(text, 3))
+        self.assertIn("(from `panel.py diff` for a removal)", text.split("**Completion.**", 1)[1])
+
+    def test_research_checks_each_alternative_still_sells(self):
+        research = step(doc("RUN.md"), 3)
+        self.assertIn("Check that each alternative still sells: a pricing, order or sign-up page that takes "
+                      "customers on the date seen", research)
+        self.assertIn("One that stopped trading", research)
+        self.assertIn("leaves the brief, with a line in `research.md` giving its source and date", research)
+
+    def test_rules_win_over_lessons(self):
+        rule = step(doc("SKILL.md"), 9)
+        self.assertTrue(rule.startswith("Rules over lessons.**"), rule[:40])
+        self.assertIn("never a rule above, a check's threshold or a mode's completion criterion", rule)
+        self.assertIn("say in the report which lesson gave way to which rule", rule)
+
+    def test_fix_ends_with_the_page_and_explains_missing_answers(self):
+        text = doc("FIX.md")
+        page = step(text, 11)
+        self.assertTrue(page.startswith("Page.**"), page[:20])
+        self.assertIn("`panel.py page P/rounds/r<k+1>`", page)
+        self.assertIn("The screening rounds get no page", page)
+        rank = step(text, 5)
+        self.assertIn("its `Missing answers` line names every buyer who is not a reason-giver", rank)
+        self.assertIn("a reason-giver on that line has no answer yet, so re-run that batch", rank)
+        self.assertIn("report and page", doc("SKILL.md"))
+
 
 
 if __name__ == "__main__":

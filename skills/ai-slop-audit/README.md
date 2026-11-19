@@ -50,7 +50,7 @@ The skill is user-invoked (`disable-model-invocation: true`): it runs only when 
 | `/ai-slop-audit verify` | everything since the baseline commit | ledger only | every check ran; the report starts `VERIFIED` or `FAILED: n items` |
 | `/ai-slop-audit` | ledger | nothing | prints the argument hint and the current status |
 
-`fix` accepts finding IDs (`SLOP-012`, `SLOP-012,SLOP-014`), one batch (`B3`), or a published batch's issue number (`#123`). Naming the ID is the approval: nothing else changes. A batch whose `depends-on` is not fixed yet asks first, and each fix ends with the commit to make, because the next one needs a clean tree.
+`fix` accepts finding IDs (`SLOP-012`, `SLOP-012,SLOP-014`), one batch (`B3`), or a published batch's issue number (`#123`; without GitHub, its file `.slop-audit/issues/B3.md`). Naming the ID is the approval: nothing else changes. A batch whose `depends-on` is not fixed yet asks first, and each fix ends with the commit to make, because the next one needs a clean tree.
 
 Several batches at once (`fix B2 B5`, `fix #<map>` for every batch of the map issue, `fix all`) run in parallel through `orchestrate`. Each batch works in its own git worktree, installs the dependencies, runs its checks and commits; it is then merged into one integration branch, `slop/audit-<sha>`, and only after that do the batches that depend on it start. Batches that touch the same file wait for each other. A failed batch reopens its findings and holds back only its dependents. At the end `verify` runs on the integration branch and you choose whether to open one pull request that closes the done issues. Your checkout stays on its branch, and running the same command again resumes the job.
 
@@ -76,7 +76,7 @@ What each step does:
 
 ## The ledger
 
-Everything lives in `.slop-audit/` at the repo root, added to `.git/info/exclude` so it never shows up in commits. It is the memory across sessions: close the terminal halfway through an audit and the next run continues from it.
+Everything lives in `.slop-audit/` at the repo root, added to `.git/info/exclude` so it never shows up in commits. It is the memory across sessions: close the terminal halfway through an audit and the next run continues from it. After a commit, a new `audit` moves the modules the commit left untouched to the new commit without rescanning them, and rescans only the changed ones.
 
 | File | Contents |
 |---|---|
@@ -112,7 +112,7 @@ The fourteen categories, each with the evidence it requires, are in [`AUDIT.md`]
 
 ## The code scanner
 
-`scripts/codescan.py` lists the mechanical patterns in Python, JavaScript and TypeScript: placeholders, comments that restate the next line or narrate an edit, catch blocks that only rethrow, swallowed broad exceptions, runtime type checks that repeat an annotation, forwarding wrappers. The audit runs it in its tooling step and treats every hit as a candidate. Python is parsed with `ast`, so a file in syntax the interpreter can't read is reported as skipped.
+`scripts/codescan.py` lists the mechanical patterns in Python, JavaScript and TypeScript: placeholders, comments that restate the next line or narrate an edit, catch blocks that only rethrow, swallowed broad exceptions, runtime type checks that repeat an annotation, forwarding wrappers. The audit runs it in its tooling step and treats every hit as a candidate. Python is parsed with `ast`, so a file in syntax the interpreter can't read is reported as skipped. A path that does not exist is one line on stderr, the other files are still scanned, and the exit code is 2, which wins over the 1 for open hits.
 
 ```sh
 python skills/ai-slop-audit/scripts/codescan.py src/**/*.py   # exit 1 when an S or M hit is open
@@ -130,14 +130,14 @@ The skill works on its own. When the repo has been set up for the [mattpocock en
 
 | | Standalone | With the mattpocock skills |
 |---|---|---|
-| Where `publish` writes | GitHub issues through `gh` when `origin` is on GitHub; otherwise `.slop-audit/issues/<batch>.md` | the tracker configured in `docs/agents/issue-tracker.md`, through its documented operations |
+| Where `publish` writes | GitHub issues through `gh` when `origin` is on GitHub; otherwise `.slop-audit/issues/B<n>.md` and `map.md`, which you close by changing their first line to `State: done` or `State: wontfix` | the tracker configured in `docs/agents/issue-tracker.md`, through its documented operations |
 | Labels | none | the tracker's `ready-for-agent` (all findings high, a protecting check exists) or `needs-triage`, so `/triage` and `/implement #<n>` pick them up |
 | Design work (a fix that needs a new interface, not a deletion) | status `handoff:design`, listed for you | status `handoff:improve-codebase-architecture` |
 | A batch already built by `/implement` | | synced to `fixed` by `fix` and `publish`, never rebuilt |
 | Review in `verify` | `verify`'s own checks | plus the `code-review` skill, with the issues as the spec |
 | Vocabulary and decisions | `GLOSSARY.md` and `docs/adr/` when present | the same |
 
-On both routes `publish` creates one map issue per audit (`AI slop audit @<sha>`) and one issue per batch, linked to the map, with the plan's dependencies as blocking links. Each issue says what changes, lists the done-when checks (baseline, no new dependency, justified test removals, trust-boundary guards untouched), and keeps the evidence as permalinks pinned to the scanned commit. A hidden marker prevents duplicates on reruns, and a rerun syncs the ledger with closed issues. Nothing is created before you approve the drafts.
+On both routes `publish` creates one map issue per audit (`AI slop audit @<sha>`) and one issue per batch, linked to the map, with the plan's dependencies as blocking links. Each issue says what changes, lists the done-when checks (baseline, no new dependency, justified test removals, trust-boundary guards untouched), and keeps the evidence as permalinks pinned to the scanned commit (`path:line @ <sha>` in local files). A hidden marker prevents duplicates on reruns, and a rerun syncs the ledger with closed issues. Nothing is created before you approve the drafts.
 
 ## Guardrails
 
@@ -175,11 +175,11 @@ Skill di Claude Code che trova e rimuove la complessità inutile in un'intera co
 
 ### Scanner del codice
 
-`scripts/codescan.py` trova i pattern meccanici in Python, JavaScript e TypeScript: placeholder, commenti che ripetono la riga sotto o raccontano una modifica, catch che rilanciano e basta, eccezioni generiche ingoiate, controlli di tipo che ripetono l'annotazione, wrapper che inoltrano. L'audit lo usa come primo passo e tratta ogni risultato come un candidato. Accetta file o cartelle; da una cartella salta quelle nascoste, vendorizzate e di build. I livelli vengono dalla lettura di campioni di risultati, non da quanto un pattern sia tipico dell'AI: un catch che rilancia e basta è inutile chiunque l'abbia scritto. Sul codice di Sonnet 5.5 questi pattern quasi non compaiono; il suo slop sta nel design, che l'audit giudica con i percorsi di raggiungibilità. Lo scanner impara anche dai tuoi giudizi: dopo la falsificazione l'audit registra ogni risultato giudicato (`codescan.py verdict --judged`), e dopo 30 verdetti su una regola il suo livello segue la precisione misurata sul tuo codice. `codescan.py learn` mostra le regole, `audit` ti fa confermare un campione, `export` scrive i conteggi senza codice e `--no-learn` usa i livelli di serie.
+`scripts/codescan.py` trova i pattern meccanici in Python, JavaScript e TypeScript: placeholder, commenti che ripetono la riga sotto o raccontano una modifica, catch che rilanciano e basta, eccezioni generiche ingoiate, controlli di tipo che ripetono l'annotazione, wrapper che inoltrano. L'audit lo usa come primo passo e tratta ogni risultato come un candidato. Accetta file o cartelle; da una cartella salta quelle nascoste, vendorizzate e di build. Un percorso che non esiste è una riga su stderr, gli altri file vengono analizzati lo stesso e l'exit code è 2, che prevale sull'1 dei risultati aperti. I livelli vengono dalla lettura di campioni di risultati, non da quanto un pattern sia tipico dell'AI: un catch che rilancia e basta è inutile chiunque l'abbia scritto. Sul codice di Sonnet 5.5 questi pattern quasi non compaiono; il suo slop sta nel design, che l'audit giudica con i percorsi di raggiungibilità. Lo scanner impara anche dai tuoi giudizi: dopo la falsificazione l'audit registra ogni risultato giudicato (`codescan.py verdict --judged`), e dopo 30 verdetti su una regola il suo livello segue la precisione misurata sul tuo codice. `codescan.py learn` mostra le regole, `audit` ti fa confermare un campione, `export` scrive i conteggi senza codice e `--no-learn` usa i livelli di serie.
 
 ### Stato tra sessioni
 
-Tutto vive in `.slop-audit/`, escluso da git: `STATUS.md` (riepilogo), `inventory.md` (moduli), `findings.md` (problemi), `plan.md` (lotti), `checks.md` (comandi e baseline). Una scansione interrotta riprende dal primo modulo in sospeso e viene dichiarata `PARTIAL` finché non è completa.
+Tutto vive in `.slop-audit/`, escluso da git: `STATUS.md` (riepilogo), `inventory.md` (moduli), `findings.md` (problemi), `plan.md` (lotti), `checks.md` (comandi e baseline). Una scansione interrotta riprende dal primo modulo in sospeso e viene dichiarata `PARTIAL` finché non è completa. Dopo un commit, un nuovo `audit` porta al nuovo commit i moduli che il commit non ha toccato, senza rianalizzarli, e rianalizza solo quelli cambiati.
 
 ### Confidenza
 
@@ -187,7 +187,7 @@ Alta confidenza vuol dire che le prove escludono ogni modo in cui il codice può
 
 ### Da sola o con le skill di mattpocock
 
-La skill funziona da sola: `publish` crea le issue su GitHub con `gh`, oppure file in `.slop-audit/issues/` se il repo non è su GitHub. Se nel repo è stato lanciato `/setup-matt-pocock-skills` (esiste `docs/agents/issue-tracker.md`), usa quel tracker e quelle label: `ready-for-agent` per `/implement`, `needs-triage` per `/triage`. Passa i problemi di design a `/improve-codebase-architecture` e aggiunge `code-review` alla verifica finale. Con `ai-slop-design` installata, nei moduli frontend usa le sue regole di duplicazione (classi, blocchi CSS e colori copiati) come prova. Se `/ai-slop-design audit` ha già scritto il suo registro (`.slop-design/findings.md`), le copie i cui file sono tutti nel suo inventario sono sue: questo audit le segna `handoff:ai-slop-design` e le lascia a `/ai-slop-design plan`, così ognuna compare una volta sola; una copia in un file fuori da quell'inventario resta una segnalazione di questo audit. Non copia mai i loro formati e non scrive nei loro file.
+La skill funziona da sola: `publish` crea le issue su GitHub con `gh`, oppure file in `.slop-audit/issues/` se il repo non è su GitHub: `B3.md` per lotto e `map.md`, che si chiudono cambiando la prima riga in `State: done` o `State: wontfix`, e che `fix` accetta al posto del numero di issue. Se nel repo è stato lanciato `/setup-matt-pocock-skills` (esiste `docs/agents/issue-tracker.md`), usa quel tracker e quelle label: `ready-for-agent` per `/implement`, `needs-triage` per `/triage`. Passa i problemi di design a `/improve-codebase-architecture` e aggiunge `code-review` alla verifica finale. Con `ai-slop-design` installata, nei moduli frontend usa le sue regole di duplicazione (classi, blocchi CSS e colori copiati) come prova. Se `/ai-slop-design audit` ha già scritto il suo registro (`.slop-design/findings.md`), le copie i cui file sono tutti nel suo inventario sono sue: questo audit le segna `handoff:ai-slop-design` e le lascia a `/ai-slop-design plan`, così ognuna compare una volta sola; una copia in un file fuori da quell'inventario resta una segnalazione di questo audit. Non copia mai i loro formati e non scrive nei loro file.
 
 ### Regole fisse
 

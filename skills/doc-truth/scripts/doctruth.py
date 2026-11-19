@@ -3,7 +3,9 @@
 
   doctruth.py [--root DIR] [--json] [--keep FILE] FILE...
       List every claim that does not hold, with file, line, kind and tier.
-      Exit 0 when nothing is left to resolve (no open S or M finding), else 1.
+      Exit 0 when nothing is left to resolve (no open S or M finding), else 1. A FILE that is
+      missing, a directory or not UTF-8 is one line on stderr, the others are still checked and
+      reported, and the exit is 2, which wins over 1 (look at the report for findings).
 
 Claims checked:
   relative links and their #anchors             link-missing (S), anchor-missing (M)
@@ -16,7 +18,9 @@ Claims checked:
   ENV_VARS in code spans or `export X=`        env-unread (M: no source file reads the name)
 
 Keep file: TSV lines `kind<TAB>claim<TAB>reason` for deliberate exceptions (a path the program creates,
-a link to a file generated at build time). The scanner finds candidates; whether the doc or the code is
+a link to a file generated at build time), `#` lines are comments. `.doc-truth-keep.tsv` at the repository
+root is always read, so a claim kept on purpose stays kept in the next session; `--keep FILE` adds more.
+The scanner finds candidates; whether the doc or the code is
 wrong is decided by reading both (ADR 0003).
 """
 import argparse
@@ -37,6 +41,7 @@ PATHLIKE = re.compile(r"^(\./|\.\./)?[\w.-]+(/[\w.@-]+)+/?$|^[\w-]+\.(md|py|json
 ENV = re.compile(r"^[A-Z][A-Z0-9]*(_[A-Z0-9]+)+$")
 PLACEHOLDER = re.compile(r"[<>*{}$]|\b(NNNN|DIR|PATH|FILE|NAME|SLUG|X+|Y+)\b")  # docs/adr/NNNN-slug.md, DIR/state.json
 WRAPPERS = {"sudo", "env", "time", "npx", "pnpx", "bunx", "uvx", "exec"}
+BUILTINS = {"export", "cd", "source", ".", "set", "unset", "alias", "pushd", "popd", "eval", "exit", "ulimit", "umask"}
 INTERPRETERS = {"python", "python3", "py", "node", "bash", "sh", "pwsh", "powershell", "ruby", "deno", "bun", "tsx", "ts-node"}
 WELL_KNOWN_ENV = {"PATH", "HOME", "USERPROFILE", "PWD", "SHELL", "TERM", "LANG", "TMPDIR", "TEMP", "NODE_ENV",
                   "CI", "GITHUB_TOKEN", "EDITOR"}
@@ -70,9 +75,29 @@ def anchors(path, cache={}):
     return cache[path]
 
 
+def find_exe(name):
+    """The full path of name on PATH, searching absolute entries only. On Windows, CreateProcess and
+    shutil.which (Python 3.10) look in the current folder first, where a scanned repository could plant
+    a git.exe; a relative entry, an empty one or the current folder itself is skipped for the same
+    reason. FileNotFoundError when name is on no such entry."""
+    here = os.path.normcase(os.path.abspath(os.getcwd()))
+    exts = [""]
+    if os.name == "nt":
+        exts = [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep) if e]
+    for folder in os.environ.get("PATH", "").split(os.pathsep):
+        folder = folder.strip().strip('"')
+        if not folder or not os.path.isabs(folder) or os.path.normcase(os.path.abspath(folder)) == here:
+            continue
+        for ext in exts:
+            candidate = os.path.join(folder, name + ext)
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+    raise FileNotFoundError("%s: not found on PATH" % name)
+
+
 def tracked_sources(root, every=False):
     try:
-        out = subprocess.run(["git", "ls-files"], cwd=root, capture_output=True, text=True, check=True).stdout
+        out = subprocess.run([find_exe("git"), "ls-files"], cwd=root, capture_output=True, text=True, check=True).stdout
         files = out.splitlines()
     except (OSError, subprocess.CalledProcessError):
         files = []
@@ -183,6 +208,8 @@ def check_command(cmd, repo, base):
         if not toks:
             continue
         exe, args = toks[0], toks[1:]
+        if exe in BUILTINS:  # part of the shell, never on PATH
+            continue
         script = None
         if exe in INTERPRETERS and args and not args[0].startswith("-"):
             script, args = args[0], args[1:]
@@ -215,8 +242,27 @@ def check_command(cmd, repo, base):
     return found
 
 
+class InputError(Exception):
+    """A doc that cannot be read as text: missing, a directory, unreadable or not UTF-8."""
+
+
+def read_doc(path):
+    if os.path.isdir(path):
+        raise InputError("%s: a directory, not a file" % path)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        raise InputError("%s: no such file" % path)
+    except UnicodeDecodeError as e:
+        raise InputError("%s: not UTF-8 (byte 0x%02x at offset %d); save it as UTF-8 and check it again"
+                         % (path, e.object[e.start], e.start))
+    except OSError as e:
+        raise InputError("%s: cannot be read (%s)" % (path, e.strerror or e))
+
+
 def check_file(path, repo, keep):
-    text = open(path, encoding="utf-8", errors="replace").read()
+    text = read_doc(path)
     base = os.path.dirname(os.path.abspath(path))
     findings = []
 
@@ -260,10 +306,15 @@ def check_file(path, repo, keep):
     return {"file": path, "findings": unique}
 
 
-def load_keep(path):
+REPO_KEEP = ".doc-truth-keep.tsv"
+
+
+def load_keep(*paths):
     keep = {}
-    if path:
-        for line in open(path, encoding="utf-8"):
+    for path in paths:
+        if not path or not os.path.isfile(path):
+            continue
+        for line in open(path, encoding="utf-8-sig"):
             parts = line.rstrip("\n").split("\t")
             if len(parts) >= 3 and not line.startswith("#"):
                 keep[(parts[0], parts[1])] = parts[2]
@@ -278,14 +329,23 @@ def main():
     p.add_argument("files", nargs="+")
     p.add_argument("--root", help="repository root (default: the git top level of the current folder)")
     p.add_argument("--json", action="store_true")
-    p.add_argument("--keep")
+    p.add_argument("--keep", help="a keep file read on top of %s at the repository root" % REPO_KEEP)
     a = p.parse_args()
     root = a.root
     if not root:
-        out = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+        out = subprocess.run([find_exe("git"), "rev-parse", "--show-toplevel"], capture_output=True, text=True)
         root = out.stdout.strip() if out.returncode == 0 else os.getcwd()
-    repo, keep = Repo(os.path.abspath(root)), load_keep(a.keep)
-    results = [check_file(f, repo, keep) for f in a.files]
+    if a.keep and not os.path.isfile(a.keep):
+        p.error("keep file not found: %s" % a.keep)
+    repo = Repo(os.path.abspath(root))
+    keep = load_keep(os.path.join(repo.root, REPO_KEEP), a.keep)
+    results, failed = [], False
+    for f in a.files:
+        try:
+            results.append(check_file(f, repo, keep))
+        except InputError as e:
+            print("doctruth.py: %s" % e, file=sys.stderr, flush=True)
+            failed = True
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
     else:
@@ -294,7 +354,7 @@ def main():
                 print("%s:%d  %s %-22s %s%s" % (r["file"], f["line"], f["tier"], f["kind"], f["claim"],
                                                "  [kept: %s]" % f["kept"] if f["kept"] else ""))
     open_ = any(not f["kept"] and f["tier"] in ("S", "M") for r in results for f in r["findings"])
-    return 1 if open_ else 0
+    return 2 if failed else 1 if open_ else 0
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import html
 import json
 import os
 
+from checks import LABELS
 from ground import corrected_figure
 from records import NOTHING, OFFER, PRICE_ANSWERS, panel_of, read_json
 from tally import pct, price_curves, summary
@@ -14,16 +15,28 @@ def simulated_line(buyers, model):
             "Every number below is a hypothesis to test on people.")
 
 
+def verdict_of(result):
+    """What `checks` prints under its table, from its result: the verdict line, the advisory checks that warned
+    (by label) and why buyer types are descriptive. None of them in an older or hand-made checks file."""
+    warned = result.get("warned") if isinstance(result.get("warned"), list) else []
+    segments = result.get("segments") if isinstance(result.get("segments"), dict) else {}
+    line = result.get("verdict_line")
+    return {"line": line if isinstance(line, str) else None, "advisory": result.get("advisory") is True,
+            "warned": [LABELS.get(n, str(n)) for n in warned],
+            "buyer_types": segments.get("why") if isinstance(segments.get("why"), str) else None}
+
+
 def page_data(rnd, weights):
     result = summary(rnd, weights)
     rows = result.pop("rows")
-    corrected = corrected_figure(rnd.dir, rows, weights)
+    corrected = corrected_figure(rnd, rows, weights)
     if corrected:
         result["corrected"] = corrected
     # Checks may come from a summary.json written by a later step, or from `panel.py checks --out`; both optional.
-    checks = (read_json(os.path.join(rnd.dir, "summary.json")) or {}).get("checks")
-    if checks is None:
-        checks = (read_json(os.path.join(rnd.dir, "checks.json")) or {}).get("checks")
+    source = read_json(os.path.join(rnd.dir, "summary.json")) or {}
+    if source.get("checks") is None:
+        source = read_json(os.path.join(rnd.dir, "checks.json")) or {}
+    checks = source.get("checks")
     brief = read_json(os.path.join(panel_of(rnd.dir), "brief.json")) or {}
     segments = []
     for r in rows:
@@ -35,6 +48,7 @@ def page_data(rnd, weights):
         "round": result.pop("round"),
         "summary": result,
         "checks": checks,
+        "verdict": verdict_of(source),
         "filters": {"segment": segments,
                     "decision": [d for d in ("BUY", "PASS") if any(r["decision"] == d for r in rows)],
                     "reason": sorted({r["reason"] for r in rows})},
@@ -46,7 +60,7 @@ def page_data(rnd, weights):
 PAGE_CSS = """
 :root {
   --bg: #f3f2ef; --surface: #fbfaf8; --text: #23221f; --muted: #57554f; --line: #d3d0c9;
-  --buy: #2d6a39; --pass: #8b3a28; --note-bg: #fbf1d9; --note-line: #9a7414;
+  --buy: #2d6a39; --pass: #8b3a28; --note-bg: #fbf1d9; --note-line: #9a7414; --warn: #6e520b;
   --too-cheap: #1d6b87; --cheap: #4f8f33; --expensive: #a8661a; --too-expensive: #a23a3a; --band: #e3e9df;
   --radius: 6px; --gap: 1rem;
   color-scheme: light dark;
@@ -54,13 +68,13 @@ PAGE_CSS = """
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #1a1b1d; --surface: #222326; --text: #e9e7e2; --muted: #aeaba4; --line: #3b3c40;
-    --buy: #86c78f; --pass: #e79a86; --note-bg: #3a3220; --note-line: #d9b35a;
+    --buy: #86c78f; --pass: #e79a86; --note-bg: #3a3220; --note-line: #d9b35a; --warn: #e2c06e;
     --too-cheap: #6cc0dd; --cheap: #9bd27f; --expensive: #e3a65c; --too-expensive: #ec8b8b; --band: #2c3a2c;
   }
 }
 :root[data-theme="dark"] {
   --bg: #1a1b1d; --surface: #222326; --text: #e9e7e2; --muted: #aeaba4; --line: #3b3c40;
-  --buy: #86c78f; --pass: #e79a86; --note-bg: #3a3220; --note-line: #d9b35a;
+  --buy: #86c78f; --pass: #e79a86; --note-bg: #3a3220; --note-line: #d9b35a; --warn: #e2c06e;
   --too-cheap: #6cc0dd; --cheap: #9bd27f; --expensive: #e3a65c; --too-expensive: #ec8b8b; --band: #2c3a2c;
 }
 * { box-sizing: border-box; }
@@ -79,6 +93,7 @@ p { margin: 0 0 0.75rem; }
 .checks { padding-left: 1.25rem; }
 .failed { color: var(--pass); font-weight: 600; }
 .passed { color: var(--buy); font-weight: 600; }
+.warned { color: var(--warn); font-weight: 600; }
 figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
   padding: var(--gap); }
 svg { display: block; width: 100%; max-width: 36rem; height: auto; }
@@ -209,7 +224,9 @@ def check_items(checks):
                 passed = not value["failed"]
             elif value.get("status") in ("pass", "passed", "ok", "fail", "failed"):
                 passed = value["status"] in ("pass", "passed", "ok")
-            skip = {"name", "check", "id", "passed", "ok", "failed", "status"}
+            if passed is False and value.get("advisory") is True:
+                passed = "warn"                     # stated, never part of the verdict (READING.md, the checks)
+            skip = {"name", "check", "id", "passed", "ok", "failed", "status", "advisory"}
             detail = ", ".join(f"{k} {json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v}"
                                for k, v in value.items() if k not in skip)
         else:
@@ -218,16 +235,30 @@ def check_items(checks):
     return items
 
 
-def checks_html(checks):
+STATUS = {True: ' <span class="passed">passed</span>', False: ' <span class="failed">failed</span>',
+          "warn": ' <span class="warned">warn</span>', None: ""}
+
+
+def checks_html(checks, verdict=None):
+    """The Checks section as `checks` prints it: the verdict line, one item per check, the advisory warnings
+    and the line on buyer types."""
     items = check_items(checks)
     if not items:
         return ""
-    out = ['<section aria-labelledby="checks"><h2 id="checks">Checks</h2><ul class="checks">']
+    verdict = verdict or {}
+    out = ['<section aria-labelledby="checks"><h2 id="checks">Checks</h2>']
+    if verdict.get("line"):
+        css = "warned" if verdict.get("advisory") else "failed"
+        out.append(f'<p class="{css}" role="note">{esc(verdict["line"])}</p>')
+    out.append('<ul class="checks">')
     for name, passed, detail in items:
-        status = ("" if passed is None else
-                  ' <span class="passed">passed</span>' if passed else ' <span class="failed">failed</span>')
-        out.append(f"<li><strong>{esc(name)}</strong>{status}{': ' + esc(detail) if detail else ''}</li>")
-    out.append("</ul></section>")
+        out.append(f"<li><strong>{esc(name)}</strong>{STATUS[passed]}{': ' + esc(detail) if detail else ''}</li>")
+    out.append("</ul>")
+    if verdict.get("warned"):
+        out.append(f"<p>Advisory, not part of the verdict: {esc(', '.join(verdict['warned']))}.</p>")
+    if verdict.get("buyer_types"):
+        out.append(f'<p class="meta">{esc(verdict["buyer_types"])}</p>')
+    out.append("</section>")
     return "\n".join(out)
 
 
@@ -310,7 +341,7 @@ def page_html(data):
 <header>
 <p class="simulated" role="note">{esc(data['simulated'])}</p>
 <h1>{esc(data['idea'])}</h1>
-<p class="meta">Round {esc(rnd['label'])} at {money(rnd['price'], cur)}. The card read: &ldquo;{esc(rnd['offer'])}&rdquo; Interviews: {esc(how)}. Model: {esc(rnd['model'])}.</p>
+<p class="meta">Round {esc(rnd['label'])} at {money(rnd['price'], cur)}{' per ' + esc(rnd['period']) if rnd.get('period') else ''}. The card read: &ldquo;{esc(rnd['offer'])}&rdquo; Interviews: {esc(how)}. Model: {esc(rnd['model'])}.</p>
 </header>
 <section aria-labelledby="summary">
 <h2 id="summary">Summary</h2>
@@ -318,7 +349,7 @@ def page_html(data):
 {"".join(f"<dt>{k}</dt><dd>{v}</dd>" for k, v in summary)}
 </dl>
 </section>
-{checks_html(data.get('checks'))}
+{checks_html(data.get('checks'), data.get('verdict'))}
 <section aria-labelledby="price">
 <h2 id="price">Price curves</h2>
 <figure>

@@ -6,8 +6,8 @@ The ledger is local to this clone, so each issue carries everything needed to do
 
 ## Steps
 
-1. **Route.** Integrated: follow `docs/agents/issue-tracker.md` for every operation, including its target-repo check. Standalone on GitHub: confirm the target with `gh repo view --json nameWithOwner`. Standalone without GitHub: write `.slop-audit/issues/<batch>.md`.
-2. **Sync.** For batches already carrying an issue, read its state: closed as completed → findings `fixed`; closed as not planned, or carrying the tracker's `wontfix` label → `rejected:wontfix (#<n>)`. Report the changes.
+1. **Route.** Integrated: follow `docs/agents/issue-tracker.md` for every operation, including its target-repo check. Standalone on GitHub: confirm the target with `gh repo view --json nameWithOwner`. Standalone without GitHub: the local route, one file per issue in `.slop-audit/issues/` (Local issues, below).
+2. **Sync.** For batches already carrying an issue, read its state: closed as completed → findings `fixed`; closed as not planned, or carrying the tracker's `wontfix` label → `rejected:wontfix (#<n>)`. On the local route the file's `State:` line is the state. Report the changes.
 3. **Draft** one issue per selected batch with the template below, plus one **map** issue per audit (`AI slop audit @<sha>`: coverage line, finding counts, batch list) when none exists. Labels, integrated only: the tracker's `ready-for-agent` when every finding is `high` and the batch has a protecting check, else its `needs-triage`; standalone applies no labels.
 4. **Approve.** Show the numbered drafts: title, labels, blocked by. Ask with options (publish all, publish some by number, change a draft) and iterate until the user approves.
 5. **Publish** the map first, then batches with blockers first. Link each batch to the map (sub-issue where the tracker has them, else `Part of #<map>` as the first line) and record `depends-on` as blocking links where the tracker has them, else as a `Blocked by: #<n>` line. Before each create, search for the batch's marker and reuse a match.
@@ -15,9 +15,27 @@ The ledger is local to this clone, so each issue carries everything needed to do
 
 **Completion.** Every selected batch has exactly one issue (its marker matches one result), every `depends-on` edge is recorded on it, and `plan.md` names each one.
 
+## Local issues
+
+Without a tracker, each issue is a file in `.slop-audit/issues/`, and its path stands wherever this skill writes or reads an issue number:
+
+| On a tracker | On the local route |
+|---|---|
+| a batch's issue `#<n>` | `.slop-audit/issues/B<n>.md` (`issue: .slop-audit/issues/B3.md` in `plan.md`) |
+| the map issue `#<map>` | `.slop-audit/issues/map.md`, named in `STATUS.md` |
+| `Part of #<map>`, `Blocked by: #<n>` | `Part of .slop-audit/issues/map.md`, `Blocked by: .slop-audit/issues/B2.md` |
+| `fix #<n>`, `fix #<map>` | `fix .slop-audit/issues/B3.md` (or `fix B3`), `fix .slop-audit/issues/map.md` |
+| the marker search before a create | the file exists: rewrite its body and keep its `State:` line |
+| a permalink | `<path>:<start>-<end> @ <sha>`, the scanned commit |
+| open or closed, read by the sync | the file's first line: `State: open` when published; `State: done` (closed as completed) or `State: wontfix` (closed as not planned), set by whoever closes it |
+| `Closes #<n>` in the pull request | `fix` sets the file's first line to `State: done` when it sets the batch's findings `fixed` |
+| `Refs #<n>` in a commit body | nothing: the commit title already names the batch, and the ledger is untracked, so no commit names its path |
+
+The sync reads `State: done` as `fixed` and `State: wontfix` as `rejected:wontfix (.slop-audit/issues/B3.md)`.
+
 ## Issue template
 
-Name symbols and behaviour in the body; put file locations only in the evidence block, as permalinks pinned to the scanned commit (`https://github.com/<owner>/<repo>/blob/<sha>/<path>#L40-L58`), which stay valid as the code moves.
+Name symbols and behaviour in the body; put file locations only in the evidence block, as permalinks pinned to the scanned commit (`https://github.com/<owner>/<repo>/blob/<sha>/<path>#L40-L58`), which stay valid as the code moves. A local issue file starts with its `State:` line and uses the local forms below.
 
 ```markdown
 > Drafted by ai-slop-audit; evidence pinned to <sha>.

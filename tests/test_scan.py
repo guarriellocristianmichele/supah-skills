@@ -13,11 +13,11 @@ FIX = os.path.join(ROOT, "tests", "fixtures")
 ISOLATED = tempfile.mkdtemp(prefix="supah-prose-test-")
 
 
-def run(*args):
+def run(*args, cwd=None):
     env = dict(os.environ, PYTHONIOENCODING="utf-8", SUPAH_PROSE_HOME=ISOLATED,
                SUPAH_PROSE_NO_CALIBRATION="1")  # designed tiers; calibration is tested on its own  # never the user's learned model
     return subprocess.run([sys.executable, SCAN, *args], capture_output=True, text=True,
-                          encoding="utf-8", env=env)
+                          encoding="utf-8", env=env, cwd=cwd)
 
 
 def read(path):
@@ -76,6 +76,31 @@ class ScanDetects(unittest.TestCase):
         matches = [h["match"] for h in out["hits"] if h["rule"] == "chat-residue"]
         self.assertEqual(len(matches), 2, matches)
 
+    def test_split_contrast_with_contractions(self):
+        r, _ = scan_json("contrast-en.md", "--lang", "en")
+        lines = {h["line"] for h in r["hits"] if h["rule"] == "not-x-but-y"}
+        self.assertEqual(lines, {1, 3, 5, 7}, r["hits"])
+
+    def test_italian_hope_it_helps(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "it.md")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("La procedura richiede due passaggi.\n\nSpero che questo ti sia utile!\n\n"
+                        "Spero che questa guida vi sia d’aiuto.\n")
+            out = json.loads(run("--json", "--lang", "it", path).stdout)[0]
+        lines = {h["line"] for h in out["hits"] if h["rule"] == "chat-residue" and h["tier"] == "S"}
+        self.assertEqual(lines, {3, 5}, out["hits"])
+
+    def test_ecco_opener_reports_its_own_line(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "it.md")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("La riunione è fissata per giovedì.\n\nEcco come preparare la sala.\n")
+            out = json.loads(run("--json", "--lang", "it", path).stdout)[0]
+        hit = next(h for h in out["hits"] if h["rule"] == "ecco-opener")
+        self.assertEqual((hit["line"], hit["col"]), (3, 1))
+        self.assertTrue(hit["match"].startswith("Ecco"), hit["match"])
+
     def test_italian_punctuation(self):
         r, _ = scan_json("punct-it.md")
         for rule in ("accent-error", "double-space", "space-before-punct", "space-after-comma",
@@ -105,6 +130,57 @@ class KeepFile(unittest.TestCase):
             r, code = scan_json("compare-original.md", "--keep", keep)
             self.assertTrue(all(h["kept"] for h in r["hits"] if h["tier"] in "SM"))
             self.assertEqual(code, 0)
+
+    def test_repository_keep_file_is_read_without_a_flag(self):
+        # a hit kept on purpose stays kept next session: the keep file lives in the repository, not the scratchpad
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, ".git"), "w") as f:  # a worktree's .git is a file; found walking up
+                f.write("gitdir: elsewhere\n")
+            os.makedirs(os.path.join(d, "docs", "deep"))
+            doc = os.path.join(d, "docs", "post.md")
+            shutil.copy(os.path.join(FIX, "compare-original.md"), doc)
+            with open(os.path.join(d, ".slop-prose-keep.tsv"), "w", encoding="utf-8-sig") as f:
+                f.write("# kept on purpose\nnot-x-its-y\tisn't just a trend — it's\tquote\n")
+            extra = os.path.join(d, "extra.tsv")
+            with open(extra, "w", encoding="utf-8") as f:
+                f.write("em-dash\t—\tquote\n")
+            out = run("--json", "--keep", extra, doc, cwd=os.path.join(d, "docs", "deep"))
+            r = json.loads(out.stdout)[0]
+            self.assertEqual(out.returncode, 0, [h for h in r["hits"] if not h["kept"]])
+            self.assertEqual(run(doc, cwd=d).returncode, 1)  # the em dashes are kept only by --keep
+            missing = run("--keep", os.path.join(d, "nope.tsv"), doc, cwd=d)
+        self.assertEqual(missing.returncode, 2)
+        self.assertIn("keep file not found", missing.stderr)
+
+    def test_the_keep_file_is_the_one_of_the_scanned_files_repository_not_of_the_current_folder(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo, elsewhere = os.path.join(d, "repo"), os.path.join(d, "elsewhere")
+            os.makedirs(os.path.join(repo, ".git"))
+            os.makedirs(os.path.join(elsewhere, ".git"))
+            doc = os.path.join(repo, "post.md")
+            shutil.copy(os.path.join(FIX, "compare-original.md"), doc)
+            with open(os.path.join(repo, ".slop-prose-keep.tsv"), "w", encoding="utf-8") as f:
+                f.write("not-x-its-y\tisn't just a trend — it's\tquote\nem-dash\t—\tquote\n")
+            with open(os.path.join(elsewhere, ".slop-prose-keep.tsv"), "w", encoding="utf-8") as f:
+                f.write("# another project\n")
+            self.assertEqual(run(doc, cwd=elsewhere).returncode, 0)
+            # --no-repo-keep: only --keep exempts a hit (the release check's README sweep)
+            self.assertEqual(run("--no-repo-keep", doc, cwd=repo).returncode, 1)
+
+    def test_outside_a_repository_the_keep_file_of_the_current_folder_is_read(self):
+        with tempfile.TemporaryDirectory() as d:
+            doc = os.path.join(d, "post.md")
+            shutil.copy(os.path.join(FIX, "compare-original.md"), doc)
+            with open(os.path.join(d, ".slop-prose-keep.tsv"), "w", encoding="utf-8") as f:
+                f.write("not-x-its-y\tisn't just a trend — it's\tquote\nem-dash\t—\tquote\n")
+            self.assertEqual(run(doc, cwd=d).returncode, 0)
+
+    def test_an_empty_file_has_no_words(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "empty.md")
+            open(path, "w").close()
+            out = json.loads(run("--json", path).stdout)[0]
+        self.assertEqual(out["metrics"]["words"], 0)
 
 
 class Fix(unittest.TestCase):
@@ -146,9 +222,80 @@ class Compare(unittest.TestCase):
         out = run("compare", os.path.join(FIX, "compare-case-original.md"), os.path.join(FIX, "compare-case-rewrite.md"))
         self.assertEqual(out.returncode, 0, out.stdout)
 
+    def test_a_rewritten_title_case_run_is_not_a_lost_name(self):
+        with tempfile.TemporaryDirectory() as d:
+            orig, final = os.path.join(d, "orig.md"), os.path.join(d, "final.md")
+            with open(orig, "w", encoding="utf-8") as f:
+                f.write("# Unlock The Power Of Your Data\n\n## Release: Seamless Data Pipelines\n\n"
+                        "We send every report to Acme Corp.\n")
+            with open(final, "w", encoding="utf-8") as f:
+                f.write("# Get more from your data\n\n## Release notes\n\nWe send every report to Acme Corp.\n")
+            out = run("compare", orig, final)
+            self.assertEqual(out.returncode, 0, out.stdout)
+            with open(final, "w", encoding="utf-8") as f:
+                f.write("# Get more from your data\n\nWe send every report to the company.\n")
+            out = run("compare", orig, final)
+        self.assertEqual(out.returncode, 1)  # a name in a sentence is still a fact
+        self.assertIn("Acme Corp", out.stdout)
+
+    def test_a_name_on_a_signature_or_byline_line_is_still_a_fact(self):
+        for line, name in (("Thanks, Maria Rossi", "Maria Rossi"), ("Author: Jane Doe", "Jane Doe"),
+                           ("Grazie, Maria Grazia Rossi.", "Maria Grazia Rossi")):
+            with self.subTest(line=line), tempfile.TemporaryDirectory() as d:
+                orig, final = os.path.join(d, "orig.md"), os.path.join(d, "final.md")
+                with open(orig, "w", encoding="utf-8") as f:
+                    f.write(f"The report is attached.\n\n{line}\n")
+                with open(final, "w", encoding="utf-8") as f:
+                    f.write("The report is attached.\n\nThanks\n")
+                out = run("compare", orig, final)
+                self.assertEqual(out.returncode, 1, out.stdout)
+                self.assertIn(f"| name | {name} |", out.stdout)
+
     def test_identical_files_pass(self):
         path = os.path.join(FIX, "slop-en.md")
         self.assertEqual(run("compare", path, path).returncode, 0)
+
+
+class SourceSweep(unittest.TestCase):
+    """A sweep of a source file: the snapshot keeps the extension, so it is read as the same kind of file."""
+    ORIGINAL = ('// We delve into the robust signup flow here.\n'
+                'export function Signup() {\n'
+                '  return <button title="Unlock the full potential of your team">Join 2,000 teams</button>;\n'
+                '}\n')
+    REWRITE = ORIGINAL.replace("Unlock the full potential of your team", "Start your free trial")
+
+    def sweep(self, d, snapshot_name):
+        orig, final = os.path.join(d, snapshot_name), os.path.join(d, "Signup.tsx")
+        for path, text in ((orig, self.ORIGINAL), (final, self.REWRITE)):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+        home = os.path.join(d, "home")
+        env = dict(os.environ, PYTHONIOENCODING="utf-8", SUPAH_PROSE_HOME=home, SUPAH_PROSE_NO_CALIBRATION="1")
+        compare = subprocess.run([sys.executable, SCAN, "compare", orig, final], capture_output=True,
+                                 text=True, encoding="utf-8", env=env)
+        verdict = subprocess.run([sys.executable, SCAN, "verdict", orig, final], capture_output=True,
+                                 text=True, encoding="utf-8", env=env)
+        log = read(os.path.join(home, "verdicts.tsv")) if os.path.exists(os.path.join(home, "verdicts.tsv")) else ""
+        return compare, verdict, log
+
+    def test_snapshot_named_stem_orig_ext_completes_the_sweep(self):
+        with tempfile.TemporaryDirectory() as d:
+            compare, verdict, log = self.sweep(d, "Signup.orig.tsx")
+        self.assertEqual(compare.returncode, 0, compare.stdout)  # a rewritten UI string is not a lost quote
+        self.assertEqual(verdict.returncode, 0, verdict.stderr)
+        self.assertIn("inflated", log)  # the rewritten UI string is a tell
+        self.assertNotIn("delve", log.lower())  # the code comment was never prose
+
+    def test_compare_keeps_facts_of_ui_strings(self):
+        with tempfile.TemporaryDirectory() as d:
+            orig, final = os.path.join(d, "Signup.orig.tsx"), os.path.join(d, "Signup.tsx")
+            with open(orig, "w", encoding="utf-8") as f:
+                f.write(self.ORIGINAL)
+            with open(final, "w", encoding="utf-8") as f:
+                f.write(self.ORIGINAL.replace("Join 2,000 teams", "Join our teams"))
+            out = run("compare", orig, final)
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("2,000", out.stdout)
 
 
 class Rules(unittest.TestCase):
@@ -167,6 +314,75 @@ class Rules(unittest.TestCase):
                  if line.startswith("| ") and line.count("|") == 5 and "category" not in line}
         for rule in rules:
             self.assertIn(f"`{rule}`", tells, rule)
+
+
+class SweepDoc(unittest.TestCase):
+    def test_parallel_workers_never_write_the_shared_keep_file(self):
+        # orchestrate workers run at once: each keeps its own scratchpad keep file, the coordinator
+        # appends them to the repository's before the rescan (as doc-truth does)
+        skill = read(os.path.join(ROOT, "skills", "ai-slop-prose", "SKILL.md"))
+        step = skill.split("1. **Snapshot**", 1)[1].split("\n2. ", 1)[0]
+        self.assertIn("its own keep file in the scratchpad", step)
+        self.assertIn("never to `.slop-prose-keep.tsv`", step)
+        self.assertIn("the coordinator appends them to `.slop-prose-keep.tsv`", step)
+        self.assertIn("then rescans", step)
+
+    def test_tells_explains_the_isolated_mark(self):
+        # the report prints `isolated` in its kept column (#43): TELLS.md says what it means
+        tells = read(os.path.join(ROOT, "skills", "ai-slop-prose", "TELLS.md"))
+        self.assertIn("A hit marked `isolated` is an M hit shown at W", tells)
+        self.assertIn("one rule alone is not enough evidence", tells)
+
+
+class BadInput(unittest.TestCase):
+    """A missing path, a directory or a file that is not UTF-8: one line on stderr, the other files go on, exit 2."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir)
+        self.missing = os.path.join(self.dir, "gone.md")
+        self.latin = os.path.join(self.dir, "latin.md")
+        with open(self.latin, "wb") as f:
+            f.write("Caffè e perché.\n".encode("cp1252"))
+        self.good = os.path.join(FIX, "slop-en.md")
+
+    def assert_one_line_each(self, out, *paths):
+        self.assertNotIn("Traceback", out.stderr)
+        lines = out.stderr.strip().splitlines()
+        self.assertEqual(len(lines), len(paths), out.stderr)
+        for line, path in zip(lines, paths):
+            self.assertIn(path, line)
+
+    def test_scan_reports_each_bad_path_and_scans_the_rest(self):
+        out = run("--json", self.missing, self.dir, self.latin, self.good)
+        self.assertEqual(out.returncode, 2)
+        self.assert_one_line_each(out, self.missing, self.dir, self.latin)
+        self.assertIn("not UTF-8", out.stderr)
+        results = json.loads(out.stdout)
+        self.assertEqual([r["file"] for r in results], [self.good])
+        self.assertEqual(rules(results[0]), rules(scan_json("slop-en.md")[0]))  # the readable file's hits are unchanged
+
+    def test_markdown_report_still_lists_the_readable_file(self):
+        out = run(self.missing, self.good)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn(self.good, out.stdout)
+
+    def test_only_bad_paths_is_still_exit_2(self):
+        self.assertEqual(run(self.missing).returncode, 2)
+
+    def test_fix_skips_a_bad_path(self):
+        good = os.path.join(self.dir, "good.md")
+        with open(good, "w", encoding="utf-8") as f:
+            f.write("Ciao , mondo.\n")
+        out = run("fix", self.missing, good)
+        self.assertEqual(out.returncode, 2)
+        self.assert_one_line_each(out, self.missing)
+        self.assertEqual(read(good), "Ciao, mondo.\n")
+
+    def test_compare_names_the_bad_path(self):
+        out = run("compare", self.good, self.latin)
+        self.assertEqual(out.returncode, 2)
+        self.assert_one_line_each(out, self.latin)
 
 
 if __name__ == "__main__":

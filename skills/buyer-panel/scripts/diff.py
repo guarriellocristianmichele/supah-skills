@@ -1,6 +1,6 @@
 """Two rounds side by side: buyer by buyer on the same buyers (diff, competitor), or two halves of one panel
 (split, compare). Stdlib only."""
-from records import UsageError, panel_of
+from records import UsageError, mixed_units, panel_of
 from tally import buy_share, buy_reasons, discounted_count, pass_reasons, price_range, reasons, share
 
 
@@ -63,15 +63,19 @@ def reason_shift(rows_a, rows_b, decision):
 
 
 def price_shift(meta_a, meta_b, rows_a, rows_b):
+    """The card price and the price range in both rounds, and their changes; `mixed` says why there are no changes
+    when the two rounds price in another currency or period (29 a month and 1.5 a booking do not subtract)."""
     a, b = price_range(rows_a), price_range(rows_b)
-    return {"card": {"before": meta_a["price"], "after": meta_b["price"], "change": delta(meta_a["price"],
-                                                                                        meta_b["price"]),
-                     "currency": meta_b["currency"]},
-            "before": a, "after": b,
+    mixed = mixed_units(meta_a, meta_b)
+    same = mixed is None
+    return {"card": {"before": meta_a["price"], "after": meta_b["price"],
+                     "change": delta(meta_a["price"], meta_b["price"]) if same else None,
+                     "currency": meta_b["currency"], "period": meta_b.get("period")},
+            "mixed": mixed, "before": a, "after": b,
             "range_change": [delta(a["range"][0], b["range"][0]), delta(a["range"][1], b["range"][1])]
-            if a["range"] and b["range"] else None,
-            "optimal_change": delta(a["optimal"], b["optimal"]),
-            "indifference_change": delta(a["indifference"], b["indifference"])}
+            if same and a["range"] and b["range"] else None,
+            "optimal_change": delta(a["optimal"], b["optimal"]) if same else None,
+            "indifference_change": delta(a["indifference"], b["indifference"]) if same else None}
 
 
 def share_shift(rows_a, rows_b, weights):

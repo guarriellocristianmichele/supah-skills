@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Deterministic scanner for AI writing tells in English and Italian prose. Stdlib only.
 
-  scan.py [--lang auto|en|it] [--keep FILE] [--json] FILE...
+  scan.py [--lang auto|en|it] [--keep FILE] [--no-repo-keep] [--json] FILE...
       List every catalogued tell with line, tier and category, plus density metrics.
       Exit 0 when nothing is left to resolve (S/M hits all kept, no metric flagged), else 1.
+      Exit 2 when a FILE is missing, a directory or not UTF-8: each is one line on stderr, the
+      other files are still scanned and reported, and 2 wins over 1 (look at the report for hits).
 
   scan.py fix [--lang auto|en|it] FILE...
       Apply the unambiguous corrections (Italian accent errors such as perchè, qual'è,
       E'; double spaces; space before punctuation; missing space after a comma) in place.
+      A FILE that cannot be read is one line on stderr, the others are fixed, and the exit is 2.
 
   scan.py rules
       Print every rule id with category, tier and language, the metric thresholds
@@ -15,7 +18,8 @@
 
   scan.py verdict ORIGINAL FINAL [--keep FILE] [--source model|human]
       Record the verdicts of a finished sweep (keep reason fp -> fp, other reasons -> kept,
-      hit gone from FINAL -> tell) and rebuild the learned model.
+      hit gone from FINAL -> tell) and rebuild the learned model. A hit gone from FINAL is a tell
+      whatever the keep file says, and a keep entry is recorded once, however many sweeps read it.
   scan.py learn              rebuild the model and print each rule's measured precision
   scan.py audit [--fraction F]   sample the model's fp verdicts as TSV for a human to confirm
   scan.py label FILE         record the confirmed audit file as human verdicts
@@ -28,11 +32,15 @@ supah-skills/prose); --no-learn ignores it.
 
   scan.py compare ORIGINAL REWRITE
       List numbers, URLs, code spans, quotes and proper nouns present in ORIGINAL
-      but missing from REWRITE. Exit 0 when nothing is missing, else 1.
+      but missing from REWRITE. Exit 0 when nothing is missing, else 1; 2 when either file
+      is missing, a directory or not UTF-8.
 
 Tiers: S = one hit is enough to rewrite; M = rewrite unless there is a keep reason;
 W = acted on only when its density metric is flagged.
 Keep file: TSV lines `rule<TAB>matched text<TAB>reason`; matching hits count as resolved.
+`.slop-prose-keep.tsv` at the root of the repository holding each scanned file (verdict: FINAL) is
+always read, so a hit kept on purpose stays kept in the next session; `--keep FILE` adds more, and
+`--no-repo-keep` ignores the repository's file.
 Reasons: quote, voice, literal, term, dialogue (a real tell kept) or fp (not a tell).
 A flagged metric is kept with `metric<TAB><metric name><TAB>reason`.
 Per-1k densities need at least 300 words; shorter texts show n/a.
@@ -58,10 +66,10 @@ RULES = [
     # residue: chat leftovers, placeholders, leaked tokens
     ("chat-residue", "residue", "S", "en", r"\b(I hope (this|that|it) helps|Certainly!|Of course!|Great question|Absolutely!|Would you like me to|Let me know (?:if|whether)\b|Feel free to (ask|reach out)|Happy to help|I'd be happy to|I hope you found)", I),
     ("ai-disclaimer", "residue", "S", "en", r"\b(as of my (last|latest) (knowledge|training)|my knowledge cutoff|as an AI( language model)?\b|I (don't|do not|cannot|can't) browse)", I),
-    ("chat-residue", "residue", "S", "it", r"(\bCerto!|\bCertamente!|\bEcco (a te|qui|una versione|il testo|la versione)\b|\bSpero (che )?(questo|ti) (sia|possa essere) (utile|d'aiuto)|\bSe vuoi,? posso\b|\bVuoi che (ti|io)\b|\bFammi sapere se\b|\bSarei felice di\b|\bSono qui per aiutarti\b|\bHai (pienamente |perfettamente |assolutamente )?ragione\b|\bOttima domanda\b)", I),
+    ("chat-residue", "residue", "S", "it", r"(\bCerto!|\bCertamente!|\bEcco (a te|qui|una versione|il testo|la versione)\b|\bSpero (?:che )?(?:quest[oa](?: \w+)?|ti|vi)(?: ti| vi)? (?:sia|siano|possa(?:no)? essere) (?:utile|utili|d['’]aiuto|di aiuto)|\bSe vuoi,? posso\b|\bVuoi che (ti|io)\b|\bFammi sapere se\b|\bSarei felice di\b|\bSono qui per aiutarti\b|\bHai (pienamente |perfettamente |assolutamente )?ragione\b|\bOttima domanda\b)", I),
     # mined 2026-11 from WildChat-1M and Claude Italian answers against 1,145 human documents (0 human hits each)
     ("chat-residue", "residue", "S", "it", r"(\b(?:posso|possa|potrei|per) aiutart[ie]\b|\baiutarvi\b|\bnon esit(?:are|ate) a\b|\A\s*(?:Certo|Perfetto|Ottimo|Assolutamente|Certamente|Volentieri)\b[!,.])", I),
-    ("ecco-opener", "residue", "M", "it", r"^\s*(?:[#*>-]+\s*)?(?:(?:Certo|Perfetto|Ottimo|Assolutamente|Certamente|Volentieri)[!,.]\s+)?Ecco (?:un|una|uno|il|lo|la|i|gli|le|alcuni|alcune|come|cosa|perché|qui|a te)\b", M),
+    ("ecco-opener", "residue", "M", "it", r"^[ \t]*(?:[#*>-]+[ \t]*)?(?:(?:Certo|Perfetto|Ottimo|Assolutamente|Certamente|Volentieri)[!,.]\s+)?Ecco (?:un|una|uno|il|lo|la|i|gli|le|alcuni|alcune|come|cosa|perché|qui|a te)\b", M),
     ("ai-disclaimer", "residue", "S", "it", r"\b(Come (modello linguistico|intelligenza artificiale)|in base alle mie (ultime )?conoscenze|al mio ultimo aggiornamento)\b", I),
     ("placeholder", "residue", "S", "any", r"(\[(Your|Insert|Add|Describe|Company|Name|Tuo|Tua|Inserisci|Nome|Azienda|Data)\b[^\]\n]{0,40}\]|\b20\d\d-(xx|XX)-(xx|XX)\b|\bINSERT_[A-Z_]+\b|example\.com/source\d)", 0),
     ("citation-leak", "residue", "S", "any", r"(contentReference\[oaicite:\d+\]|oai_citation|utm_source=chatgpt\.com|\bturn\d+(search|view|news|fetch)\d+\b)", 0),
@@ -73,7 +81,7 @@ RULES = [
     # "not only X but also Y" is the standard correlative, not the trope
     ("not-just-x", "contrast", "S", "en", r"\bnot (?:just|only|merely|simply) [^.?!\n]{1,80}?[,;—–-]\s*(?:but(?! also\b)|it's|it is|they're|they are)\b", I),
     # removed 2026-11: a generic "not X, but Y" hit human concessions as often as AI text (119 vs 101 documents)
-    ("not-x-but-y", "contrast", "S", "en", r"\b(?:it|this|that)(?:'s| is| was) not (?:about |just |only )?[^.?!\n]{1,60}\.\s+(?:it|this|that)(?:'s| is| was)\b", I),
+    ("not-x-but-y", "contrast", "S", "en", r"\b(?:(?:it|this|that)(?:['’]s not| is not| was not| isn['’]t| wasn['’]t)|(?:they|these|those)(?: are not| were not| aren['’]t| weren['’]t)) (?:about |just |only )?[^.?!\n]{1,60}\.\s+(?:(?:it|this|that)(?:['’]s| is| was)|(?:they|these|those)(?:['’]re| are| were))\b", I),
     ("not-x-but-y", "contrast", "S", "en", r"\bnot because [^.?!\n]{1,60}, but because\b", I),
     ("rather-than-merely", "contrast", "M", "en", r"\brather than (merely|simply|just)\b|\bless (like )?an? \w+ (and|than) more (like )?an?\b", I),
     ("countdown", "contrast", "M", "any", r"\b(Not|Non) (an? |the |un |una |il |la )?\w+\.\s+(Not|Non) (an? |the |un |una |il |la )?\w+\.", 0),
@@ -289,9 +297,41 @@ def visible_text(raw, path):
     return (mask(raw), [], "prose") if text is None else (text, spans, kind)
 
 
+class InputError(Exception):
+    """A path that cannot be read as text: missing, a directory, unreadable or not UTF-8."""
+
+
+def read_input(path, newline=None):
+    """The text of a file given on the command line; InputError, naming the path, when it cannot be read."""
+    if os.path.isdir(path):
+        raise InputError(f"{path}: a directory, not a file")
+    try:
+        with open(path, encoding="utf-8", newline=newline) as f:
+            return f.read()
+    except FileNotFoundError:
+        raise InputError(f"{path}: no such file")
+    except UnicodeDecodeError as e:
+        raise InputError(f"{path}: not UTF-8 (byte 0x{e.object[e.start]:02x} at offset {e.start}); "
+                         "save it as UTF-8 and scan it again")
+    except OSError as e:
+        raise InputError(f"{path}: cannot be read ({e.strerror or e})")
+
+
+def each_input(paths, work):
+    """work(path) for every path; a path that cannot be read is one line on stderr and the rest go on.
+    Returns the results of the readable paths and whether any path failed."""
+    results, failed = [], False
+    for path in paths:
+        try:
+            results.append(work(path))
+        except InputError as e:
+            print(f"scan.py: {e}", file=sys.stderr, flush=True)
+            failed = True
+    return results, failed
+
+
 def scan_file(path, lang_opt, keep, gates=True, model=None, purpose=None):
-    with open(path, encoding="utf-8") as f:
-        return scan_text(f.read(), lang_opt, keep, gates=gates, model=model, path=path, purpose=purpose)
+    return scan_text(read_input(path), lang_opt, keep, gates=gates, model=model, path=path, purpose=purpose)
 
 
 def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>", purpose=None):
@@ -333,7 +373,7 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>", purpos
     marked = load_words(f"{lang}-marked.txt") - demoted  # words common in human text count as density only
     style = load_words(f"{lang}-style.txt") | demoted
     words = list(re.finditer(r"[^\W\d_]+(?:['’][^\W\d_]+)?", text))
-    n_words = max(1, len(words))
+    n_words = max(1, len(words))  # a divisor; the report counts the words themselves
     style_count = 0
     marked_hits = [w for w in words if w.group(0).lower() in marked]
     # calibrated: a single marked word is ordinary human writing; the tell is several distinct ones
@@ -381,7 +421,7 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>", purpos
         return round(count * 1000 / n_words, 1) if n_words >= MIN_WORDS else None
 
     metrics = {
-        "words": n_words,
+        "words": len(words),
         "style_words_per_1k": per_1k(style_count),
         "dash_per_1k": per_1k(em),
         "connective_sentence_share": round(conn / len(sents), 2) if len(sents) >= 10 else None,
@@ -417,15 +457,55 @@ def scan_text(raw, lang_opt, keep, gates=True, model=None, path="<text>", purpos
             "hits": hits, "metrics": metrics, "flags": flags, "kept_flags": kept_flags}
 
 
-def load_keep(path):
+REPO_KEEP = ".slop-prose-keep.tsv"
+
+
+def repo_top(start):
+    """The first folder up from start holding a `.git` entry (a folder, or a worktree's file), or None."""
+    here = os.path.abspath(start)
+    while not os.path.exists(os.path.join(here, ".git")):
+        parent = os.path.dirname(here)
+        if parent == here:
+            return None
+        here = parent
+    return here
+
+
+def repo_keep(path=None):
+    """The keep file at the root of the repository holding path; when path is in no repository, the one
+    of the repository holding the current folder, else of the current folder. No git process: on
+    Windows a git.exe planted in the scanned repository would run before the one on PATH."""
+    top = repo_top(os.path.dirname(os.path.abspath(path))) if path else None
+    cwd = os.getcwd()
+    return os.path.join(top or repo_top(cwd) or cwd, REPO_KEEP)
+
+
+def load_keep(*paths):
     keep = {}
-    if path:
-        with open(path, encoding="utf-8") as f:
+    for path in paths:
+        if not path or not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8-sig") as f:
             for line in f:
                 parts = line.rstrip("\n").split("\t")
                 if len(parts) >= 3 and not line.startswith("#"):
                     keep[(parts[0], parts[1].strip().lower())] = parts[2]
     return keep
+
+
+def keep_arg(parser, path, repo=True):
+    """For a scanned file, its repository's keep file (unless repo is False) plus the one --keep names
+    (an error when it does not exist)."""
+    if path and not os.path.isfile(path):
+        parser.error(f"keep file not found: {path}")
+    cache = {}
+
+    def keep_for(scanned):
+        where = repo_keep(scanned) if repo else None
+        if where not in cache:
+            cache[where] = load_keep(where, path)
+        return cache[where]
+    return keep_for
 
 
 def print_report(result):
@@ -463,12 +543,44 @@ FACT_PATTERNS = [
 ]
 
 
+FUNCTION_WORDS = MINOR_EN | set("your our my their its his her this that these those".split())
+
+
+def title_case(token, line, at):
+    """True for a Title Case run ("The Power Of Your Data") or a Title Case line: a style, not a name.
+    A run after a comma or colon that ends its line ("Thanks, Maria Rossi", "Author: Jane Doe") is a
+    signature or byline, so a name, outside headings. `at` is where the run starts in the line."""
+    if any(w.lower() in FUNCTION_WORDS for w in token.split()[1:]):
+        return True
+    head, tail = line[:at].rstrip(), line[at + len(token):]
+    if not line.lstrip().startswith("#") and head.endswith((",", ";", ":")) and not re.search(r"\w", tail):
+        return False
+    words = re.findall(r"[^\W\d_][\w'’-]*", line)[1:]
+    content = [w for w in words if w.lower() not in FUNCTION_WORDS]
+    return len(content) >= 2 and all(w[0].isupper() for w in content)
+
+
+def fact_text(path):
+    """Prose as written (code spans and URLs are facts), a source file as the text its users read."""
+    raw = read_input(path)
+    text = extract.view(raw, path)[0]
+    return raw if text is None else text
+
+
 def compare(original, rewrite):
-    a = open(original, encoding="utf-8").read()
-    b = open(rewrite, encoding="utf-8").read()
+    texts, failed = each_input([original, rewrite], fact_text)
+    if failed:
+        return 2
+    a, b = texts
     missing = []
     for kind, pattern in FACT_PATTERNS:
-        for token in sorted(set(re.findall(pattern, a))):
+        found = re.finditer(pattern, a)
+        if kind == "name":  # a Title Case run fixed by a rewrite is not a lost name
+            def line_of(m):
+                start = a.rfind("\n", 0, m.start()) + 1
+                return a[start:(a + "\n").find("\n", m.end())], m.start() - start
+            found = (m for m in found if not title_case(m.group(0), *line_of(m)))
+        for token in sorted({m.group(0) for m in found}):
             # a name survives a case fix (Title Case heading, capital after a colon) when its words remain
             kept = (re.search(rf"(?<!\w){re.escape(token)}(?!\w)", b, re.IGNORECASE) if kind == "name"
                     else token in b)
@@ -483,8 +595,7 @@ def compare(original, rewrite):
 
 
 def fix(path, lang_opt):
-    with open(path, encoding="utf-8", newline="") as f:
-        original = f.read()
+    original = read_input(path, newline="")
     newline = "\r\n" if "\r\n" in original else "\n"  # written back in the file's own style
     raw = original.replace("\r\n", "\n")
     counts = {}
@@ -550,9 +661,17 @@ def list_rules():
 KEPT_REASONS = {"quote", "voice", "literal", "term", "dialogue"}
 
 
+def keep_judgment(row):
+    """The keep entry a logged verdict came from, or None for a rewrite or a human audit label."""
+    if row["label"] in ("fp", "kept") and row["reason"].split(" ")[0] in KEPT_REASONS | {"fp"}:
+        return (row["rule"], row["lang"], row["match"], row["label"])
+    return None
+
+
 def cmd_verdict(argv):
-    """Turn a finished sweep into verdicts: kept-file `fp` -> fp, other reasons -> kept,
-    a hit gone from the final text -> tell. Hits still present without a keep entry are skipped."""
+    """Turn a finished sweep into verdicts: a hit gone from the final text -> tell; a hit still there
+    with keep reason `fp` -> fp, with another reason -> kept, recorded once per keep entry. Hits still
+    present without a keep entry are skipped."""
     p = argparse.ArgumentParser(prog="scan.py verdict")
     p.add_argument("original")
     p.add_argument("final")
@@ -560,9 +679,13 @@ def cmd_verdict(argv):
     p.add_argument("--lang", choices=("auto", "en", "it"), default="auto")
     p.add_argument("--source", choices=("model", "human"), default="model")
     a = p.parse_args(argv)
-    keep = load_keep(a.keep)
-    before = scan_file(a.original, a.lang, {}, model=None)
-    after = scan_file(a.final, before["lang"], {}, model=None)
+    keep = keep_arg(p, a.keep)(a.final)  # the snapshot sits in the scratchpad; the final is in the repository
+    try:
+        before = scan_file(a.original, a.lang, {}, model=None)
+        after = scan_file(a.final, before["lang"], {}, model=None)
+    except InputError as e:
+        print(f"scan.py: {e}", file=sys.stderr)
+        return 2
     with open(a.original, encoding="utf-8", errors="replace") as f1, open(a.final, encoding="utf-8", errors="replace") as f2:
         run = learn.run_id(f1.read(), f2.read())
     if run in learn.recorded(lambda r: r["reason"].rpartition("@")[2]):
@@ -572,21 +695,26 @@ def cmd_verdict(argv):
     for h in after["hits"]:
         k = (h["rule"], h["match"].lower())
         remaining[k] = remaining.get(k, 0) + 1
+    # a keep entry is one judgment, however many sweeps (or hits) see it again: the repository keep
+    # file is read on every sweep (ADR 0018, each judgment once)
+    judged = learn.recorded(keep_judgment)
     rows, counts = [], {"tell": 0, "kept": 0, "fp": 0}
     for h in before["hits"]:
         if h["kept"]:  # gated (quote, heading, name, dialogue): never reviewed
             continue
         k = (h["rule"], h["match"].lower())
-        reason = keep.get(k)
-        if reason == "fp":
-            label = "fp"
-        elif reason in KEPT_REASONS:
-            label = "kept"
-        elif remaining.get(k, 0) > 0:
-            remaining[k] -= 1
-            continue
-        else:
+        if remaining.get(k, 0) == 0:  # rewritten this run: a tell, whatever the keep file says
             label, reason = "tell", "rewritten"
+        else:
+            remaining[k] -= 1
+            reason = keep.get(k)
+            label = "fp" if reason == "fp" else "kept" if reason in KEPT_REASONS else None
+            if label is None:
+                continue
+            row_key = (h["rule"], before["lang"], learn.clean(h["match"]), label)
+            if row_key in judged:
+                continue
+            judged.add(row_key)
         counts[label] += 1
         rows.append({"lang": before["lang"], "rule": h["rule"], "category": h["category"], "tier": h["tier"],
                      "label": label, "reason": f"{reason} @{run}", "source": a.source, "match": h["match"],
@@ -620,7 +748,8 @@ def main():
         p.add_argument("files", nargs="+")
         p.add_argument("--lang", choices=("auto", "en", "it"), default="auto")
         a = p.parse_args(sys.argv[2:])
-        return max(fix(f, a.lang) for f in a.files)
+        _, failed = each_input(a.files, lambda f: fix(f, a.lang))
+        return 2 if failed else 0
     if len(sys.argv) > 1 and sys.argv[1] == "compare":
         p = argparse.ArgumentParser(prog="scan.py compare")
         p.add_argument("original")
@@ -631,21 +760,24 @@ def main():
     p.add_argument("files", nargs="+")
     p.add_argument("--lang", choices=("auto", "en", "it"), default="auto")
     p.add_argument("--keep")
+    p.add_argument("--no-repo-keep", action="store_true",
+                   help="ignore the repository's .slop-prose-keep.tsv: only --keep exempts a hit")
     p.add_argument("--json", action="store_true")
     p.add_argument("--no-gates", action="store_true", help="report hits in quotes, headings, names and dialogue too")
     p.add_argument("--no-learn", action="store_true", help="ignore the learned model (rule tiers, suppressions)")
     p.add_argument("--purpose", help="what the text is for (landing page, onboarding email, error messages...): "
                                      "reported with every hit that has no purpose of its own")
     a = p.parse_args()
-    keep = load_keep(a.keep)
+    keep_for = keep_arg(p, a.keep, repo=not a.no_repo_keep)
     model = None if a.no_learn else learn.load_model()
-    results = [scan_file(f, a.lang, keep, gates=not a.no_gates, model=model, purpose=a.purpose) for f in a.files]
+    results, failed = each_input(a.files, lambda f: scan_file(f, a.lang, keep_for(f), gates=not a.no_gates, model=model,
+                                                              purpose=a.purpose))
     if a.json:
         print(json.dumps(results, ensure_ascii=False, indent=1))
         dirty = any(r["flags"] or any(not h["kept"] and h["tier"] in "SM" for h in r["hits"]) for r in results)
     else:
         dirty = any([print_report(r) for r in results])
-    return 1 if dirty else 0
+    return 2 if failed else 1 if dirty else 0
 
 
 if __name__ == "__main__":

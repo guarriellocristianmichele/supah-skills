@@ -257,9 +257,14 @@ def cmd_sample(args):
 # - eyebrow: one fp, a `cva` badge string in a script bundle rather than an element.
 # - glued-arrow: the first sample found arrows drawing a flow ("→ observation →"); the rule was fixed
 #   and a fresh sample (seed 2) judged.
+#
+# 2026-11-18, judged by the model that changed the rule (issue #50):
+# - low-contrast now reads Tailwind arbitrary values (`text-[#0D9488] bg-[#CCFBF1]`). The run added 2 hits,
+#   both judged real (12px teal on mint 3.3:1, 15px white on teal 3.7:1); a fresh default sample (seed 1)
+#   judged 7 of 8 real, the fp a styled-components chip whose `color` equals its background (no text).
 PRECISION = {
     "purple-gradient": (7, 8), "gradient-text": (8, 8), "accent-stripe": (8, 8), "faux-chrome": (8, 8),
-    "emoji-icon": (8, 8), "transition-all": (8, 8), "low-contrast": (8, 8), "dead-link": (8, 8),
+    "emoji-icon": (8, 8), "transition-all": (8, 8), "low-contrast": (17, 18), "dead-link": (8, 8),
     "missing-viewport": (8, 8), "placeholder-name": (4, 4), "placeholder-phone": (1, 1),
     "eyebrow": (7, 8), "middot-meta": (8, 8), "glued-arrow": (8, 8),
 }

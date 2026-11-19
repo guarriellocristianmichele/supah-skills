@@ -16,8 +16,9 @@
       one line is printed: surfaces, shared units, frontend files and the framework.
   designscan.py --surfaces INVENTORY --out HITS [--keep FILE]
       Scan every file of the inventory in one run, write the results grouped by unit to HITS
-      and print a summary per unit plus the duplication groups. Exit codes as for a scan: a file
-      of the inventory deleted since is one line on stderr, left out of HITS, and the exit is 2.
+      and print a summary per unit plus the duplication groups. A report, not a gate: exit 0 once
+      HITS is written, open hits or not (reconcile and a FILE rescan gate them). A file of the
+      inventory deleted since is one line on stderr, left out of HITS, and the exit is 2.
       HITS records the commit and, as dirty, the scanned files with uncommitted changes.
   designscan.py hits HITS [UNIT]
       The summary again, or one unit's results as JSON without its duplication hits. A route
@@ -1371,7 +1372,7 @@ def scan_inventory(inventory_path, keep, out):
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write(json.dumps(data, ensure_ascii=False, indent=1) + "\n")
     print(hits_summary(data, out))
-    return 2 if failed else 1 if any(open_hits(r) for u in data["units"] for r in u["files"]) else 0
+    return 2 if failed else 0
 
 
 def hits_summary(data, path):

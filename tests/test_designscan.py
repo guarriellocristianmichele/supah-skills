@@ -445,7 +445,10 @@ class HitsFile(unittest.TestCase):
                 grouped = json.load(f)
         files = [f for u in units for f in u["files"]]
         plain = json.loads(run("--json", *files).stdout)
-        self.assertEqual(out.returncode, 1)
+        # A report, not a gate: open hits are in the summary, and reconcile or a file rescan gates them.
+        # Exit 1 here showed every audit as a failed command in agent shells.
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("open", out.stdout)
         self.assertEqual([(u["unit"], [r["file"] for r in u["files"]]) for u in grouped["units"]],
                          [(u["unit"], u["files"]) for u in units])
         self.assertEqual([r for u in grouped["units"] for r in u["files"]], plain)

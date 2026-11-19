@@ -46,15 +46,15 @@ IMPERATIVE = re.compile(
     r"(?!\s+more\s+(?:in|at|about|on|here|below|from)\b)", re.I)
 PATHLIKE = re.compile(r"^[~.\w-][\w./~-]*(/[\w.-]+|\.(md|py|json|ya?ml|toml|sh|txt|tsv|js|ts))$")
 TOPICS = [  # capability -> pattern over a skill's name and description
-    ("test-driven development", r"tdd|test-driven|red-green"),
-    ("debugging", r"debug|diagnos"),
-    ("code review", r"code[- ]review|review (the|a) (diff|pull request|pr)"),
-    ("simplification", r"simplif"),
-    ("planning", r"implementation plans?|writing-plans|plan mode"),
-    ("idea stress-testing", r"brainstorm|grill"),
+    ("test-driven development", r"\btdd\b|test-driven|red-green"),
+    ("debugging", r"\bdebug|diagnos"),
+    ("code review", r"code[- ]review|review (the|a) (diff|pull request|pr)\b"),
+    ("simplification", r"\bsimplif"),
+    ("planning", r"implementation plans?|writing-plans|\bplan mode\b"),
+    ("idea stress-testing", r"brainstorm|\bgrill"),
     ("writing skills", r"writing-skills|skill-creator|writing-for-agents|creating or editing skills"),
     ("commit messages", r"commit message"),
-    ("browser automation", r"browser|chrome|playwright"),
+    ("browser automation", r"\bbrowser|\bchrome\b|playwright"),
     ("parallel agents", r"parallel (agents|subagents)|subagent-driven|dispatching"),
 ]
 

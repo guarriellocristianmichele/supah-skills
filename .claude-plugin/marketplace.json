@@ -21,7 +21,7 @@
     {
       "name": "ai-slop-audit",
       "source": "./skills/ai-slop-audit",
-      "version": "0.15.0",
+      "version": "0.15.1",
       "description": "Evidence-backed audit and cleanup of needless complexity across a codebase, with GitHub issue publishing.",
       "category": "development",
       "keywords": [
@@ -34,7 +34,7 @@
     {
       "name": "ai-slop-design",
       "source": "./skills/ai-slop-design",
-      "version": "0.15.0",
+      "version": "0.15.1",
       "description": "Build pages whose look comes from their subject, and sweep frontend code for design reflexes, contrast failures and duplicated styles, found by a scanner and judged one by one.",
       "category": "development",
       "keywords": [
@@ -47,7 +47,7 @@
     {
       "name": "ai-slop-prose",
       "source": "./skills/ai-slop-prose",
-      "version": "0.15.0",
+      "version": "0.15.1",
       "description": "Strip AI writing tells from English or Italian prose with a deterministic scanner, then rewrite in the author's voice.",
       "category": "productivity",
       "keywords": [
@@ -60,7 +60,7 @@
     {
       "name": "buyer-panel",
       "source": "./skills/buyer-panel",
-      "version": "0.15.0",
+      "version": "0.15.1",
       "description": "Test a business idea on a synthetic buyer panel built against agreeable, uniform and over-stated answers, ending with the first real test to run.",
       "category": "productivity",
       "keywords": [
@@ -73,7 +73,7 @@
     {
       "name": "context-audit",
       "source": "./skills/context-audit",
-      "version": "0.15.0",
+      "version": "0.15.1",
       "description": "Measure what every Claude Code session loads, and find instructions, memories and plugins that contradict each other or hold development back.",
       "category": "productivity",
       "keywords": [
@@ -86,7 +86,7 @@
     {
       "name": "doc-truth",
       "source": "./skills/doc-truth",
-      "version": "0.15.0",
+      "version": "0.15.1",
       "description": "Check that docs still tell the truth about the repo: links, anchors, commands, flags, scripts, environment variables.",
       "category": "development",
       "keywords": [
@@ -99,7 +99,7 @@
     {
       "name": "mutation-check",
       "source": "./skills/mutation-check",
-      "version": "0.15.0",
+      "version": "0.15.1",
       "description": "Mutate code, run your own tests, and list the changes they let through: evidence for tautological tests.",
       "category": "development",
       "keywords": [
@@ -111,7 +111,7 @@
     {
       "name": "orchestrate",
       "source": "./skills/orchestrate",
-      "version": "0.15.0",
+      "version": "0.15.1",
       "description": "Run large jobs inline or on parallel subagents sized to free RAM, with checkpoints and resume.",
       "category": "productivity",
       "keywords": [
@@ -123,7 +123,7 @@
     {
       "name": "supah-help",
       "source": "./skills/supah-help",
-      "version": "0.15.0",
+      "version": "0.15.1",
       "description": "Ask which supah skill or flow fits your situation, and why.",
       "category": "productivity",
       "keywords": [
@@ -135,7 +135,7 @@
     {
       "name": "slop-guard",
       "source": "./plugins/slop-guard",
-      "version": "0.15.0",
+      "version": "0.15.1",
       "description": "Opt-in hooks: short anti-slop rules at session start, and the ai-slop-prose scanner on every prose file Claude saves.",
       "category": "productivity",
       "keywords": [

@@ -91,12 +91,12 @@
    "tier": "S",
    "designed": "M",
    "precision": [
-    17,
-    18
+    26,
+    27
    ],
    "human_rate": 0.4559,
    "human_upper": 0.5397,
-   "ai_rate": 0.2203,
+   "ai_rate": 0.2034,
    "labels": {}
   },
   "reflex-font": {

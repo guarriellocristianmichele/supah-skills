@@ -1,6 +1,6 @@
 {
   "name": "slop-guard",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "description": "Hooks that keep AI slop out of what Claude writes: a few lines of rules at session start, and the ai-slop-prose scanner on every prose file it saves.",
   "author": {
     "name": "Cristian Michele Guarriello",

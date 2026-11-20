@@ -17,4 +17,5 @@ Scanner tiers learn from verdicts (ADR 0018), but the way a skill works did not 
 ## Consequences
 
 - A new skill copies the paragraph verbatim after Next step; `python scripts/release.py --check` fails a SKILL.md without it.
+- The paragraph names the read command, `sed … 2>/dev/null || true`: most projects have no `.supah/LESSONS.md`, and a read the agent composed itself ended its shell call with exit code 2 there. The heading match allows trailing whitespace, so a file saved with CRLF still matches. `tests/test_release.py` runs the command with and without the file.
 - Issues about a skill's instructions arrive from users as drafts they approved, with the step they concern; the fix still lands here with a test where one can be written.

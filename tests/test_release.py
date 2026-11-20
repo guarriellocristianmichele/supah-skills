@@ -1,12 +1,32 @@
 """Tests for the repository rules scripts/release.py checks. Run: python -m unittest discover -s tests"""
 import glob
 import os
+import re
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import release  # noqa: E402
+
+
+def agent_bash():
+    """The bash an agent's shell tool runs: Git Bash on Windows, where C:\\Windows\\System32\\bash.exe is the
+    WSL launcher and, with no distribution installed (GitHub's runners), prints install help instead."""
+    git = os.path.join(os.environ.get("ProgramFiles", ""), "Git", "bin", "bash.exe")
+    for bash in ([git] if os.name == "nt" else []) + [shutil.which("bash")]:
+        if not bash or not os.path.isfile(bash):
+            continue
+        try:
+            probe = subprocess.run([bash, "-c", "echo ok"], capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if probe.returncode == 0 and probe.stdout.strip() == "ok":
+            return bash
+    return None
 
 
 class Copies(unittest.TestCase):
@@ -31,6 +51,25 @@ class Paragraphs(unittest.TestCase):
                 at = [text.find(p) for p in (release.ASK_WITH_OPTIONS, release.NEXT_STEP, release.LESSONS)]
                 self.assertNotIn(-1, at)
                 self.assertEqual(at, sorted(at))
+
+    def test_the_lessons_read_command_exits_0_when_the_file_is_missing(self):
+        # a project without .supah/ made the read end the agent's Bash call with exit code 2
+        bash = agent_bash()
+        if not bash:
+            self.skipTest("no working bash")
+        found = re.search(r"`(sed [^`]*LESSONS\.md[^`]*)`", release.LESSONS)
+        self.assertIsNotNone(found, "the Lessons paragraph names its read command")
+        cmd = found.group(1).replace("<skill>", "ai-slop-design")
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as empty:
+            run = subprocess.run([bash, "-c", cmd], cwd=empty, capture_output=True, text=True)
+            self.assertEqual((run.returncode, run.stdout), (0, ""))
+            os.mkdir(os.path.join(empty, ".supah"))
+            with open(os.path.join(empty, ".supah", "LESSONS.md"), "w", encoding="utf-8") as f:
+                f.write("## ai-slop-design-extra\n- no\n## ai-slop-design\n- yes\n## orchestrate\n- no\n")
+            run = subprocess.run([bash, "-c", cmd], cwd=empty, capture_output=True, text=True)
+            self.assertEqual(run.returncode, 0)
+            self.assertIn("- yes", run.stdout)
+            self.assertNotIn("- no", run.stdout)
 
 
 if __name__ == "__main__":
